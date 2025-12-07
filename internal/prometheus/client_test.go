@@ -141,29 +141,27 @@ var _ = Describe("Client", func() {
 	// Test executeQuery with mock Prometheus client
 	Describe("executeQuery", func() {
 		var (
-			testDB      *sql.DB
-			sqliteDB    database.Database
-			clusterID   int64
-			tmpDir      string
-			originalDir string
+			testDB       *sql.DB
+			sqliteDB     database.Database
+			clusterID    int64
+			tmpDir       string
+			originalHome string
 		)
 
 		// Setup: Create a test database before each test
 		BeforeEach(func() {
 			var err error
-			// Save current directory
-			originalDir, err = os.Getwd()
-			Expect(err).NotTo(HaveOccurred())
 
-			// Create a temporary directory for the test database
+			// Create a temporary directory to act as HOME for test isolation
 			tmpDir, err = os.MkdirTemp("", "prom-test-*")
 			Expect(err).NotTo(HaveOccurred())
 
-			// Change to temp directory so InitDB creates database there
-			err = os.Chdir(tmpDir)
+			// Override HOME environment variable so GetSQLiteDBPath() uses our temp dir
+			originalHome = os.Getenv("HOME")
+			err = os.Setenv("HOME", tmpDir)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Initialize the test database
+			// Initialize the test database (will create in tmpDir/.kpi-collector/)
 			sqliteDB = database.NewSQLiteDB()
 			testDB, err = sqliteDB.InitDB()
 			Expect(err).NotTo(HaveOccurred())
@@ -179,11 +177,12 @@ var _ = Describe("Client", func() {
 				err := testDB.Close()
 				Expect(err).NotTo(HaveOccurred())
 			}
-			// Change back to original directory
-			if originalDir != "" {
-				err := os.Chdir(originalDir)
+			// Restore original HOME
+			if originalHome != "" {
+				err := os.Setenv("HOME", originalHome)
 				Expect(err).NotTo(HaveOccurred())
 			}
+			// Clean up temporary directory
 			if tmpDir != "" {
 				err := os.RemoveAll(tmpDir)
 				Expect(err).NotTo(HaveOccurred())

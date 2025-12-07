@@ -11,9 +11,9 @@ import (
 
 var _ = Describe("Sqlite", func() {
 	var (
-		db          *sql.DB
-		tmpDir      string
-		sqliteDB    *SQLiteDB
+		db           *sql.DB
+		tmpDir       string
+		sqliteDB     *SQLiteDB
 		originalHome string
 	)
 
@@ -33,7 +33,7 @@ var _ = Describe("Sqlite", func() {
 		err = os.Setenv("HOME", tmpDir)
 		Expect(err).NotTo(HaveOccurred())
 
-		// Initialize database (will create in tmpDir/.local/share/kpi-collector/)
+		// Initialize database (will create in tmpDir/.kpi-collector/)
 		db, err = sqliteDB.InitDB()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(db).NotTo(BeNil())

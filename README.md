@@ -488,44 +488,55 @@ The tool supports two database backends. **SQLite is used by default** when no `
 
 View your collected KPI metrics in Grafana with a pre-configured dashboard.
 
-**Note:** This command must be run from the kpi-collector source directory.
+The `grafana` command manages a local Grafana instance via Docker. Configuration files are automatically generated in `~/.kpi-collector/grafana/`.
 
 ## Quick Start
 
-Launch Grafana with the `grafana` subcommand:
-
-### Using SQLite (Default)
+### Start Grafana
 
 ```bash
-kpi-collector grafana --datasource=sqlite
-```
+# Using SQLite (default)
+kpi-collector grafana start --datasource=sqlite
 
-### Using PostgreSQL
-
-```bash
-kpi-collector grafana --datasource=postgres \
+# Using PostgreSQL
+kpi-collector grafana start --datasource=postgres \
   --postgres-url "postgresql://user:password@host:5432/dbname"
+
+# Custom port
+kpi-collector grafana start --datasource=sqlite --port 3001
 ```
 
-### Custom Port
+### Stop Grafana
 
 ```bash
-kpi-collector grafana --datasource=sqlite --port 3001
+kpi-collector grafana stop
 ```
 
 ## Command Reference
 
+### `grafana start`
+
+Start a local Grafana instance with the KPI dashboard pre-configured.
+
 ```bash
-kpi-collector grafana --datasource=<sqlite|postgres> [flags]
+kpi-collector grafana start --datasource=<sqlite|postgres> [flags]
 ```
 
-### Flags
+**Flags:**
 
 | Flag | Required | Description | Example |
 |------|----------|-------------|---------|
 | `--datasource` | Yes | Database type: `sqlite` or `postgres` | `--datasource=postgres` |
 | `--postgres-url` | If postgres | PostgreSQL connection string | `--postgres-url="postgresql://user:pass@host:5432/db"` |
 | `--port` | No | Grafana port (default: 3000) | `--port=3001` |
+
+### `grafana stop`
+
+Stop and remove the running Grafana container.
+
+```bash
+kpi-collector grafana stop
+```
 
 ## PostgreSQL Connection URLs
 
@@ -593,37 +604,7 @@ The dashboard includes:
 - **Query Error Tracking:** Monitor failed queries
 - **Multi-cluster Support:** Filter by cluster and cluster type
 
-## Stopping Grafana
-
-```bash
-docker stop grafana-kpi
-docker rm grafana-kpi
-```
-
-## Alternative: Using Make
-
-You can also use the Makefile directly (legacy method):
-
-```bash
-# SQLite
-make install-grafana DB_TYPE=sqlite
-
-# PostgreSQL (Note: requires manually creating datasource config)
-make install-grafana DB_TYPE=postgres
-```
-
-**Recommended:** Use the `kpi-collector grafana` command instead, as it handles all configuration automatically.
-
 ## Troubleshooting
-
-### "Directory not found" errors
-
-The command must be run from the source directory where the `grafana/` folder exists:
-
-```bash
-cd /path/to/kpi-collection-tool
-./kpi-collector grafana --datasource=sqlite
-```
 
 ### "No data" in dashboard
 
