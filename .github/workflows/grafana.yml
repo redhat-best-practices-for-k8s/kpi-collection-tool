@@ -15,29 +15,31 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
 
-      - name: Run Grafana via Makefile
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Build kpi-collector
+        run: go build -o kpi-collector ./cmd/kpi-collector
+
+      - name: Start Grafana via kpi-collector
         run: |
-          # Set default Grafana port and version
-          export GRAFANA_PORT=3000
-          export GRAFANA_VERSION=latest
-          export DB_TYPE=sqlite
-          export DASHBOARD_FILE=sqlite-dashboard.json
+          # Start Grafana with SQLite datasource
+          ./kpi-collector grafana start --datasource=sqlite
           
-          # Run the Makefile target
-          make install-grafana
-          
-          # Wait a few seconds for Grafana to start
+          # Wait for Grafana to start
           sleep 20
           
           # Verify container is running
           docker ps | grep grafana-kpi
 
-          # Verify provisioning files exist (now mounted as specific files)
-          docker exec grafana-kpi ls -l /etc/grafana/provisioning/dashboards/dashboard.yaml
+          # Verify provisioning files exist
+          docker exec grafana-kpi ls -l /etc/grafana/provisioning/dashboards/dashboards.yaml
           docker exec grafana-kpi ls -l /var/lib/grafana/dashboards/dashboard.json
           docker exec grafana-kpi ls -l /etc/grafana/provisioning/datasources/
 
-          # Verify datasource is loaded in Grafana via API (now uses kpi-datasource UID)
+          # Verify datasource is loaded in Grafana via API
           docker exec grafana-kpi curl -s -u admin:admin http://localhost:3000/api/datasources | grep -E "(frser-sqlite-datasource|KPI-SQLite)" || echo "Datasource not found"
 
           # Verify dashboard is loaded in Grafana via API
@@ -45,4 +47,4 @@ jobs:
           "http://localhost:3000/api/search?query=KPI" | grep -E "(Certsuite KPI per Cluster|KPI Collection Tool)" || echo "Dashboard not found"
         
       - name: Clean up Grafana container
-        run: docker rm -f grafana-kpi || true
+        run: ./kpi-collector grafana stop || true
