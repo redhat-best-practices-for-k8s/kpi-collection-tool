@@ -11,6 +11,7 @@ import (
 
 	"kpi-collector/internal/config"
 	"kpi-collector/internal/database"
+	"kpi-collector/internal/output"
 
 	"github.com/prometheus/client_golang/api"
 	promv1 "github.com/prometheus/client_golang/api/prometheus/v1"
@@ -41,8 +42,8 @@ func setupPromClient(thanosURL, bearerToken string, insecureTLS bool) (promv1.AP
 	return promv1.NewAPI(client), nil
 }
 
-// runQueries executes all Prometheus queries and stores results in database
-func RunQueries(kpisToRun config.KPIs, flags config.InputFlags) error {
+// RunQueries executes all Prometheus queries and stores results in database
+func RunQueries(kpisToRun config.KPIs, flags config.InputFlags, sampleNumber int, totalSamples int, frequency int) error {
 	// Initialize Database based on configuration
 	db, dbImpl, err := database.InitDatabaseWithConfig(flags.DatabaseType, flags.PostgresURL)
 	if err != nil {
@@ -71,44 +72,47 @@ func RunQueries(kpisToRun config.KPIs, flags config.InputFlags) error {
 	defer cancel()
 
 	for _, query := range kpisToRun.Queries {
-		err := executeQuery(ctx, v1api, db, dbImpl, clusterID, query.ID, query.PromQuery)
-		if err != nil {
-			fmt.Printf("Query execution failed: %v\n", err)
-			// Continue with next query even if one fails
+		queryInfo := output.QueryInfo{
+			QueryID:      query.ID,
+			PromQuery:    query.PromQuery,
+			Frequency:    frequency,
+			SampleNumber: sampleNumber,
+			TotalSamples: totalSamples,
 		}
+		executeQuery(ctx, v1api, db, dbImpl, clusterID, queryInfo)
 	}
 
 	return nil
 }
 
 // executeQuery executes a single Prometheus query and handles the result
-func executeQuery(ctx context.Context, v1api promv1.API, db *sql.DB, dbImpl database.Database, clusterID int64, queryID string, queryText string) error {
-	fmt.Println("------------------------")
-	fmt.Printf("Running: %s\n", queryText)
-
+func executeQuery(ctx context.Context, v1api promv1.API, db *sql.DB, dbImpl database.Database, clusterID int64, info output.QueryInfo) {
 	// Execute query using the Prometheus client library
-	result, warnings, err := v1api.Query(ctx, queryText, time.Now())
-	if err != nil {
-		fmt.Println("query failed: ", err)
-		if storeErr := dbImpl.IncrementQueryError(db, queryID); storeErr != nil {
-			fmt.Printf("Failed to increment error count: %v\n", storeErr)
-		}
-		return fmt.Errorf("query execution failed: %v", err)
+	result, warnings, err := v1api.Query(ctx, info.PromQuery, time.Now())
+
+	queryResult := output.QueryResult{
+		Warnings: warnings,
 	}
 
-	if len(warnings) > 0 {
-		fmt.Printf("Warnings: %v\n", warnings)
+	if err != nil {
+		queryResult.Success = false
+		queryResult.Error = err
+		output.PrintQueryResult(info, queryResult)
+		if storeErr := dbImpl.IncrementQueryError(db, info.QueryID); storeErr != nil {
+			fmt.Fprintf(os.Stderr, "Failed to increment error count: %v\n", storeErr)
+		}
+		return
 	}
 
 	// Store results
-	err = dbImpl.StoreQueryResults(db, clusterID, queryID, result)
+	err = dbImpl.StoreQueryResults(db, clusterID, info.QueryID, result)
 	if err != nil {
-		fmt.Printf("Failed to store results: %v\n", err)
-		return fmt.Errorf("failed to store results: %v", err)
+		queryResult.Success = false
+		queryResult.Error = fmt.Errorf("failed to store: %v", err)
+		output.PrintQueryResult(info, queryResult)
+		return
 	}
 
-	fmt.Println("Results stored successfully in database")
-	fmt.Println("------------------------")
-
-	return nil
+	queryResult.Success = true
+	output.PrintQueryResult(info, queryResult)
 }

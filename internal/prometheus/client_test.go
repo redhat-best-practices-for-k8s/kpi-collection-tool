@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/common/model"
 
 	"kpi-collector/internal/database"
+	"kpi-collector/internal/output"
 )
 
 // mockPromAPI is a simple mock that implements only the Query method we actually use.
@@ -207,14 +208,12 @@ var _ = Describe("Client", func() {
 
 			// We execute a query with the mock client
 			ctx := context.Background()
-			err := executeQuery(ctx, mock, testDB, sqliteDB, clusterID, "test-query-1", "up")
-
-			// The query should succeed
-			Expect(err).NotTo(HaveOccurred())
+			info := output.QueryInfo{QueryID: "test-query-1", PromQuery: "up", Frequency: 5, SampleNumber: 1, TotalSamples: 4}
+			executeQuery(ctx, mock, testDB, sqliteDB, clusterID, info)
 
 			// Results should be stored in the database
 			var count int
-			err = testDB.QueryRow("SELECT COUNT(*) FROM query_results WHERE kpi_id = ?", "test-query-1").Scan(&count)
+			err := testDB.QueryRow("SELECT COUNT(*) FROM query_results WHERE kpi_id = ?", "test-query-1").Scan(&count)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(count).To(BeNumerically(">", 0))
 		})
@@ -233,14 +232,12 @@ var _ = Describe("Client", func() {
 			}
 
 			ctx := context.Background()
-			err := executeQuery(ctx, mock, testDB, sqliteDB, clusterID, "test-query-2", "cpu_usage")
-
-			// The query should succeed
-			Expect(err).NotTo(HaveOccurred())
+			info := output.QueryInfo{QueryID: "test-query-2", PromQuery: "cpu_usage", Frequency: 5, SampleNumber: 1, TotalSamples: 4}
+			executeQuery(ctx, mock, testDB, sqliteDB, clusterID, info)
 
 			// Multiple results should be stored
 			var count int
-			err = testDB.QueryRow("SELECT COUNT(*) FROM query_results WHERE kpi_id = ?", "test-query-2").Scan(&count)
+			err := testDB.QueryRow("SELECT COUNT(*) FROM query_results WHERE kpi_id = ?", "test-query-2").Scan(&count)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(count).To(Equal(3))
 		})
@@ -256,14 +253,12 @@ var _ = Describe("Client", func() {
 
 			ctx := context.Background()
 			queryID := "test-query-error"
-			err := executeQuery(ctx, mock, testDB, sqliteDB, clusterID, queryID, "invalid{query")
-
-			// The query should fail
-			Expect(err).To(HaveOccurred())
+			info := output.QueryInfo{QueryID: queryID, PromQuery: "invalid{query", Frequency: 5, SampleNumber: 1, TotalSamples: 4}
+			executeQuery(ctx, mock, testDB, sqliteDB, clusterID, info)
 
 			// Error count should be incremented in database
 			var errorCount int
-			err = testDB.QueryRow("SELECT errors FROM query_errors WHERE kpi_id = ?", queryID).Scan(&errorCount)
+			err := testDB.QueryRow("SELECT errors FROM query_errors WHERE kpi_id = ?", queryID).Scan(&errorCount)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(errorCount).To(Equal(1))
 		})
@@ -280,10 +275,8 @@ var _ = Describe("Client", func() {
 			}
 
 			ctx := context.Background()
-			err := executeQuery(ctx, mock, testDB, sqliteDB, clusterID, "test-query-warnings", "test")
-
-			// The query should still succeed despite warnings
-			Expect(err).NotTo(HaveOccurred())
+			info := output.QueryInfo{QueryID: "test-query-warnings", PromQuery: "test", Frequency: 5, SampleNumber: 1, TotalSamples: 4}
+			executeQuery(ctx, mock, testDB, sqliteDB, clusterID, info)
 		})
 
 		// Test executeQuery with empty results
@@ -296,14 +289,12 @@ var _ = Describe("Client", func() {
 			}
 
 			ctx := context.Background()
-			err := executeQuery(ctx, mock, testDB, sqliteDB, clusterID, "test-query-empty", "nonexistent_metric")
-
-			// The query should succeed (empty results are valid)
-			Expect(err).NotTo(HaveOccurred())
+			info := output.QueryInfo{QueryID: "test-query-empty", PromQuery: "nonexistent_metric", Frequency: 5, SampleNumber: 1, TotalSamples: 4}
+			executeQuery(ctx, mock, testDB, sqliteDB, clusterID, info)
 
 			// No results should be stored
 			var count int
-			err = testDB.QueryRow("SELECT COUNT(*) FROM query_results WHERE kpi_id = ?", "test-query-empty").Scan(&count)
+			err := testDB.QueryRow("SELECT COUNT(*) FROM query_results WHERE kpi_id = ?", "test-query-empty").Scan(&count)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(count).To(Equal(0))
 		})
@@ -324,10 +315,8 @@ var _ = Describe("Client", func() {
 
 			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 			defer cancel()
-			err := executeQuery(ctx, mock, testDB, sqliteDB, clusterID, "test-query-timeout", "slow_query")
-
-			// The query should fail with timeout error
-			Expect(err).To(HaveOccurred())
+			info := output.QueryInfo{QueryID: "test-query-timeout", PromQuery: "slow_query", Frequency: 5, SampleNumber: 1, TotalSamples: 4}
+			executeQuery(ctx, mock, testDB, sqliteDB, clusterID, info)
 		})
 	})
 
