@@ -113,7 +113,7 @@ kpi-collection-tool/
 ## Development Guidelines
 
 ### Go Version
-This project uses Go 1.26.0. Ensure your environment matches.
+This project uses Go 1.26.1. Ensure your environment matches.
 
 ### Testing Framework
 Tests use Ginkgo/Gomega BDD framework. Test files follow the pattern `*_test.go` with corresponding `*_suite_test.go` files for test suite setup.
