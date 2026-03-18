@@ -8,6 +8,10 @@ MODULE_PATH=github.com/redhat-best-practices-for-k8s/kpi-collection-tool
 build:
 	go build -o $(BINARY_NAME) ./cmd/kpi-collector
 
+# Build statically linked binary (no GLIBC dependency)
+build-static:
+	CGO_ENABLED=0 go build -ldflags="-s -w" -o $(BINARY_NAME) ./cmd/kpi-collector
+
 # Mac installation via Homebrew
 install-golangci-lint-mac:
 	brew install golangci-lint
