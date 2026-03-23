@@ -19,11 +19,17 @@ The KPI Collection Tool is a CLI application for automating metrics gathering an
 ## Build Commands
 
 ```bash
-make build              # Build the kpi-collector binary
-make install            # Install to ~/go/bin/kpi-collector
-make uninstall          # Remove from ~/go/bin
-make install-kpi-collector  # Install from upstream (no local source needed)
+make build                      # Build statically linked binary (default, portable)
+make build-debug                # Build static binary with debug symbols (for dlv/gdb)
+make build-dynamic-linking      # Build dynamically linked binary
+make build-dynamic-linking-debug # Build dynamic binary with debug symbols
+make install                    # Install to ~/go/bin/kpi-collector
+make uninstall                  # Remove from ~/go/bin
+make install-kpi-collector      # Install from upstream (no local source needed)
 ```
+
+The default `build` target produces a statically linked binary with `CGO_ENABLED=0`. This ensures
+portability across Linux distributions without glibc version dependencies.
 
 ## Testing
 
@@ -102,7 +108,7 @@ kpi-collection-tool/
 - **github.com/prometheus/common**: Prometheus data types
 - **k8s.io/client-go**: Kubernetes client
 - **k8s.io/api, k8s.io/apimachinery**: Kubernetes API types
-- **github.com/mattn/go-sqlite3**: SQLite driver (CGO required)
+- **modernc.org/sqlite**: SQLite driver (pure Go, no CGO required)
 - **github.com/lib/pq**: PostgreSQL driver
 
 ### Testing Dependencies
@@ -232,10 +238,13 @@ kpi-collector grafana start --datasource=postgres \
 kpi-collector grafana stop
 ```
 
-### Building for Different Platforms
+### Building
 ```bash
-# Local build
+# Build portable static binary (default)
 make build
+
+# Build with debug symbols (for use with dlv/gdb)
+make build-debug
 
 # Install globally
 make install
