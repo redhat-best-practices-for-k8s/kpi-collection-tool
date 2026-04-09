@@ -5,13 +5,26 @@
 //   - promquery:        PromQL query to execute against Prometheus/Thanos
 //   - sample-frequency: (Optional) Override global --frequency for this KPI (in seconds)
 //   - query-type:       (Optional) "instant" (default) or "range" for prometheus range query
-//   - step:             (Required for range) Resolution between points in query_range
-//   - range:            (Required for range) Lookback window for query_range
+//   - range:            (Required for range) Object defining the time window:
+//                         range.step:  Resolution between data points (required)
+//                         range.since: Start of the window (required)
+//                         range.until: End of the window (optional, defaults to "now")
+//
+// Both range.since and range.until accept either:
+//   - A Go duration string ("2h", "1m30s") — interpreted as relative to "now"
+//   - An RFC 3339 timestamp ("2026-04-07T12:24:25Z") — absolute point in time
+//
+// Examples:
+//   "since": "2h"                             → 2 hours ago
+//   "since": "2h", "until": "1h"              → from 2h ago to 1h ago
+//   "since": "2026-04-07T12:00:00Z"           → from that timestamp to now
+//   "since": "2h", "until": "2026-04-12T23:20:50Z" → from 2h ago to that timestamp
 //
 // Time controls for range queries:
 //   - sample-frequency controls how often the collector executes the query
-//   - range controls how far back each execution looks
-//   - step controls spacing between points inside the returned range data
+//   - range.step controls spacing between points inside the returned range data
+//   - range.since defines the start of the query window
+//   - range.until defines the end of the query window (defaults to "now")
 //   - [5m] inside rate(...[5m]) is the PromQL lookback window used per point
 //   - run-once:         (Optional) If true, collect this query only once at the start,
 //                       skipping the repeated sampling loop. Useful for range queries
@@ -48,8 +61,35 @@
             "id": "node-cpu-usage-range",
             "promquery": "avg by (instance) (rate(node_cpu_seconds_total{mode!=\"idle\"}[5m]))",
             "query-type": "range",
-            "step": "30s",
-            "range": "1h"
+            "range": {
+                "step": "30s",
+                "since": "1h"
+            }
+        },
+        {
+            // Range query from 2h ago to 1h ago
+            "id": "node-cpu-usage-window",
+            "promquery": "avg by (instance) (rate(node_cpu_seconds_total{mode!=\"idle\"}[5m]))",
+            "query-type": "range",
+            "range": {
+                "step": "30s",
+                "since": "2h",
+                "until": "1h"
+            },
+            "run-once": true
+        },
+        {
+            // Range query with absolute timestamps.
+            // Queries a fixed window; combine with run-once to collect exactly once.
+            "id": "node-cpu-usage-fixed-window",
+            "promquery": "avg by (instance) (rate(node_cpu_seconds_total{mode!=\"idle\"}[5m]))",
+            "query-type": "range",
+            "range": {
+                "step": "30s",
+                "since": "2026-04-07T12:24:25+02:00",
+                "until": "2026-04-08T22:34:25+02:00"
+            },
+            "run-once": true
         },
         {
             // only needs a single snapshot, not repeated sampling

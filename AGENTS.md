@@ -162,10 +162,13 @@ KPIs are defined in JSON format (see `kpis.json.template`):
             "id": "unique-kpi-id",
             "promquery": "your_promql_query",
             "sample-frequency": "2m", // Optional: override global frequency (duration string or seconds)
-            "run-once": true          // Optional: collect this query only once
+            "run-once": true,         // Optional: collect this query only once
             "query-type": "range",    // Optional: "instant" (default) or "range"
-            "step": "30s",            // Required when query-type is "range"
-            "range": "1h"             // Required when query-type is "range"
+            "range": {                // Required when query-type is "range"
+                "step": "30s",        //   Resolution between data points (required)
+                "since": "1h",        //   Start of the window (required)
+                "until": "30m"        //   End of the window (optional, defaults to "now")
+            }
         }
     ]
 }
@@ -173,8 +176,16 @@ KPIs are defined in JSON format (see `kpis.json.template`):
 
 Range query notes:
 - `sample-frequency` controls how often the collector executes this KPI.
-- `range` controls how far back each execution queries.
-- `step` controls point spacing within each query result.
+- `range.step` controls point spacing within each query result (required for range queries).
+- `range.since` defines the start of the query window (required for range queries). Accepts
+  either a Go duration string (e.g. `"2h"`, `"1m30s"`) interpreted as relative to "now", or
+  an RFC 3339 timestamp (e.g. `"2026-04-07T12:24:25Z"`).
+- `range.until` defines the end of the query window (optional, defaults to "now"). Accepts
+  the same formats as `since`. Examples:
+  - `"since": "2h"` → from 2 hours ago to now
+  - `"since": "2h", "until": "1h"` → from 2 hours ago to 1 hour ago
+  - `"since": "2026-04-07T12:00:00Z", "until": "2026-04-08T12:00:00Z"` → fixed window
+  - `"since": "2h", "until": "2026-04-12T23:20:50Z"` → mixed relative/absolute
 - PromQL windows such as `rate(...[5m])` still control the lookback window used per computed point.
 
 ### Error Handling

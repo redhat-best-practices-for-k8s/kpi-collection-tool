@@ -352,15 +352,40 @@ var _ = Describe("KPIs Loader", func() {
 		})
 
 		Context("when validating range query configuration", func() {
-			It("should allow valid range query configuration", func() {
+			It("should allow valid range query configuration with since as duration", func() {
+				sinceVal := time.Hour
 				kpis := KPIs{
 					Queries: []Query{
 						{
 							ID:        "cpu-range",
 							PromQuery: "rate(node_cpu_seconds_total[5m])",
 							QueryType: "range",
-							Step:      &Duration{Duration: 30 * time.Second},
-							Range:     &Duration{Duration: time.Hour},
+							Range: &RangeWindow{
+								Step:  &Duration{Duration: 30 * time.Second},
+								Since: &Timestamp{duration: &sinceVal},
+							},
+						},
+					},
+				}
+
+				errors := ValidateKPIs(kpis)
+				Expect(errors).To(BeEmpty())
+			})
+
+			It("should allow valid since+until both as durations", func() {
+				sinceVal := 2 * time.Hour
+				untilVal := time.Hour
+				kpis := KPIs{
+					Queries: []Query{
+						{
+							ID:        "cpu-range-until",
+							PromQuery: "rate(node_cpu_seconds_total[5m])",
+							QueryType: "range",
+							Range: &RangeWindow{
+								Step:  &Duration{Duration: 30 * time.Second},
+								Since: &Timestamp{duration: &sinceVal},
+								Until: &Timestamp{duration: &untilVal},
+							},
 						},
 					},
 				}
@@ -381,7 +406,7 @@ var _ = Describe("KPIs Loader", func() {
 				Expect(errors[0].Error()).To(ContainSubstring("invalid query-type"))
 			})
 
-			It("should require step and range for range query type", func() {
+			It("should require range for range query type", func() {
 				kpis := KPIs{
 					Queries: []Query{
 						{ID: "missing-range-fields", PromQuery: "up", QueryType: "range"},
@@ -389,46 +414,356 @@ var _ = Describe("KPIs Loader", func() {
 				}
 
 				errors := ValidateKPIs(kpis)
-				Expect(errors).To(HaveLen(2))
-				Expect(errors[0].Error()).To(ContainSubstring("step is required"))
-				Expect(errors[1].Error()).To(ContainSubstring("range is required"))
+				Expect(errors).To(HaveLen(1))
+				Expect(errors[0].Error()).To(ContainSubstring("range is required"))
 			})
 
-			It("should reject step greater than range", func() {
+			It("should require step inside range", func() {
+				sinceVal := time.Hour
 				kpis := KPIs{
 					Queries: []Query{
 						{
-							ID:        "bad-step",
+							ID:        "missing-step",
 							PromQuery: "up",
 							QueryType: "range",
-							Step:      &Duration{Duration: 10 * time.Minute},
-							Range:     &Duration{Duration: 5 * time.Minute},
+							Range:     &RangeWindow{Since: &Timestamp{duration: &sinceVal}},
 						},
 					},
 				}
 
 				errors := ValidateKPIs(kpis)
 				Expect(errors).To(HaveLen(1))
-				Expect(errors[0].Error()).To(ContainSubstring("step must be less than or equal to range"))
+				Expect(errors[0].Error()).To(ContainSubstring("step is required"))
 			})
 
-			It("should reject step or range when query-type is instant", func() {
+			It("should reject step greater than since-until window", func() {
+				sinceVal := 5 * time.Minute
+				kpis := KPIs{
+					Queries: []Query{
+						{
+							ID:        "bad-step",
+							PromQuery: "up",
+							QueryType: "range",
+							Range: &RangeWindow{
+								Step:  &Duration{Duration: 10 * time.Minute},
+								Since: &Timestamp{duration: &sinceVal},
+							},
+						},
+					},
+				}
+
+				errors := ValidateKPIs(kpis)
+				Expect(errors).To(HaveLen(1))
+				Expect(errors[0].Error()).To(ContainSubstring("step must be less than or equal to the since-until window"))
+			})
+
+			It("should reject range when query-type is instant", func() {
+				sinceVal := time.Hour
 				kpis := KPIs{
 					Queries: []Query{
 						{
 							ID:        "instant-with-range-fields",
 							PromQuery: "up",
 							QueryType: "instant",
-							Step:      &Duration{Duration: 30 * time.Second},
-							Range:     &Duration{Duration: time.Hour},
+							Range: &RangeWindow{
+								Step:  &Duration{Duration: 30 * time.Second},
+								Since: &Timestamp{duration: &sinceVal},
+							},
 						},
 					},
 				}
 
 				errors := ValidateKPIs(kpis)
-				Expect(errors).To(HaveLen(2))
-				Expect(errors[0].Error()).To(ContainSubstring("step can only be set"))
-				Expect(errors[1].Error()).To(ContainSubstring("range can only be set"))
+				Expect(errors).To(HaveLen(1))
+				Expect(errors[0].Error()).To(ContainSubstring("range can only be set"))
+			})
+
+			It("should require since for range queries", func() {
+				kpis := KPIs{
+					Queries: []Query{
+						{
+							ID:        "no-since",
+							PromQuery: "up",
+							QueryType: "range",
+							Range: &RangeWindow{
+								Step: &Duration{Duration: 30 * time.Second},
+							},
+						},
+					},
+				}
+
+				errors := ValidateKPIs(kpis)
+				Expect(errors).To(HaveLen(1))
+				Expect(errors[0].Error()).To(ContainSubstring("range.since is required"))
+			})
+		})
+
+		Context("when validating since/until timestamps for range queries", func() {
+			It("should allow valid since/until with absolute timestamps", func() {
+				start := time.Date(2026, 4, 7, 12, 0, 0, 0, time.UTC)
+				end := time.Date(2026, 4, 8, 12, 0, 0, 0, time.UTC)
+				kpis := KPIs{
+					Queries: []Query{
+						{
+							ID:        "range-abs",
+							PromQuery: "rate(node_cpu_seconds_total[5m])",
+							QueryType: "range",
+							Range: &RangeWindow{
+								Step:  &Duration{Duration: 30 * time.Second},
+								Since: &Timestamp{absolute: &start},
+								Until: &Timestamp{absolute: &end},
+							},
+						},
+					},
+				}
+
+				errors := ValidateKPIs(kpis)
+				Expect(errors).To(BeEmpty())
+			})
+
+			It("should allow mixed since(duration) + until(absolute)", func() {
+				sinceVal := 2 * time.Hour
+				untilAbs := time.Date(2026, 4, 8, 12, 0, 0, 0, time.UTC)
+				kpis := KPIs{
+					Queries: []Query{
+						{
+							ID:        "range-mixed",
+							PromQuery: "up",
+							QueryType: "range",
+							Range: &RangeWindow{
+								Step:  &Duration{Duration: 30 * time.Second},
+								Since: &Timestamp{duration: &sinceVal},
+								Until: &Timestamp{absolute: &untilAbs},
+							},
+						},
+					},
+				}
+
+				errors := ValidateKPIs(kpis)
+				Expect(errors).To(BeEmpty())
+			})
+
+			It("should reject since equal to until when both are absolute", func() {
+				ts := time.Date(2026, 4, 7, 12, 0, 0, 0, time.UTC)
+				kpis := KPIs{
+					Queries: []Query{
+						{
+							ID:        "equal-timestamps",
+							PromQuery: "up",
+							QueryType: "range",
+							Range: &RangeWindow{
+								Step:  &Duration{Duration: 30 * time.Second},
+								Since: &Timestamp{absolute: &ts},
+								Until: &Timestamp{absolute: &ts},
+							},
+						},
+					},
+				}
+
+				errors := ValidateKPIs(kpis)
+				Expect(errors).To(HaveLen(1))
+				Expect(errors[0].Error()).To(ContainSubstring("since must be before until"))
+			})
+
+			It("should reject since after until when both are absolute", func() {
+				start := time.Date(2026, 4, 8, 12, 0, 0, 0, time.UTC)
+				end := time.Date(2026, 4, 7, 12, 0, 0, 0, time.UTC)
+				kpis := KPIs{
+					Queries: []Query{
+						{
+							ID:        "reversed-timestamps",
+							PromQuery: "up",
+							QueryType: "range",
+							Range: &RangeWindow{
+								Step:  &Duration{Duration: 30 * time.Second},
+								Since: &Timestamp{absolute: &start},
+								Until: &Timestamp{absolute: &end},
+							},
+						},
+					},
+				}
+
+				errors := ValidateKPIs(kpis)
+				Expect(errors).To(HaveLen(1))
+				Expect(errors[0].Error()).To(ContainSubstring("since must be before until"))
+			})
+
+			It("should reject step larger than since-until window with absolute timestamps", func() {
+				start := time.Date(2026, 4, 7, 12, 0, 0, 0, time.UTC)
+				end := time.Date(2026, 4, 7, 12, 5, 0, 0, time.UTC)
+				kpis := KPIs{
+					Queries: []Query{
+						{
+							ID:        "big-step",
+							PromQuery: "up",
+							QueryType: "range",
+							Range: &RangeWindow{
+								Step:  &Duration{Duration: 10 * time.Minute},
+								Since: &Timestamp{absolute: &start},
+								Until: &Timestamp{absolute: &end},
+							},
+						},
+					},
+				}
+
+				errors := ValidateKPIs(kpis)
+				Expect(errors).To(HaveLen(1))
+				Expect(errors[0].Error()).To(ContainSubstring("step must be less than or equal to the since-until window"))
+			})
+
+			It("should reject range on instant queries", func() {
+				sinceVal := time.Hour
+				kpis := KPIs{
+					Queries: []Query{
+						{
+							ID:        "instant-with-range",
+							PromQuery: "up",
+							QueryType: "instant",
+							Range:     &RangeWindow{Since: &Timestamp{duration: &sinceVal}},
+						},
+					},
+				}
+
+				errors := ValidateKPIs(kpis)
+				Expect(errors).To(HaveLen(1))
+				Expect(errors[0].Error()).To(ContainSubstring("range can only be set when query-type is 'range'"))
+			})
+
+			It("should parse since/until from RFC 3339 format in JSON", func() {
+				kpisJSON := `{
+					"kpis": [
+						{
+							"id": "ts-range",
+							"promquery": "up",
+							"query-type": "range",
+							"range": {
+								"step": "30s",
+								"since": "2026-04-07T12:24:25Z",
+								"until": "2026-04-08T22:34:25Z"
+							}
+						}
+					]
+				}`
+				kpisPath := filepath.Join(tmpDir, "ts.json")
+				err := os.WriteFile(kpisPath, []byte(kpisJSON), 0644)
+				Expect(err).NotTo(HaveOccurred())
+
+				kpis, err := LoadKPIs(kpisPath)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(kpis.Queries).To(HaveLen(1))
+				Expect(kpis.Queries[0].Range).NotTo(BeNil())
+				Expect(kpis.Queries[0].Range.Since).NotTo(BeNil())
+				Expect(kpis.Queries[0].Range.Until).NotTo(BeNil())
+				Expect(kpis.Queries[0].Range.Since.IsAbsolute()).To(BeTrue())
+				Expect(kpis.Queries[0].Range.Since.AbsoluteValue().Year()).To(Equal(2026))
+				Expect(kpis.Queries[0].Range.Since.AbsoluteValue().Month()).To(Equal(time.April))
+				Expect(kpis.Queries[0].Range.Since.AbsoluteValue().Day()).To(Equal(7))
+				Expect(kpis.Queries[0].Range.Until.AbsoluteValue().Day()).To(Equal(8))
+			})
+
+			It("should parse since/until with timezone offset in JSON", func() {
+				kpisJSON := `{
+					"kpis": [
+						{
+							"id": "ts-range-tz",
+							"promquery": "up",
+							"query-type": "range",
+							"range": {
+								"step": "1m",
+								"since": "2026-04-07T14:24:25+02:00",
+								"until": "2026-04-08T22:34:25+02:00"
+							}
+						}
+					]
+				}`
+				kpisPath := filepath.Join(tmpDir, "ts_tz.json")
+				err := os.WriteFile(kpisPath, []byte(kpisJSON), 0644)
+				Expect(err).NotTo(HaveOccurred())
+
+				kpis, err := LoadKPIs(kpisPath)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(kpis.Queries).To(HaveLen(1))
+				Expect(kpis.Queries[0].Range.Since).NotTo(BeNil())
+				Expect(kpis.Queries[0].Range.Since.AbsoluteValue().Hour()).To(Equal(14))
+				Expect(kpis.Queries[0].Range.Until.AbsoluteValue().Hour()).To(Equal(22))
+			})
+
+			It("should parse since as duration in JSON", func() {
+				kpisJSON := `{
+					"kpis": [
+						{
+							"id": "since-range",
+							"promquery": "up",
+							"query-type": "range",
+							"range": {
+								"step": "30s",
+								"since": "1h"
+							}
+						}
+					]
+				}`
+				kpisPath := filepath.Join(tmpDir, "since.json")
+				err := os.WriteFile(kpisPath, []byte(kpisJSON), 0644)
+				Expect(err).NotTo(HaveOccurred())
+
+				kpis, err := LoadKPIs(kpisPath)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(kpis.Queries).To(HaveLen(1))
+				Expect(kpis.Queries[0].Range).NotTo(BeNil())
+				Expect(kpis.Queries[0].Range.Since).NotTo(BeNil())
+				Expect(kpis.Queries[0].Range.Since.IsDuration()).To(BeTrue())
+				Expect(kpis.Queries[0].Range.Since.DurationValue()).To(Equal(time.Hour))
+			})
+
+			It("should parse mixed since(duration) + until(RFC3339) in JSON", func() {
+				kpisJSON := `{
+					"kpis": [
+						{
+							"id": "mixed-range",
+							"promquery": "up",
+							"query-type": "range",
+							"range": {
+								"step": "30s",
+								"since": "2h",
+								"until": "2026-04-12T23:20:50Z"
+							}
+						}
+					]
+				}`
+				kpisPath := filepath.Join(tmpDir, "mixed.json")
+				err := os.WriteFile(kpisPath, []byte(kpisJSON), 0644)
+				Expect(err).NotTo(HaveOccurred())
+
+				kpis, err := LoadKPIs(kpisPath)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(kpis.Queries).To(HaveLen(1))
+				Expect(kpis.Queries[0].Range.Since.IsDuration()).To(BeTrue())
+				Expect(kpis.Queries[0].Range.Since.DurationValue()).To(Equal(2 * time.Hour))
+				Expect(kpis.Queries[0].Range.Until.IsAbsolute()).To(BeTrue())
+				Expect(kpis.Queries[0].Range.Until.AbsoluteValue().Year()).To(Equal(2026))
+			})
+
+			It("should reject non-RFC 3339 and non-duration format in JSON", func() {
+				kpisJSON := `{
+					"kpis": [
+						{
+							"id": "bad-ts",
+							"promquery": "up",
+							"query-type": "range",
+							"range": {
+								"step": "30s",
+								"since": "Tue Apr  7 12:24:25 PM CEST 2026"
+							}
+						}
+					]
+				}`
+				kpisPath := filepath.Join(tmpDir, "badts.json")
+				err := os.WriteFile(kpisPath, []byte(kpisJSON), 0644)
+				Expect(err).NotTo(HaveOccurred())
+
+				_, err = LoadKPIs(kpisPath)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("failed to decode kpis file"))
 			})
 		})
 	})

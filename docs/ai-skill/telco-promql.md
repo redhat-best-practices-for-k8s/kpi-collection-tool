@@ -118,8 +118,10 @@ compliance, PTP timing, low-level system resource usage, and SRIOV networking.
     "id": "ptp-offset-range-1h",
     "promquery": "abs(openshift_ptp_offset_ns)",
     "query-type": "range",
-    "step": "10s",
-    "range": "1h",
+    "range": {
+        "step": "10s",
+        "since": "1h"
+    },
     "run-once": true
 }
 ```
@@ -446,24 +448,30 @@ These can be added to any cluster type.
     "id": "cpu-trend-1h",
     "promquery": "avg by (instance) (rate(node_cpu_seconds_total{mode!=\"idle\"}[5m]))",
     "query-type": "range",
-    "step": "30s",
-    "range": "1h",
+    "range": {
+        "step": "30s",
+        "since": "1h"
+    },
     "run-once": true
 },
 {
     "id": "memory-trend-6h",
     "promquery": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes",
     "query-type": "range",
-    "step": "1m",
-    "range": "6h",
+    "range": {
+        "step": "1m",
+        "since": "6h"
+    },
     "sample-frequency": "6h"
 },
 {
     "id": "ptp-offset-trend-24h",
     "promquery": "abs(openshift_ptp_offset_ns)",
     "query-type": "range",
-    "step": "30s",
-    "range": "24h",
+    "range": {
+        "step": "30s",
+        "since": "24h"
+    },
     "run-once": true
 }
 ```

@@ -80,17 +80,22 @@ When generating a kpis.json file, use this structure:
 | `sample-frequency` | No | global `--frequency` | Override per-KPI (seconds or duration string like `"2m"`) |
 | `run-once` | No | `false` | Collect once at start, skip repeated sampling |
 | `query-type` | No | `"instant"` | `"instant"` or `"range"` |
-| `step` | range only | — | Resolution between points (e.g. `"30s"`) |
-| `range` | range only | — | Lookback window (e.g. `"1h"`) |
+| `range` | range only | — | Object with `step`, `since`, and optionally `until` |
+| `range.step` | range only | — | Resolution between points (e.g. `"30s"`) |
+| `range.since` | range only | — | Start of the window: Go duration (e.g. `"2h"`) or RFC 3339 timestamp |
+| `range.until` | range only | now | End of the window: Go duration (e.g. `"1h"`) or RFC 3339 timestamp |
 
 ### Range query rules
 
 - `sample-frequency` = how often the collector executes the query
-- `range` = how far back each execution looks
-- `step` = spacing between data points in the result
+- `range.since` = start of the query window (required); Go duration or RFC 3339 timestamp
+- `range.until` = end of the query window (optional, defaults to "now"); same formats as `since`
+- `range.step` = spacing between data points in the result
+- Both `since` and `until` accept either a Go duration (`"2h"`, `"1m30s"`) interpreted relative to "now", or an RFC 3339 timestamp (`"2026-04-07T12:00:00Z"`)
+- Examples: `"since": "2h"` (2h ago to now), `"since": "2h", "until": "1h"` (2h ago to 1h ago), `"since": "2026-04-07T12:00:00Z", "until": "2026-04-08T12:00:00Z"` (fixed window)
 - PromQL windows like `rate(...[5m])` control the per-point lookback independently
-- If `frequency > range`, you get data gaps (the tool blocks this with an error)
-- If `frequency < range/2`, you get heavy overlap (the tool warns)
+- If `frequency > since` (when since is a duration), you get data gaps (the tool blocks this with an error)
+- If `frequency < since/2` (when since is a duration), you get heavy overlap (the tool warns)
 
 ### Dynamic CPU placeholders
 
@@ -146,9 +151,9 @@ by cluster type with complete ready-to-use KPI sets.
 2. **CPU placeholders need kubeconfig**: Using `{{RESERVED_CPUS}}` or `{{ISOLATED_CPUS}}`
    without `--kubeconfig` fails immediately.
 
-3. **Range query frequency vs range**: If `--frequency` (or `sample-frequency`) is larger
-   than the `range` field, data gaps occur and the tool returns an error. Set
-   `frequency <= range`.
+3. **Range query frequency vs since**: If `--frequency` (or `sample-frequency`) is larger
+   than `range.since` (when since is a duration), data gaps occur and the tool returns an
+   error. Set `frequency <= since`.
 
 4. **`--once` vs `run-once`**: `--once` (CLI flag) runs ALL KPIs once.
    `"run-once": true` (in kpis.json) runs only THAT specific KPI once while others

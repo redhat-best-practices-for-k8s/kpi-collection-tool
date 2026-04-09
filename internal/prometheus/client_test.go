@@ -353,7 +353,8 @@ var _ = Describe("Client", func() {
 				TotalSamples: 4,
 				QueryType:    "range",
 				Step:         30 * time.Second,
-				Range:        time.Hour,
+				Since:        now.Add(-time.Hour),
+				Until:        now,
 			}
 			executeQuery(context.Background(), mock, testDB, sqliteDB, clusterID, info)
 
@@ -380,6 +381,7 @@ var _ = Describe("Client", func() {
 				},
 			}
 
+			now := time.Now()
 			info := output.QueryInfo{
 				QueryID:      "test-query-dedup",
 				PromQuery:    "rate(cpu[5m])",
@@ -388,7 +390,8 @@ var _ = Describe("Client", func() {
 				TotalSamples: 4,
 				QueryType:    "range",
 				Step:         30 * time.Second,
-				Range:        time.Hour,
+				Since:        now.Add(-time.Hour),
+				Until:        now,
 			}
 
 			executeQuery(context.Background(), mock, testDB, sqliteDB, clusterID, info)
@@ -407,6 +410,7 @@ var _ = Describe("Client", func() {
 				},
 			}
 
+			now := time.Now()
 			queryID := "test-query-range-error"
 			info := output.QueryInfo{
 				QueryID:      queryID,
@@ -416,7 +420,8 @@ var _ = Describe("Client", func() {
 				TotalSamples: 4,
 				QueryType:    "range",
 				Step:         30 * time.Second,
-				Range:        time.Hour,
+				Since:        now.Add(-time.Hour),
+				Until:        now,
 			}
 			executeQuery(context.Background(), mock, testDB, sqliteDB, clusterID, info)
 
@@ -424,6 +429,46 @@ var _ = Describe("Client", func() {
 			err := testDB.QueryRow("SELECT errors FROM query_errors WHERE kpi_id = ?", queryID).Scan(&errorCount)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(errorCount).To(Equal(1))
+		})
+
+		It("should execute range queries with absolute since/until timestamps", func() {
+			since := time.Date(2026, 4, 7, 12, 0, 0, 0, time.UTC)
+			until := time.Date(2026, 4, 8, 12, 0, 0, 0, time.UTC)
+
+			mock := &mockPromAPI{
+				queryRangeFunc: func(ctx context.Context, query string, r v1.Range) (model.Value, v1.Warnings, error) {
+					Expect(r.Start).To(BeTemporally("~", since, time.Second))
+					Expect(r.End).To(BeTemporally("~", until, time.Second))
+					Expect(r.Step).To(Equal(time.Minute))
+
+					return model.Matrix{
+						&model.SampleStream{
+							Metric: model.Metric{"__name__": "cpu"},
+							Values: []model.SamplePair{
+								{Timestamp: model.TimeFromUnix(since.Unix()), Value: model.SampleValue(0.5)},
+							},
+						},
+					}, nil, nil
+				},
+			}
+
+			info := output.QueryInfo{
+				QueryID:      "test-query-since-until",
+				PromQuery:    "rate(node_cpu_seconds_total[5m])",
+				Frequency:    5 * time.Second,
+				SampleNumber: 1,
+				TotalSamples: 4,
+				QueryType:    "range",
+				Step:         time.Minute,
+				Since:        since,
+				Until:        until,
+			}
+			executeQuery(context.Background(), mock, testDB, sqliteDB, clusterID, info)
+
+			var count int
+			err := testDB.QueryRow("SELECT COUNT(*) FROM query_results WHERE kpi_id = ?", "test-query-since-until").Scan(&count)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(count).To(Equal(1))
 		})
 
 		It("should default to instant query when query type is not provided", func() {

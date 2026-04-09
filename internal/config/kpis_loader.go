@@ -71,25 +71,80 @@ func validateQueryType(kpi Query) []error {
 
 	switch kpi.GetEffectiveQueryType() {
 	case "instant":
-		if kpi.Step != nil {
-			errors = append(errors, fmt.Errorf("KPI '%s': step can only be set when query-type is 'range'", kpi.ID))
-		}
 		if kpi.Range != nil {
 			errors = append(errors, fmt.Errorf("KPI '%s': range can only be set when query-type is 'range'", kpi.ID))
 		}
 	case "range":
-		if kpi.Step == nil || kpi.Step.Duration <= 0 {
-			errors = append(errors, fmt.Errorf("KPI '%s': step is required and must be > 0 when query-type is 'range'", kpi.ID))
-		}
-		if kpi.Range == nil || kpi.Range.Duration <= 0 {
-			errors = append(errors, fmt.Errorf("KPI '%s': range is required and must be > 0 when query-type is 'range'", kpi.ID))
-		}
-		if kpi.Step != nil && kpi.Range != nil && kpi.Step.Duration > kpi.Range.Duration {
-			errors = append(errors, fmt.Errorf("KPI '%s': step must be less than or equal to range", kpi.ID))
-		}
+		errors = append(errors, validateRangeWindow(kpi)...)
 	default:
 		errors = append(errors, fmt.Errorf("KPI '%s': invalid query-type '%s' (must be 'instant' or 'range')", kpi.ID, kpi.QueryType))
 	}
 
 	return errors
+}
+
+// validateRangeWindow checks that the range window is properly configured:
+// step and since are required; until is optional (defaults to "now").
+func validateRangeWindow(kpi Query) []error {
+	var errors []error
+
+	if kpi.Range == nil {
+		errors = append(errors, fmt.Errorf("KPI '%s': range is required when query-type is 'range'", kpi.ID))
+		return errors
+	}
+
+	rw := kpi.Range
+
+	if rw.Step == nil || rw.Step.Duration <= 0 {
+		errors = append(errors, fmt.Errorf("KPI '%s': range.step is required and must be > 0 when query-type is 'range'", kpi.ID))
+	}
+
+	if rw.Since == nil {
+		errors = append(errors,
+			fmt.Errorf("KPI '%s': range.since is required when query-type is 'range'", kpi.ID))
+		return errors
+	}
+
+	errors = append(errors, validateTimestampPositive(kpi.ID, "since", rw.Since)...)
+	if rw.Until != nil {
+		errors = append(errors, validateTimestampPositive(kpi.ID, "until", rw.Until)...)
+	}
+
+	errors = append(errors, validateSinceBeforeUntil(kpi)...)
+
+	return errors
+}
+
+func validateTimestampPositive(kpiID, field string, ts *Timestamp) []error {
+	if ts.IsDuration() && ts.DurationValue() <= 0 {
+		return []error{fmt.Errorf("KPI '%s': range.%s must be > 0 when specified as a duration", kpiID, field)}
+	}
+	return nil
+}
+
+func validateSinceBeforeUntil(kpi Query) []error {
+	rw := kpi.Range
+	if rw.Since == nil {
+		return nil
+	}
+
+	if rw.Since.IsDuration() && rw.Until == nil {
+		if rw.Step != nil && rw.Step.Duration > rw.Since.DurationValue() {
+			return []error{fmt.Errorf("KPI '%s': step must be less than or equal to the since-until window", kpi.ID)}
+		}
+		return nil
+	}
+
+	if rw.Since.IsAbsolute() && rw.Until != nil && rw.Until.IsAbsolute() {
+		start := rw.Since.AbsoluteValue()
+		end := rw.Until.AbsoluteValue()
+		if !start.Before(end) {
+			return []error{fmt.Errorf("KPI '%s': since must be before until", kpi.ID)}
+		}
+		if rw.Step != nil && end.Sub(start) < rw.Step.Duration {
+			return []error{fmt.Errorf("KPI '%s': step must be less than or equal to the since-until window", kpi.ID)}
+		}
+	}
+
+	return nil
 }

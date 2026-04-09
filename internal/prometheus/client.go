@@ -80,16 +80,6 @@ func RunQueries(kpisToRun config.KPIs, flags config.InputFlags, sampleNumber int
 	defer cancel()
 
 	for _, query := range kpisToRun.Queries {
-		var step time.Duration
-		if query.Step != nil {
-			step = query.Step.Duration
-		}
-
-		var queryRangeDuration time.Duration
-		if query.Range != nil {
-			queryRangeDuration = query.Range.Duration
-		}
-
 		queryInfo := output.QueryInfo{
 			QueryID:      query.ID,
 			PromQuery:    query.PromQuery,
@@ -97,8 +87,20 @@ func RunQueries(kpisToRun config.KPIs, flags config.InputFlags, sampleNumber int
 			SampleNumber: sampleNumber,
 			TotalSamples: totalSamples,
 			QueryType:    query.GetEffectiveQueryType(),
-			Step:         step,
-			Range:        queryRangeDuration,
+		}
+		if query.Range != nil {
+			now := time.Now()
+			if query.Range.Step != nil {
+				queryInfo.Step = query.Range.Step.Duration
+			}
+			if query.Range.Since != nil {
+				queryInfo.Since = query.Range.Since.Resolve(now)
+			}
+			if query.Range.Until != nil {
+				queryInfo.Until = query.Range.Until.Resolve(now)
+			} else {
+				queryInfo.Until = now
+			}
 		}
 		executeQuery(ctx, v1api, db, dbImpl, clusterID, queryInfo)
 	}
@@ -119,8 +121,8 @@ func executeQuery(ctx context.Context, v1api promv1.API, db *sql.DB, dbImpl data
 	// Execute query using the Prometheus client library
 	if info.QueryType == "range" {
 		queryRange := promv1.Range{
-			Start: now.Add(-info.Range),
-			End:   now,
+			Start: info.Since,
+			End:   info.Until,
 			Step:  info.Step,
 		}
 		result, warnings, err = v1api.QueryRange(ctx, info.PromQuery, queryRange)

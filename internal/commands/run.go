@@ -249,26 +249,31 @@ func substituteCPUsIfNeeded(kpis config.KPIs, flags config.InputFlags) (config.K
 	return config.SubstituteCPUPlaceholders(kpis, cpuPlaceholders), nil
 }
 
-// validateRangeFrequency checks range queries for frequency/range mismatches.
-// Returns an error if frequency exceeds range (data gaps), and prints a warning for heavy overlap.
+// validateRangeFrequency checks range queries with since lookback for frequency/range mismatches.
+// Returns an error if frequency exceeds since (data gaps), and prints a warning for heavy overlap.
+// Queries using absolute start/end are skipped since their window is fixed.
 func validateRangeFrequency(kpis config.KPIs, flags config.InputFlags) error {
 	for _, kpi := range kpis.Queries {
-		if kpi.GetEffectiveQueryType() != "range" || kpi.Range == nil {
+		if kpi.GetEffectiveQueryType() != "range" || kpi.Range == nil || kpi.Range.Since == nil {
+			continue
+		}
+
+		if !kpi.Range.Since.IsDuration() {
 			continue
 		}
 
 		freq := kpi.GetEffectiveFrequency(flags.SamplingFreq)
-		queryRange := kpi.Range.Duration
+		since := kpi.Range.Since.DurationValue()
 
-		if freq > queryRange {
-			return fmt.Errorf("KPI '%s' has frequency %s > range %s — this creates gaps where no data is collected",
-				kpi.ID, freq, queryRange)
+		if freq > since {
+			return fmt.Errorf("KPI '%s' has frequency %s > since %s — this creates gaps where no data is collected",
+				kpi.ID, freq, since)
 		}
 
-		if freq < queryRange/2 {
-			overlapPercent := 100 - (100*freq)/queryRange
-			fmt.Printf("WARNING: KPI '%s' has frequency %s with range %s — ~%d%% of each query overlaps the previous one.\n",
-				kpi.ID, freq, queryRange, overlapPercent)
+		if freq < since/2 {
+			overlapPercent := 100 - (100*freq)/since
+			fmt.Printf("WARNING: KPI '%s' has frequency %s with since %s — ~%d%% of each query overlaps the previous one.\n",
+				kpi.ID, freq, since, overlapPercent)
 		}
 	}
 

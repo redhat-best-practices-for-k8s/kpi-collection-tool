@@ -17,7 +17,8 @@ type QueryInfo struct {
 	TotalSamples int
 	QueryType    string
 	Step         time.Duration
-	Range        time.Duration
+	Since        time.Time
+	Until        time.Time
 }
 
 // QueryResult holds the result of a query execution
@@ -42,7 +43,8 @@ func PrintQueryResult(info QueryInfo, result QueryResult) {
 
 	fmt.Printf("  Query: %s\n", info.PromQuery)
 	if info.QueryType == "range" {
-		fmt.Printf("  Query Type: range (step: %s, range: %s)\n", info.Step, info.Range)
+		fmt.Printf("  Query Type: range (step: %s, since: %s, until: %s)\n",
+			info.Step, info.Since.Format(time.RFC3339), info.Until.Format(time.RFC3339))
 	} else {
 		fmt.Printf("  Query Type: instant\n")
 	}
