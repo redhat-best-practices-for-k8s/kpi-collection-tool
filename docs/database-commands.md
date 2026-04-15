@@ -120,6 +120,10 @@ Available flags:
 - `--sort`: `asc` or `desc` by execution time (default: `asc`)
 - `-o`, `--output`: output format — `table` (default), `json`, or `csv`
 - `--no-truncate`: show full label values without truncation
+- `--chart`: plot an ASCII chart of metric values over time (requires `--name`)
+- `--chart-width`: total chart width in columns (80–250; default: terminal width or 80 for non-TTY)
+- `--chart-height`: total chart height in rows (25–250; default: terminal height or 25 for non-TTY)
+- `--interactive`: interactive full-screen chart with keyboard navigation (requires `--chart` and a TTY)
 
 Output:
 
@@ -131,6 +135,116 @@ ID   KPI_NAME       CLUSTER          VALUE      TIMESTAMP    EXECUTION_TIME     
 
 Total results: 2
 ```
+
+### ASCII Chart Mode
+
+The `--chart` flag renders a quick ASCII line chart of metric values over time directly in the terminal. This is a lightweight convenience feature for taking a quick glance at collected data — it is **not** meant to replace proper visualization tools like the [embedded Grafana dashboards](grafana.md).
+
+When running in a terminal (TTY), the chart automatically adapts to the current terminal width and height unless `--chart-width` or `--chart-height` are explicitly set:
+
+```text
+$ echo "current tty dimension: height=`tput lines`, width=`tput cols`"
+current tty dimension: height=66, width=139
+$ ./kpi-collector db show kpis --name node-memory-usage --since=6h  --chart
+ 14.144G ┤                                                                                               ╭╮
+ 14.133G ┤                                                                                               ││
+ 14.121G ┤                                                                                               ││
+ 14.109G ┤                                                                                               ││
+ 14.098G ┤                                                                                               ││                       ╭──╮
+ 14.086G ┤                                                                                               ││                   ╭─╮ │  │
+ 14.074G ┤                                                                              ╭╮              ╭╯╰╮                  │ │ │  ╰╮
+ 14.063G ┤                                                                              ││              │  │             ╭─╮  │ │╭╯   │
+ 14.051G ┤                            ╭─╮                                               ││              │  │          ╭──╯ │  │ ╰╯    ╰
+ 14.039G ┤   ╭╮           ╭╮          │ ╰╮                                             ╭╯│              │  │         ╭╯    ╰╮ │
+ 14.028G ┤  ╭╯│           │╰╮    ╭─╮ ╭╯  │    ╭╮                                       │ ╰╮             │  │        ╭╯      │ │
+ 14.016G ┤ ╭╯ │  ╭╮      ╭╯ │   ╭╯ │ │   │    ││         ╭╮    ╭╮                 ╭╮   │  │           ╭─╯  │       ╭╯       │╭╯
+ 14.004G ┤ │  │  ││      │  │   │  ╰╮│   ╰╮  ╭╯╰─╮      ╭╯│    ││                 ││   │  │          ╭╯    │ ╭╮   ╭╯        ││
+ 13.993G ┤╭╯  │ ╭╯│     ╭╯  │  ╭╯   ╰╯    │  │   ╰──╮  ╭╯ │    ││             ╭╮  │╰╮ ╭╯  ╰╮         │     │╭╯│  ╭╯         ╰╯
+ 13.981G ┼╯   │ │ │     │   ╰─╮│          │  │      ╰╮ │  │    ││          ╭──╯│  │ │ │    │  ╭╮     │     ││ │  │
+ 13.969G ┤    ╰╮│ │  ╭──╯     ╰╯          ╰╮╭╯       │╭╯  ╰╮  ╭╯│          │   │  │ │╭╯    │  │╰───╮╭╯     ╰╯ ╰╮╭╯
+ 13.958G ┤     ││ ╰╮╭╯                     ╰╯        ╰╯    │  │ │  ╭╮     ╭╯   ╰╮╭╯ ││     │ ╭╯    ╰╯          ││
+ 13.946G ┤     ╰╯  ││                                      │  │ │  ││     │     ││  ╰╯     ╰╮│                 ││
+ 13.934G ┤         ╰╯                                      │  │ ╰╮╭╯│     │     ││          ││                 ╰╯
+ 13.923G ┤                                                 ╰╮ │  ││ │ ╭─╮╭╯     ╰╯          ╰╯
+ 13.911G ┤                                                  ╰╮│  ││ ╰╮│ ╰╯
+ 13.899G ┤                                                   ╰╯  ││  ╰╯
+ 13.888G ┤                                                       ╰╯
+         └┬─────────────────┬─────────────────┬─────────────────┬────────────────┬─────────────────┬─────────────────┬─────────────────┬
+        05:41             06:27             07:14             08:00            08:46             09:33             10:19             11:06
+```
+
+When stdout is not a TTY (e.g. piped output or CI job logs), the chart falls back to a fixed 80x25 default:
+
+```text
+$ ./kpi-collector db show kpis --name node-memory-usage --since=6h  --chart | cat
+ 14.112G ┤                                                  ╭╮
+ 14.102G ┤                                                  ││
+ 14.092G ┤                                                  ││         ╭╮╭╮
+ 14.082G ┤                                                  ││         │││╰╮
+ 14.072G ┤                                                  ││         │││ │
+ 14.062G ┤                                                  ││         │││ │
+ 14.052G ┤                                                  ││      ╭╮ │││ │
+ 14.042G ┤               ╭╮                        ╭╮      ╭╯│     ╭╯╰╮│││ ╰
+ 14.033G ┤ ╭╮     ╭╮    ╭╯│                        ││      │ │    ╭╯  ││╰╯
+ 14.023G ┤ ││╭╮   ││    │ │                        ││      │ │    │   ││
+ 14.013G ┤ ││││   ││  ╭╮│ │                       ╭╯│      │ │    │   ││
+ 14.003G ┤╭╯│││   ││ ╭╯││ │ ╭─╮   ╭╮              │ │     ╭╯ │   ╭╯   ││
+ 13.993G ┤│ │││  ╭╯│ │ ╰╯ │ │ │   ││              │ │     │  │   │    ││
+ 13.983G ┤│ │││  │ ╰╮│    ╰╮│ ╰─╮ ││            ╭╮│ │     │  │╭╮╭╯    ││
+ 13.973G ┼╯ │││  │  ││     ││   │╭╯│        ╭─╮ │││ │     │  ││││     ╰╯
+ 13.963G ┤  │││╭╮│  ╰╯     ││   ╰╯ │ ╭╮     │ │ │││ ╰╮╭╮ ╭╯  ╰╯││
+ 13.953G ┤  ││││╰╯         ││      ╰╮││     │ │╭╯╰╯  ││╰─╯     ││
+ 13.943G ┤  ││││           ╰╯       │││     │ ╰╯     ││        ╰╯
+ 13.933G ┤  ││││                    ││╰╮   ╭╯        ││
+ 13.923G ┤  ╰╯╰╯                    ││ ╰╮  │         ╰╯
+ 13.913G ┤                          ││  ╰╮ │
+ 13.903G ┤                          ╰╯   ╰─╯
+         └┬────────┬─────────┬────────┬─────────┬────────┬─────────┬────────┬
+        05:41    06:27     07:14    08:00     08:46    09:33     10:19    11:06
+                                   node-memory-usage
+
+Data points: 66
+```
+
+Interactive mode (`--interactive`) renders a full-screen chart with keyboard navigation:
+
+```text
+$ ./kpi-collector db show kpis --name node-memory-usage --chart --interactive
+ 14.145G ┤                                                                                                                   ╭╮
+ 14.059G ┤                                                                                              ╭╮   ╭╮   ╭─╮╭───╮   │╰╮╭
+ 13.974G ┤                                                                       ╭─╮   ╭─╮╭╮    ╭╮╭─╮╭──╯│╭╮╭╯│╭──╯ ╰╯   ╰───╯ ╰╯
+ 13.888G ┤                                                   ╭╮     ╭─╮ ╭───╮ ╭──╯ ╰───╯ ╰╯╰╮ ╭─╯╰╯ ╰╯   ╰╯╰╯ ╰╯
+ 13.803G ┤                                             ╭─╮╭╮ ││╭────╯ ╰─╯   ╰─╯             ╰─╯
+ 13.717G ┤                                             │ ╰╯╰─╯││
+ 13.632G ┤                                ╭─╮ ╭╮  ╭╮  ╭╯      ││
+ 13.546G ┤                           ╭────╯ ╰╮││╭─╯│ ╭╯       ││
+ 13.461G ┤                        ╭╮╭╯       ╰╯╰╯  │ │        ╰╯
+ 13.375G ┤               ╭──╮╭────╯╰╯              │ │
+ 13.290G ┤             ╭─╯  ╰╯                     │╭╯
+ 13.204G ┤           ╭─╯                           ││
+ 13.118G ┤         ╭─╯                             ╰╯
+ 13.033G ┤        ╭╯
+ 12.947G ┤        │
+ 12.862G ┤        │
+ 12.776G ┤       ╭╯
+ 12.691G ┤     ╭─╯
+ 12.605G ┤    ╭╯
+ 12.520G ┤    │
+ 12.434G ┤  ╭─╯
+ 12.349G ┤  │
+ 12.263G ┤ ╭╯
+ 12.177G ┤╭╯
+ 12.092G ┼╯
+         └┬────────────────┬────────────────┬────────────────┬────────────────┬────────────────┬────────────────┬────────────────┬
+    May 27 09:16     May 27 16:23     May 27 23:30     May 28 06:37     May 28 13:44     May 28 20:51     May 29 03:59     May 29 11:06
+                                                             node-memory-usage
+ Samples 1-599 of 599 | ←/→ pan  ↑/↓ zoom  q quit
+```
+
+Interactive controls:
+- `←` / `→`: Pan the chart window left/right
+- `↑` / `↓`: Zoom in/out
+- `q`: Quit
 
 ### Show Errors
 
