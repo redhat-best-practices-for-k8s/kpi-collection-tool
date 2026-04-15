@@ -115,9 +115,23 @@ kpi-collector grafana start --datasource=postgres \
    - Username: `admin`
    - Password: `admin`
    - You will be prompted to change the password on first login
-3. Open dashboard: **Dashboards** -> **KPI Collection Tool - Dynamic Dashboard**
+3. The KPI dashboard loads automatically as the home page
 
 ## Dashboard Features
+
+### Auto-Refresh
+
+Auto-refresh is disabled by default. The typical workflow is to collect data first with `kpi-collector run` and then visualize it, so the dashboard does not need to poll for new data.
+
+If you are collecting and visualizing data at the same time, you can enable auto-refresh manually from the Grafana time picker (e.g. every 10s or 30s).
+
+### Fit to Data
+
+A **Fit to data** link in the dashboard header adjusts the time picker to span the full range of collected data (earliest to latest sample). It respects the currently selected filters.
+
+### Statistics Summary
+
+A compact text line below the main time series chart shows the sample count, average, maximum, and minimum values for the current filter selection.
 
 ### Dashboard Filters
 
@@ -136,11 +150,11 @@ Additional filters available only for SQLite:
 
 All filters default to `All`.
 
-The dashboard includes:
+### Panels
 
-- Dynamic metric selection
-- Time-series visualization
-- Statistical summary (average, min, max, sample count)
-- Detailed metrics table
-- Query error tracking
-- Multi-cluster support
+- Full-width time-series visualization
+- Statistics summary (samples, average, min, max)
+- Detailed metrics table with all labels
+- Query error tracking (bar chart)
+- All KPIs summary statistics
+- Cluster monitoring status

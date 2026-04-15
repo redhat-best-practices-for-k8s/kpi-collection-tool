@@ -274,7 +274,11 @@ The database stores:
 - **Query Errors**: KPI ID, error count
 
 ### Grafana Integration
-The tool manages Grafana via Docker:
+The tool manages Grafana via Docker/Podman:
 - Generates datasource configuration for SQLite or PostgreSQL
 - Provisions pre-built dashboards from embedded templates
+- Sets the KPI dashboard as the home page on login (`GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH`)
 - Handles container lifecycle (start/stop)
+
+Dashboard templates include hidden variables for "Fit to data" (time range auto-adjustment)
+and inline statistics (sample count, average, min, max) displayed as a text panel.
