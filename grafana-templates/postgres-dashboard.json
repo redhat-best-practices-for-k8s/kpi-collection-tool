@@ -1,1 +1,828 @@
-{"annotations":{"list":[{"builtIn":1,"datasource":{"type":"grafana","uid":"kpi-postgres-datasource"},"enable":true,"hide":true,"iconColor":"rgba(0, 211, 255, 1)","name":"Annotations & Alerts","type":"dashboard"}]},"editable":true,"fiscalYearStartMonth":0,"graphTooltip":1,"id":null,"links":[],"liveNow":false,"panels":[{"datasource":{"type":"postgres","uid":"kpi-postgres-datasource"},"fieldConfig":{"defaults":{"color":{"mode":"palette-classic"},"custom":{"axisCenteredZero":false,"axisColorMode":"text","axisLabel":"","axisPlacement":"auto","barAlignment":0,"drawStyle":"line","fillOpacity":10,"gradientMode":"none","hideFrom":{"tooltip":false,"viz":false,"legend":false},"lineInterpolation":"smooth","lineWidth":2,"pointSize":4,"scaleDistribution":{"type":"linear"},"showPoints":"auto","spanNulls":false,"stacking":{"group":"A","mode":"none"},"thresholdsStyle":{"mode":"off"}},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]}},"overrides":[{"matcher":{"id":"byName","options":"Max Value"},"properties":[{"id":"custom.drawStyle","value":"line"},{"id":"custom.lineStyle","value":{"fill":"dash","dash":[6,6]}},{"id":"custom.lineWidth","value":3},{"id":"color","value":{"fixedColor":"red","mode":"fixed"}},{"id":"custom.hideFrom","value":{"tooltip":true,"viz":false,"legend":false}}]},{"matcher":{"id":"byName","options":"Min Value"},"properties":[{"id":"custom.drawStyle","value":"line"},{"id":"custom.lineStyle","value":{"fill":"dash","dash":[6,6]}},{"id":"custom.lineWidth","value":3},{"id":"color","value":{"fixedColor":"green","mode":"fixed"}},{"id":"custom.hideFrom","value":{"tooltip":true,"viz":false,"legend":false}}]},{"matcher":{"id":"byName","options":"Average Value"},"properties":[{"id":"custom.drawStyle","value":"line"},{"id":"custom.lineStyle","value":{"fill":"dash","dash":[10,5]}},{"id":"custom.lineWidth","value":3},{"id":"color","value":{"fixedColor":"orange","mode":"fixed"}},{"id":"custom.hideFrom","value":{"tooltip":true,"viz":false,"legend":false}}]}]},"gridPos":{"h":10,"w":18,"x":0,"y":0},"id":1,"options":{"legend":{"showLegend":true,"displayMode":"table","placement":"bottom","calcs":["last","mean","max"]},"tooltip":{"mode":"multi","sort":"desc"}},"targets":[{"datasource":{"type":"postgres","uid":"kpi-postgres-datasource"},"format":"table","rawSql":"SELECT to_timestamp(timestamp_value) AS time, metric_value, metric_labels FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE timestamp_value >= $__from / 1000 AND timestamp_value < $__to / 1000 AND kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND c.cluster_name LIKE (CASE WHEN '${cluster}' = 'All' THEN '%%' ELSE '${cluster}' END) AND COALESCE(c.cluster_type, 'N/A') LIKE (CASE WHEN '${cluster_type}' = 'All' THEN '%%' ELSE '${cluster_type}' END) AND COALESCE(metric_labels->>'node', 'N/A') LIKE (CASE WHEN '${node}' = 'All' THEN '%%' ELSE '${node}' END) AND COALESCE(metric_labels->>'job', 'N/A') LIKE (CASE WHEN '${job}' = 'All' THEN '%%' ELSE '${job}' END) AND COALESCE(metric_labels->>'container', 'N/A') LIKE (CASE WHEN '${container}' = 'All' THEN '%%' ELSE '${container}' END) AND COALESCE(metric_labels->>'pod', 'N/A') LIKE (CASE WHEN '${pod}' = 'All' THEN '%%' ELSE '${pod}' END) ORDER BY time ASC","refId":"A","timeColumns":["time"],"legendFormat":"Node: {{__field.labels.node}} | Pod: {{__field.labels.pod}} | Job: {{__field.labels.job}}"},{"datasource":{"type":"postgres","uid":"kpi-postgres-datasource"},"format":"table","rawSql":"SELECT 'Max Value' AS metric_labels, MAX(metric_value) AS metric_value, $__from/1000 AS time FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE timestamp_value >= $__from / 1000 AND timestamp_value < $__to / 1000 AND kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND c.cluster_name LIKE (CASE WHEN '${cluster}' = 'All' THEN '%%' ELSE '${cluster}' END) AND COALESCE(c.cluster_type, 'N/A') LIKE (CASE WHEN '${cluster_type}' = 'All' THEN '%%' ELSE '${cluster_type}' END) AND COALESCE(metric_labels->>'node', 'N/A') LIKE (CASE WHEN '${node}' = 'All' THEN '%%' ELSE '${node}' END) AND COALESCE(metric_labels->>'job', 'N/A') LIKE (CASE WHEN '${job}' = 'All' THEN '%%' ELSE '${job}' END) AND COALESCE(metric_labels->>'container', 'N/A') LIKE (CASE WHEN '${container}' = 'All' THEN '%%' ELSE '${container}' END) AND COALESCE(metric_labels->>'pod', 'N/A') LIKE (CASE WHEN '${pod}' = 'All' THEN '%%' ELSE '${pod}' END)","refId":"B","legendFormat":"Max Value","timeColumns":["time"]},{"datasource":{"type":"postgres","uid":"kpi-postgres-datasource"},"format":"table","rawSql":"SELECT 'Min Value' AS metric_labels, MIN(metric_value) AS metric_value, $__from/1000 AS time FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE timestamp_value >= $__from / 1000 AND timestamp_value < $__to / 1000 AND kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND c.cluster_name LIKE (CASE WHEN '${cluster}' = 'All' THEN '%%' ELSE '${cluster}' END) AND COALESCE(c.cluster_type, 'N/A') LIKE (CASE WHEN '${cluster_type}' = 'All' THEN '%%' ELSE '${cluster_type}' END) AND COALESCE(metric_labels->>'node', 'N/A') LIKE (CASE WHEN '${node}' = 'All' THEN '%%' ELSE '${node}' END) AND COALESCE(metric_labels->>'job', 'N/A') LIKE (CASE WHEN '${job}' = 'All' THEN '%%' ELSE '${job}' END) AND COALESCE(metric_labels->>'container', 'N/A') LIKE (CASE WHEN '${container}' = 'All' THEN '%%' ELSE '${container}' END) AND COALESCE(metric_labels->>'pod', 'N/A') LIKE (CASE WHEN '${pod}' = 'All' THEN '%%' ELSE '${pod}' END)","refId":"C","legendFormat":"Min Value","timeColumns":["time"]},{"datasource":{"type":"postgres","uid":"kpi-postgres-datasource"},"format":"table","rawSql":"SELECT 'Average Value' AS metric_labels, AVG(metric_value) AS metric_value, $__from/1000 AS time FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE timestamp_value >= $__from / 1000 AND timestamp_value < $__to / 1000 AND kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND c.cluster_name LIKE (CASE WHEN '${cluster}' = 'All' THEN '%%' ELSE '${cluster}' END) AND COALESCE(c.cluster_type, 'N/A') LIKE (CASE WHEN '${cluster_type}' = 'All' THEN '%%' ELSE '${cluster_type}' END) AND COALESCE(metric_labels->>'node', 'N/A') LIKE (CASE WHEN '${node}' = 'All' THEN '%%' ELSE '${node}' END) AND COALESCE(metric_labels->>'job', 'N/A') LIKE (CASE WHEN '${job}' = 'All' THEN '%%' ELSE '${job}' END) AND COALESCE(metric_labels->>'container', 'N/A') LIKE (CASE WHEN '${container}' = 'All' THEN '%%' ELSE '${container}' END) AND COALESCE(metric_labels->>'pod', 'N/A') LIKE (CASE WHEN '${pod}' = 'All' THEN '%%' ELSE '${pod}' END)","refId":"D","legendFormat":"Average Value","timeColumns":["time"]}],"title":"Metric Values Over Time","type":"timeseries","transformations":[{"id":"extractFields","options":{"source":"metric_labels","format":"json","replace":false,"keepTime":true}},{"id":"prepareTimeSeries","options":{"format":"multi"}}]},{"datasource":{"type":"postgres","uid":"kpi-postgres-datasource"},"fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]}},"overrides":[]},"gridPos":{"h":10,"w":6,"x":18,"y":0},"id":2,"options":{"colorMode":"background","graphMode":"none","justifyMode":"center","orientation":"vertical","reduceOptions":{"values":false,"calcs":["lastNotNull"],"fields":""},"textMode":"value_and_name","showPercentChange":false},"pluginVersion":"10.0.0","targets":[{"datasource":{"type":"postgres","uid":"kpi-postgres-datasource"},"format":"table","rawSql":"SELECT COUNT(*) as \"Samples\", ROUND(CAST(AVG(metric_value) AS numeric), 6) as \"Average\", ROUND(CAST(MIN(metric_value) AS numeric), 6) as \"Minimum\", ROUND(CAST(MAX(metric_value) AS numeric), 6) as \"Maximum\" FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE timestamp_value >= $__from / 1000 AND timestamp_value < $__to / 1000 AND kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND c.cluster_name LIKE (CASE WHEN '${cluster}' = 'All' THEN '%%' ELSE '${cluster}' END) AND COALESCE(c.cluster_type, 'N/A') LIKE (CASE WHEN '${cluster_type}' = 'All' THEN '%%' ELSE '${cluster_type}' END) AND COALESCE(metric_labels->>'node', 'N/A') LIKE (CASE WHEN '${node}' = 'All' THEN '%%' ELSE '${node}' END) AND COALESCE(metric_labels->>'job', 'N/A') LIKE (CASE WHEN '${job}' = 'All' THEN '%%' ELSE '${job}' END) AND COALESCE(metric_labels->>'container', 'N/A') LIKE (CASE WHEN '${container}' = 'All' THEN '%%' ELSE '${container}' END) AND COALESCE(metric_labels->>'pod', 'N/A') LIKE (CASE WHEN '${pod}' = 'All' THEN '%%' ELSE '${pod}' END)","refId":"A"}],"title":"KPI Statistics","type":"stat"},{"datasource":{"type":"postgres","uid":"kpi-postgres-datasource"},"fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"custom":{"align":"auto","cellOptions":{"type":"auto"},"inspect":false,"filterable":true},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]}},"overrides":[]},"gridPos":{"h":10,"w":24,"x":0,"y":10},"id":3,"options":{"showHeader":true,"cellHeight":"sm","footer":{"show":false,"reducer":["sum"],"countRows":false,"fields":""},"sortBy":[{"displayName":"Avg Value","desc":true}]},"pluginVersion":"10.0.0","targets":[{"datasource":{"type":"postgres","uid":"kpi-postgres-datasource"},"format":"table","rawSql":"SELECT metric_labels, ROUND(CAST(AVG(metric_value) AS numeric), 6) AS avg_value, ROUND(CAST(MIN(metric_value) AS numeric), 6) AS min_value, ROUND(CAST(MAX(metric_value) AS numeric), 6) AS max_value, COUNT(*) AS samples FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE timestamp_value >= $__from / 1000 AND timestamp_value < $__to / 1000 AND kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND c.cluster_name LIKE (CASE WHEN '${cluster}' = 'All' THEN '%%' ELSE '${cluster}' END) AND COALESCE(c.cluster_type, 'N/A') LIKE (CASE WHEN '${cluster_type}' = 'All' THEN '%%' ELSE '${cluster_type}' END) AND COALESCE(metric_labels->>'node', 'N/A') LIKE (CASE WHEN '${node}' = 'All' THEN '%%' ELSE '${node}' END) AND COALESCE(metric_labels->>'job', 'N/A') LIKE (CASE WHEN '${job}' = 'All' THEN '%%' ELSE '${job}' END) AND COALESCE(metric_labels->>'container', 'N/A') LIKE (CASE WHEN '${container}' = 'All' THEN '%%' ELSE '${container}' END) AND COALESCE(metric_labels->>'pod', 'N/A') LIKE (CASE WHEN '${pod}' = 'All' THEN '%%' ELSE '${pod}' END) GROUP BY metric_labels ORDER BY avg_value DESC LIMIT 100","refId":"A"}],"title":"Detailed Metrics with All Labels","type":"table","transformations":[{"id":"extractFields","options":{"source":"metric_labels","format":"json","replace":true}}]},{"datasource":{"type":"postgres","uid":"kpi-postgres-datasource"},"fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"custom":{"axisCenteredZero":false,"axisColorMode":"text","axisLabel":"","axisPlacement":"auto","fillOpacity":80,"gradientMode":"none","hideFrom":{"tooltip":false,"viz":false,"legend":false},"lineWidth":1,"scaleDistribution":{"type":"linear"}},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"yellow","value":1},{"color":"red","value":5}]}},"overrides":[]},"gridPos":{"h":8,"w":24,"x":0,"y":20},"id":5,"options":{"barRadius":0,"barWidth":0.97,"fullHighlight":false,"groupWidth":0.7,"legend":{"calcs":[],"displayMode":"list","placement":"bottom","showLegend":false},"orientation":"horizontal","showValue":"always","stacking":"none","tooltip":{"mode":"single","sort":"none"},"xTickLabelRotation":0,"xTickLabelSpacing":0},"pluginVersion":"10.0.0","targets":[{"datasource":{"type":"postgres","uid":"kpi-postgres-datasource"},"format":"table","rawSql":"SELECT kpi_id AS metric, errors AS value FROM query_errors WHERE errors > 0 ORDER BY errors DESC","refId":"A"}],"title":"Query Errors by KPI (Static)","type":"barchart"},{"datasource":{"type":"postgres","uid":"kpi-postgres-datasource"},"fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"custom":{"align":"auto","cellOptions":{"type":"auto"},"inspect":false,"filterable":true},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]}},"overrides":[]},"gridPos":{"h":9,"w":24,"x":0,"y":28},"id":6,"options":{"showHeader":true,"cellHeight":"sm","footer":{"show":false,"reducer":["sum"],"countRows":false,"fields":""},"sortBy":[{"displayName":"KPI ID","desc":false}]},"pluginVersion":"10.0.0","targets":[{"datasource":{"type":"postgres","uid":"kpi-postgres-datasource"},"format":"table","rawSql":"SELECT kpi_id, COUNT(*) AS sample_count, ROUND(CAST(AVG(metric_value) AS numeric), 6) AS avg_value, ROUND(CAST(MIN(metric_value) AS numeric), 6) AS min_value, ROUND(CAST(MAX(metric_value) AS numeric), 6) AS max_value, ROUND(CAST(MAX(metric_value) - MIN(metric_value) AS numeric), 6) AS range, COUNT(DISTINCT metric_labels) AS unique_metrics FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE timestamp_value >= $__from / 1000 AND timestamp_value < $__to / 1000 AND kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND c.cluster_name LIKE (CASE WHEN '${cluster}' = 'All' THEN '%%' ELSE '${cluster}' END) AND COALESCE(c.cluster_type, 'N/A') LIKE (CASE WHEN '${cluster_type}' = 'All' THEN '%%' ELSE '${cluster_type}' END) AND COALESCE(metric_labels->>'node', 'N/A') LIKE (CASE WHEN '${node}' = 'All' THEN '%%' ELSE '${node}' END) AND COALESCE(metric_labels->>'job', 'N/A') LIKE (CASE WHEN '${job}' = 'All' THEN '%%' ELSE '${job}' END) AND COALESCE(metric_labels->>'container', 'N/A') LIKE (CASE WHEN '${container}' = 'All' THEN '%%' ELSE '${container}' END) AND COALESCE(metric_labels->>'pod', 'N/A') LIKE (CASE WHEN '${pod}' = 'All' THEN '%%' ELSE '${pod}' END) GROUP BY kpi_id ORDER BY kpi_id","refId":"A"}],"title":"All KPIs - Summary Statistics","type":"table"},{"datasource":{"type":"postgres","uid":"kpi-postgres-datasource"},"fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"custom":{"align":"auto","cellOptions":{"type":"auto"},"inspect":false},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]}},"overrides":[]},"gridPos":{"h":6,"w":24,"x":0,"y":37},"id":7,"options":{"showHeader":true,"cellHeight":"sm","footer":{"show":false,"reducer":["sum"],"countRows":false,"fields":""},"sortBy":[]},"pluginVersion":"10.0.0","targets":[{"datasource":{"type":"postgres","uid":"kpi-postgres-datasource"},"format":"table","rawSql":"SELECT c.cluster_name, COALESCE(c.cluster_type, 'N/A') AS cluster_type, COUNT(DISTINCT qr.kpi_id) AS kpi_count, COUNT(qr.metric_value) AS total_samples, MAX(qr.created_at) AS last_collection FROM clusters c LEFT JOIN query_results qr ON c.id = qr.cluster_id AND qr.timestamp_value >= $__from / 1000 AND qr.timestamp_value < $__to / 1000 WHERE COALESCE(c.cluster_type, 'N/A') LIKE (CASE WHEN '${cluster_type}' = 'All' THEN '%%' ELSE '${cluster_type}' END) GROUP BY c.cluster_name, COALESCE(c.cluster_type, 'N/A') ORDER BY c.cluster_name","refId":"A"}],"title":"Cluster Monitoring Status (Time-Aware Counts)","type":"table"}],"refresh":"10s","schemaVersion":38,"style":"dark","tags":["kpi","metrics","monitoring"],"templating":{"list":[{"current":{"text":"All","value":"All"},"datasource":{"type":"postgres","uid":"kpi-postgres-datasource"},"definition":"SELECT cluster_type FROM (SELECT 'All' AS cluster_type, 1 AS order_col UNION ALL SELECT DISTINCT COALESCE(cluster_type, 'N/A'), 2 AS order_col FROM clusters) AS temp_data ORDER BY order_col, cluster_type;","hide":0,"includeAll":false,"label":"Cluster Type","multi":false,"name":"cluster_type","options":[],"query":"SELECT cluster_type FROM (SELECT 'All' AS cluster_type, 1 AS order_col UNION ALL SELECT DISTINCT COALESCE(cluster_type, 'N/A'), 2 AS order_col FROM clusters) AS temp_data ORDER BY order_col, cluster_type;","refresh":1,"type":"query"},{"current":{"text":"","value":""},"datasource":{"type":"postgres","uid":"kpi-postgres-datasource"},"definition":"SELECT cluster_name FROM (SELECT c.cluster_name, CASE WHEN c.id = (SELECT cluster_id FROM query_results ORDER BY created_at DESC LIMIT 1) THEN 1 ELSE 3 END AS sort_order FROM clusters c WHERE COALESCE(c.cluster_type, 'N/A') LIKE (CASE WHEN '${cluster_type}' = 'All' THEN '%%' ELSE '${cluster_type}' END) UNION ALL SELECT 'All', 2) AS t ORDER BY sort_order, cluster_name;","hide":0,"includeAll":false,"label":"Cluster","multi":false,"name":"cluster","options":[],"query":"SELECT cluster_name FROM (SELECT c.cluster_name, CASE WHEN c.id = (SELECT cluster_id FROM query_results ORDER BY created_at DESC LIMIT 1) THEN 1 ELSE 3 END AS sort_order FROM clusters c WHERE COALESCE(c.cluster_type, 'N/A') LIKE (CASE WHEN '${cluster_type}' = 'All' THEN '%%' ELSE '${cluster_type}' END) UNION ALL SELECT 'All', 2) AS t ORDER BY sort_order, cluster_name;","refresh":1,"type":"query"},{"current":{"text":"","value":""},"datasource":{"type":"postgres","uid":"kpi-postgres-datasource"},"definition":"SELECT kpi_id FROM (SELECT DISTINCT kpi_id, 1 AS sort_order FROM query_results WHERE kpi_id IS NOT NULL AND kpi_id != '' UNION ALL SELECT 'All', 2) AS t ORDER BY sort_order, kpi_id;","hide":0,"includeAll":false,"label":"KPI","multi":false,"name":"kpi","options":[],"query":"SELECT kpi_id FROM (SELECT DISTINCT kpi_id, 1 AS sort_order FROM query_results WHERE kpi_id IS NOT NULL AND kpi_id != '' UNION ALL SELECT 'All', 2) AS t ORDER BY sort_order, kpi_id;","refresh":1,"type":"query"},{"current":{"text":"All","value":"All"},"datasource":{"type":"postgres","uid":"kpi-postgres-datasource"},"definition":"SELECT node FROM (SELECT 'All' AS node, 1 AS order_col UNION ALL SELECT DISTINCT COALESCE(metric_labels->>'node', 'N/A'), 2 AS order_col FROM query_results WHERE kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND metric_labels->>'node' IS NOT NULL) AS temp_data ORDER BY order_col, node;","hide":0,"includeAll":false,"label":"Node","multi":false,"name":"node","options":[],"query":"SELECT node FROM (SELECT 'All' AS node, 1 AS order_col UNION ALL SELECT DISTINCT COALESCE(metric_labels->>'node', 'N/A'), 2 AS order_col FROM query_results WHERE kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND metric_labels->>'node' IS NOT NULL) AS temp_data ORDER BY order_col, node;","refresh":1,"type":"query"},{"current":{"text":"All","value":"All"},"datasource":{"type":"postgres","uid":"kpi-postgres-datasource"},"definition":"SELECT job FROM (SELECT 'All' AS job, 1 AS order_col UNION ALL SELECT DISTINCT COALESCE(metric_labels->>'job', 'N/A'), 2 AS order_col FROM query_results WHERE kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND metric_labels->>'job' IS NOT NULL) AS temp_data ORDER BY order_col, job;","hide":0,"includeAll":false,"label":"Job","multi":false,"name":"job","options":[],"query":"SELECT job FROM (SELECT 'All' AS job, 1 AS order_col UNION ALL SELECT DISTINCT COALESCE(metric_labels->>'job', 'N/A'), 2 AS order_col FROM query_results WHERE kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND metric_labels->>'job' IS NOT NULL) AS temp_data ORDER BY order_col, job;","refresh":1,"type":"query"},{"current":{"text":"All","value":"All"},"datasource":{"type":"postgres","uid":"kpi-postgres-datasource"},"definition":"SELECT container FROM (SELECT 'All' AS container, 1 AS order_col UNION ALL SELECT DISTINCT COALESCE(metric_labels->>'container', 'N/A'), 2 AS order_col FROM query_results WHERE kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND metric_labels->>'container' IS NOT NULL) AS temp_data ORDER BY order_col, container;","hide":0,"includeAll":false,"label":"Container","multi":false,"name":"container","options":[],"query":"SELECT container FROM (SELECT 'All' AS container, 1 AS order_col UNION ALL SELECT DISTINCT COALESCE(metric_labels->>'container', 'N/A'), 2 AS order_col FROM query_results WHERE kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND metric_labels->>'container' IS NOT NULL) AS temp_data ORDER BY order_col, container;","refresh":1,"type":"query"},{"current":{"text":"All","value":"All"},"datasource":{"type":"postgres","uid":"kpi-postgres-datasource"},"definition":"SELECT pod FROM (SELECT 'All' AS pod, 1 AS order_col UNION ALL SELECT DISTINCT COALESCE(metric_labels->>'pod', 'N/A'), 2 AS order_col FROM query_results WHERE kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND metric_labels->>'pod' IS NOT NULL) AS temp_data ORDER BY order_col, pod;","hide":0,"includeAll":false,"label":"Pod","multi":false,"name":"pod","options":[],"query":"SELECT pod FROM (SELECT 'All' AS pod, 1 AS order_col UNION ALL SELECT DISTINCT COALESCE(metric_labels->>'pod', 'N/A'), 2 AS order_col FROM query_results WHERE kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND metric_labels->>'pod' IS NOT NULL) AS temp_data ORDER BY order_col, pod;","refresh":1,"type":"query"}]},"time":{"from":"now-7d","to":"now"},"title":"KPI Collection Tool - Dynamic Dashboard (PostgreSQL)","uid":"kpi-collector-dynamic","version":83,"weekStart":""}
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "kpi-postgres-datasource"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "kpi-postgres-datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Max Value"
+            },
+            "properties": [
+              {
+                "id": "custom.drawStyle",
+                "value": "line"
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    6,
+                    6
+                  ]
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 3
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "tooltip": true,
+                  "viz": false,
+                  "legend": false
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Min Value"
+            },
+            "properties": [
+              {
+                "id": "custom.drawStyle",
+                "value": "line"
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    6,
+                    6
+                  ]
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 3
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "tooltip": true,
+                  "viz": false,
+                  "legend": false
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Average Value"
+            },
+            "properties": [
+              {
+                "id": "custom.drawStyle",
+                "value": "line"
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    5
+                  ]
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 3
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "tooltip": true,
+                  "viz": false,
+                  "legend": false
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 18,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "last",
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "kpi-postgres-datasource"
+          },
+          "format": "table",
+          "rawSql": "SELECT to_timestamp(timestamp_value) AS time, metric_value, metric_labels FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE timestamp_value >= $__from / 1000 AND timestamp_value < $__to / 1000 AND kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND c.cluster_name LIKE (CASE WHEN '${cluster}' = 'All' THEN '%%' ELSE '${cluster}' END) AND COALESCE(c.cluster_type, 'N/A') LIKE (CASE WHEN '${cluster_type}' = 'All' THEN '%%' ELSE '${cluster_type}' END) AND COALESCE(metric_labels->>'node', 'N/A') LIKE (CASE WHEN '${node}' = 'All' THEN '%%' ELSE '${node}' END) AND COALESCE(metric_labels->>'job', 'N/A') LIKE (CASE WHEN '${job}' = 'All' THEN '%%' ELSE '${job}' END) AND COALESCE(metric_labels->>'container', 'N/A') LIKE (CASE WHEN '${container}' = 'All' THEN '%%' ELSE '${container}' END) AND COALESCE(metric_labels->>'pod', 'N/A') LIKE (CASE WHEN '${pod}' = 'All' THEN '%%' ELSE '${pod}' END) ORDER BY time ASC",
+          "refId": "A",
+          "timeColumns": [
+            "time"
+          ],
+          "legendFormat": "Node: {{__field.labels.node}} | Pod: {{__field.labels.pod}} | Job: {{__field.labels.job}}"
+        },
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "kpi-postgres-datasource"
+          },
+          "format": "table",
+          "rawSql": "SELECT 'Max Value' AS metric_labels, MAX(metric_value) AS metric_value, $__from/1000 AS time FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE timestamp_value >= $__from / 1000 AND timestamp_value < $__to / 1000 AND kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND c.cluster_name LIKE (CASE WHEN '${cluster}' = 'All' THEN '%%' ELSE '${cluster}' END) AND COALESCE(c.cluster_type, 'N/A') LIKE (CASE WHEN '${cluster_type}' = 'All' THEN '%%' ELSE '${cluster_type}' END) AND COALESCE(metric_labels->>'node', 'N/A') LIKE (CASE WHEN '${node}' = 'All' THEN '%%' ELSE '${node}' END) AND COALESCE(metric_labels->>'job', 'N/A') LIKE (CASE WHEN '${job}' = 'All' THEN '%%' ELSE '${job}' END) AND COALESCE(metric_labels->>'container', 'N/A') LIKE (CASE WHEN '${container}' = 'All' THEN '%%' ELSE '${container}' END) AND COALESCE(metric_labels->>'pod', 'N/A') LIKE (CASE WHEN '${pod}' = 'All' THEN '%%' ELSE '${pod}' END)",
+          "refId": "B",
+          "legendFormat": "Max Value",
+          "timeColumns": [
+            "time"
+          ]
+        },
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "kpi-postgres-datasource"
+          },
+          "format": "table",
+          "rawSql": "SELECT 'Min Value' AS metric_labels, MIN(metric_value) AS metric_value, $__from/1000 AS time FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE timestamp_value >= $__from / 1000 AND timestamp_value < $__to / 1000 AND kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND c.cluster_name LIKE (CASE WHEN '${cluster}' = 'All' THEN '%%' ELSE '${cluster}' END) AND COALESCE(c.cluster_type, 'N/A') LIKE (CASE WHEN '${cluster_type}' = 'All' THEN '%%' ELSE '${cluster_type}' END) AND COALESCE(metric_labels->>'node', 'N/A') LIKE (CASE WHEN '${node}' = 'All' THEN '%%' ELSE '${node}' END) AND COALESCE(metric_labels->>'job', 'N/A') LIKE (CASE WHEN '${job}' = 'All' THEN '%%' ELSE '${job}' END) AND COALESCE(metric_labels->>'container', 'N/A') LIKE (CASE WHEN '${container}' = 'All' THEN '%%' ELSE '${container}' END) AND COALESCE(metric_labels->>'pod', 'N/A') LIKE (CASE WHEN '${pod}' = 'All' THEN '%%' ELSE '${pod}' END)",
+          "refId": "C",
+          "legendFormat": "Min Value",
+          "timeColumns": [
+            "time"
+          ]
+        },
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "kpi-postgres-datasource"
+          },
+          "format": "table",
+          "rawSql": "SELECT 'Average Value' AS metric_labels, AVG(metric_value) AS metric_value, $__from/1000 AS time FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE timestamp_value >= $__from / 1000 AND timestamp_value < $__to / 1000 AND kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND c.cluster_name LIKE (CASE WHEN '${cluster}' = 'All' THEN '%%' ELSE '${cluster}' END) AND COALESCE(c.cluster_type, 'N/A') LIKE (CASE WHEN '${cluster_type}' = 'All' THEN '%%' ELSE '${cluster_type}' END) AND COALESCE(metric_labels->>'node', 'N/A') LIKE (CASE WHEN '${node}' = 'All' THEN '%%' ELSE '${node}' END) AND COALESCE(metric_labels->>'job', 'N/A') LIKE (CASE WHEN '${job}' = 'All' THEN '%%' ELSE '${job}' END) AND COALESCE(metric_labels->>'container', 'N/A') LIKE (CASE WHEN '${container}' = 'All' THEN '%%' ELSE '${container}' END) AND COALESCE(metric_labels->>'pod', 'N/A') LIKE (CASE WHEN '${pod}' = 'All' THEN '%%' ELSE '${pod}' END)",
+          "refId": "D",
+          "legendFormat": "Average Value",
+          "timeColumns": [
+            "time"
+          ]
+        }
+      ],
+      "title": "Metric Values Over Time",
+      "type": "timeseries",
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "source": "metric_labels",
+            "format": "json",
+            "replace": false,
+            "keepTime": true
+          }
+        },
+        {
+          "id": "prepareTimeSeries",
+          "options": {
+            "format": "multi"
+          }
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "kpi-postgres-datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "vertical",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "value_and_name",
+        "showPercentChange": false
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "kpi-postgres-datasource"
+          },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) as \"Samples\", ROUND(CAST(AVG(metric_value) AS numeric), 6) as \"Average\", ROUND(CAST(MIN(metric_value) AS numeric), 6) as \"Minimum\", ROUND(CAST(MAX(metric_value) AS numeric), 6) as \"Maximum\" FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE timestamp_value >= $__from / 1000 AND timestamp_value < $__to / 1000 AND kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND c.cluster_name LIKE (CASE WHEN '${cluster}' = 'All' THEN '%%' ELSE '${cluster}' END) AND COALESCE(c.cluster_type, 'N/A') LIKE (CASE WHEN '${cluster_type}' = 'All' THEN '%%' ELSE '${cluster_type}' END) AND COALESCE(metric_labels->>'node', 'N/A') LIKE (CASE WHEN '${node}' = 'All' THEN '%%' ELSE '${node}' END) AND COALESCE(metric_labels->>'job', 'N/A') LIKE (CASE WHEN '${job}' = 'All' THEN '%%' ELSE '${job}' END) AND COALESCE(metric_labels->>'container', 'N/A') LIKE (CASE WHEN '${container}' = 'All' THEN '%%' ELSE '${container}' END) AND COALESCE(metric_labels->>'pod', 'N/A') LIKE (CASE WHEN '${pod}' = 'All' THEN '%%' ELSE '${pod}' END)",
+          "refId": "A"
+        }
+      ],
+      "title": "KPI Statistics",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "kpi-postgres-datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 10
+      },
+      "id": 3,
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "sortBy": [
+          {
+            "displayName": "Avg Value",
+            "desc": true
+          }
+        ]
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "kpi-postgres-datasource"
+          },
+          "format": "table",
+          "rawSql": "SELECT metric_labels, ROUND(CAST(AVG(metric_value) AS numeric), 6) AS avg_value, ROUND(CAST(MIN(metric_value) AS numeric), 6) AS min_value, ROUND(CAST(MAX(metric_value) AS numeric), 6) AS max_value, COUNT(*) AS samples FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE timestamp_value >= $__from / 1000 AND timestamp_value < $__to / 1000 AND kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND c.cluster_name LIKE (CASE WHEN '${cluster}' = 'All' THEN '%%' ELSE '${cluster}' END) AND COALESCE(c.cluster_type, 'N/A') LIKE (CASE WHEN '${cluster_type}' = 'All' THEN '%%' ELSE '${cluster_type}' END) AND COALESCE(metric_labels->>'node', 'N/A') LIKE (CASE WHEN '${node}' = 'All' THEN '%%' ELSE '${node}' END) AND COALESCE(metric_labels->>'job', 'N/A') LIKE (CASE WHEN '${job}' = 'All' THEN '%%' ELSE '${job}' END) AND COALESCE(metric_labels->>'container', 'N/A') LIKE (CASE WHEN '${container}' = 'All' THEN '%%' ELSE '${container}' END) AND COALESCE(metric_labels->>'pod', 'N/A') LIKE (CASE WHEN '${pod}' = 'All' THEN '%%' ELSE '${pod}' END) GROUP BY metric_labels ORDER BY avg_value DESC LIMIT 100",
+          "refId": "A"
+        }
+      ],
+      "title": "Detailed Metrics with All Labels",
+      "type": "table",
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "source": "metric_labels",
+            "format": "json",
+            "replace": true
+          }
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "kpi-postgres-datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "id": 5,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.97,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "orientation": "horizontal",
+        "showValue": "always",
+        "stacking": "none",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "kpi-postgres-datasource"
+          },
+          "format": "table",
+          "rawSql": "SELECT kpi_id AS metric, errors AS value FROM query_errors WHERE errors > 0 ORDER BY errors DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Query Errors by KPI (Static)",
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "kpi-postgres-datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false,
+            "filterable": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 28
+      },
+      "id": 6,
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "sortBy": [
+          {
+            "displayName": "KPI ID",
+            "desc": false
+          }
+        ]
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "kpi-postgres-datasource"
+          },
+          "format": "table",
+          "rawSql": "SELECT kpi_id, COUNT(*) AS sample_count, ROUND(CAST(AVG(metric_value) AS numeric), 6) AS avg_value, ROUND(CAST(MIN(metric_value) AS numeric), 6) AS min_value, ROUND(CAST(MAX(metric_value) AS numeric), 6) AS max_value, ROUND(CAST(MAX(metric_value) - MIN(metric_value) AS numeric), 6) AS range, COUNT(DISTINCT metric_labels) AS unique_metrics FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE timestamp_value >= $__from / 1000 AND timestamp_value < $__to / 1000 AND kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND c.cluster_name LIKE (CASE WHEN '${cluster}' = 'All' THEN '%%' ELSE '${cluster}' END) AND COALESCE(c.cluster_type, 'N/A') LIKE (CASE WHEN '${cluster_type}' = 'All' THEN '%%' ELSE '${cluster_type}' END) AND COALESCE(metric_labels->>'node', 'N/A') LIKE (CASE WHEN '${node}' = 'All' THEN '%%' ELSE '${node}' END) AND COALESCE(metric_labels->>'job', 'N/A') LIKE (CASE WHEN '${job}' = 'All' THEN '%%' ELSE '${job}' END) AND COALESCE(metric_labels->>'container', 'N/A') LIKE (CASE WHEN '${container}' = 'All' THEN '%%' ELSE '${container}' END) AND COALESCE(metric_labels->>'pod', 'N/A') LIKE (CASE WHEN '${pod}' = 'All' THEN '%%' ELSE '${pod}' END) GROUP BY kpi_id ORDER BY kpi_id",
+          "refId": "A"
+        }
+      ],
+      "title": "All KPIs - Summary Statistics",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "kpi-postgres-datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 37
+      },
+      "id": 7,
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "sortBy": []
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "kpi-postgres-datasource"
+          },
+          "format": "table",
+          "rawSql": "SELECT c.cluster_name, COALESCE(c.cluster_type, 'N/A') AS cluster_type, COUNT(DISTINCT qr.kpi_id) AS kpi_count, COUNT(qr.metric_value) AS total_samples, MAX(qr.created_at) AS last_collection FROM clusters c LEFT JOIN query_results qr ON c.id = qr.cluster_id AND qr.timestamp_value >= $__from / 1000 AND qr.timestamp_value < $__to / 1000 WHERE COALESCE(c.cluster_type, 'N/A') LIKE (CASE WHEN '${cluster_type}' = 'All' THEN '%%' ELSE '${cluster_type}' END) GROUP BY c.cluster_name, COALESCE(c.cluster_type, 'N/A') ORDER BY c.cluster_name",
+          "refId": "A"
+        }
+      ],
+      "title": "Cluster Monitoring Status (Time-Aware Counts)",
+      "type": "table"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": [
+    "kpi",
+    "metrics",
+    "monitoring"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "All",
+          "value": "All"
+        },
+        "datasource": {
+          "type": "postgres",
+          "uid": "kpi-postgres-datasource"
+        },
+        "definition": "SELECT cluster_type FROM (SELECT 'All' AS cluster_type, 1 AS order_col UNION ALL SELECT DISTINCT COALESCE(cluster_type, 'N/A'), 2 AS order_col FROM clusters) AS temp_data ORDER BY order_col, cluster_type;",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Cluster Type",
+        "multi": false,
+        "name": "cluster_type",
+        "options": [],
+        "query": "SELECT cluster_type FROM (SELECT 'All' AS cluster_type, 1 AS order_col UNION ALL SELECT DISTINCT COALESCE(cluster_type, 'N/A'), 2 AS order_col FROM clusters) AS temp_data ORDER BY order_col, cluster_type;",
+        "refresh": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "datasource": {
+          "type": "postgres",
+          "uid": "kpi-postgres-datasource"
+        },
+        "definition": "SELECT cluster_name FROM (SELECT c.cluster_name, CASE WHEN c.id = (SELECT cluster_id FROM query_results ORDER BY created_at DESC LIMIT 1) THEN 1 ELSE 3 END AS sort_order FROM clusters c WHERE COALESCE(c.cluster_type, 'N/A') LIKE (CASE WHEN '${cluster_type}' = 'All' THEN '%%' ELSE '${cluster_type}' END) UNION ALL SELECT 'All', 2) AS t ORDER BY sort_order, cluster_name;",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Cluster",
+        "multi": false,
+        "name": "cluster",
+        "options": [],
+        "query": "SELECT cluster_name FROM (SELECT c.cluster_name, CASE WHEN c.id = (SELECT cluster_id FROM query_results ORDER BY created_at DESC LIMIT 1) THEN 1 ELSE 3 END AS sort_order FROM clusters c WHERE COALESCE(c.cluster_type, 'N/A') LIKE (CASE WHEN '${cluster_type}' = 'All' THEN '%%' ELSE '${cluster_type}' END) UNION ALL SELECT 'All', 2) AS t ORDER BY sort_order, cluster_name;",
+        "refresh": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "datasource": {
+          "type": "postgres",
+          "uid": "kpi-postgres-datasource"
+        },
+        "definition": "SELECT kpi_id FROM (SELECT DISTINCT kpi_id, 1 AS sort_order FROM query_results WHERE kpi_id IS NOT NULL AND kpi_id != '' UNION ALL SELECT 'All', 2) AS t ORDER BY sort_order, kpi_id;",
+        "hide": 0,
+        "includeAll": false,
+        "label": "KPI",
+        "multi": false,
+        "name": "kpi",
+        "options": [],
+        "query": "SELECT kpi_id FROM (SELECT DISTINCT kpi_id, 1 AS sort_order FROM query_results WHERE kpi_id IS NOT NULL AND kpi_id != '' UNION ALL SELECT 'All', 2) AS t ORDER BY sort_order, kpi_id;",
+        "refresh": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "All",
+          "value": "All"
+        },
+        "datasource": {
+          "type": "postgres",
+          "uid": "kpi-postgres-datasource"
+        },
+        "definition": "SELECT node FROM (SELECT 'All' AS node, 1 AS order_col UNION ALL SELECT DISTINCT COALESCE(metric_labels->>'node', 'N/A'), 2 AS order_col FROM query_results WHERE kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND metric_labels->>'node' IS NOT NULL) AS temp_data ORDER BY order_col, node;",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Node",
+        "multi": false,
+        "name": "node",
+        "options": [],
+        "query": "SELECT node FROM (SELECT 'All' AS node, 1 AS order_col UNION ALL SELECT DISTINCT COALESCE(metric_labels->>'node', 'N/A'), 2 AS order_col FROM query_results WHERE kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND metric_labels->>'node' IS NOT NULL) AS temp_data ORDER BY order_col, node;",
+        "refresh": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "All",
+          "value": "All"
+        },
+        "datasource": {
+          "type": "postgres",
+          "uid": "kpi-postgres-datasource"
+        },
+        "definition": "SELECT job FROM (SELECT 'All' AS job, 1 AS order_col UNION ALL SELECT DISTINCT COALESCE(metric_labels->>'job', 'N/A'), 2 AS order_col FROM query_results WHERE kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND metric_labels->>'job' IS NOT NULL) AS temp_data ORDER BY order_col, job;",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Job",
+        "multi": false,
+        "name": "job",
+        "options": [],
+        "query": "SELECT job FROM (SELECT 'All' AS job, 1 AS order_col UNION ALL SELECT DISTINCT COALESCE(metric_labels->>'job', 'N/A'), 2 AS order_col FROM query_results WHERE kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND metric_labels->>'job' IS NOT NULL) AS temp_data ORDER BY order_col, job;",
+        "refresh": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "All",
+          "value": "All"
+        },
+        "datasource": {
+          "type": "postgres",
+          "uid": "kpi-postgres-datasource"
+        },
+        "definition": "SELECT container FROM (SELECT 'All' AS container, 1 AS order_col UNION ALL SELECT DISTINCT COALESCE(metric_labels->>'container', 'N/A'), 2 AS order_col FROM query_results WHERE kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND metric_labels->>'container' IS NOT NULL) AS temp_data ORDER BY order_col, container;",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Container",
+        "multi": false,
+        "name": "container",
+        "options": [],
+        "query": "SELECT container FROM (SELECT 'All' AS container, 1 AS order_col UNION ALL SELECT DISTINCT COALESCE(metric_labels->>'container', 'N/A'), 2 AS order_col FROM query_results WHERE kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND metric_labels->>'container' IS NOT NULL) AS temp_data ORDER BY order_col, container;",
+        "refresh": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "All",
+          "value": "All"
+        },
+        "datasource": {
+          "type": "postgres",
+          "uid": "kpi-postgres-datasource"
+        },
+        "definition": "SELECT pod FROM (SELECT 'All' AS pod, 1 AS order_col UNION ALL SELECT DISTINCT COALESCE(metric_labels->>'pod', 'N/A'), 2 AS order_col FROM query_results WHERE kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND metric_labels->>'pod' IS NOT NULL) AS temp_data ORDER BY order_col, pod;",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Pod",
+        "multi": false,
+        "name": "pod",
+        "options": [],
+        "query": "SELECT pod FROM (SELECT 'All' AS pod, 1 AS order_col UNION ALL SELECT DISTINCT COALESCE(metric_labels->>'pod', 'N/A'), 2 AS order_col FROM query_results WHERE kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND metric_labels->>'pod' IS NOT NULL) AS temp_data ORDER BY order_col, pod;",
+        "refresh": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "title": "KPI Collection Tool - Dynamic Dashboard (PostgreSQL)",
+  "uid": "kpi-collector-dynamic",
+  "version": 83,
+  "weekStart": ""
+}
