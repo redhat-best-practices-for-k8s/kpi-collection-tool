@@ -244,6 +244,7 @@ func runGrafanaContainer(grafanaDir string) error {
 		// Mount dashboard JSON
 		"-v", fmt.Sprintf("%s:/var/lib/grafana/dashboards:ro",
 			filepath.Join(absGrafanaDir, "dashboards")),
+		"-e", "GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/dashboard.json",
 	}
 
 	// For SQLite, mount the database file
