@@ -19,7 +19,19 @@
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
   "id": null,
-  "links": [],
+  "links": [
+    {
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Fit to data",
+      "tooltip": "Adjust time range to fit all available data",
+      "type": "link",
+      "url": "/d/kpi-collector-dynamic/?from=${data_start}&to=${data_end}"
+    }
+  ],
   "liveNow": false,
   "panels": [
     {
@@ -765,11 +777,45 @@
           "value": "All"
         },
         "refresh": 1
+      },
+      {
+        "name": "data_start",
+        "type": "query",
+        "datasource": {
+          "type": "frser-sqlite-datasource",
+          "uid": "kpi-datasource"
+        },
+        "query": "SELECT COALESCE(CAST(MIN(timestamp_value) * 1000 AS INTEGER), 0) FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}')",
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "refresh": 1,
+        "hide": 2
+      },
+      {
+        "name": "data_end",
+        "type": "query",
+        "datasource": {
+          "type": "frser-sqlite-datasource",
+          "uid": "kpi-datasource"
+        },
+        "query": "SELECT COALESCE(CAST(MAX(timestamp_value) * 1000 AS INTEGER), 0) FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}')",
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "refresh": 1,
+        "hide": 2
       }
     ]
   },
   "time": {
-    "from": "now-7d",
+    "from": "now-24h",
     "to": "now"
   },
   "timepicker": {},

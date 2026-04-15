@@ -19,7 +19,19 @@
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
   "id": null,
-  "links": [],
+  "links": [
+    {
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Auto Fit",
+      "tooltip": "Adjust time range to fit all available data",
+      "type": "link",
+      "url": "/d/kpi-collector-dynamic/?from=${data_start}&to=${data_end}"
+    }
+  ],
   "liveNow": false,
   "panels": [
     {
@@ -814,11 +826,49 @@
         "query": "SELECT pod FROM (SELECT 'All' AS pod, 1 AS order_col UNION ALL SELECT DISTINCT COALESCE(metric_labels->>'pod', 'N/A'), 2 AS order_col FROM query_results WHERE kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND metric_labels->>'pod' IS NOT NULL) AS temp_data ORDER BY order_col, pod;",
         "refresh": 1,
         "type": "query"
+      },
+      {
+        "name": "data_start",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "kpi-postgres-datasource"
+        },
+        "query": "SELECT COALESCE(CAST(MIN(timestamp_value) * 1000 AS BIGINT), 0) FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND c.cluster_name LIKE (CASE WHEN '${cluster}' = 'All' THEN '%%' ELSE '${cluster}' END) AND COALESCE(c.cluster_type, 'N/A') LIKE (CASE WHEN '${cluster_type}' = 'All' THEN '%%' ELSE '${cluster_type}' END)",
+        "definition": "SELECT COALESCE(CAST(MIN(timestamp_value) * 1000 AS BIGINT), 0) FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND c.cluster_name LIKE (CASE WHEN '${cluster}' = 'All' THEN '%%' ELSE '${cluster}' END) AND COALESCE(c.cluster_type, 'N/A') LIKE (CASE WHEN '${cluster_type}' = 'All' THEN '%%' ELSE '${cluster_type}' END)",
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "options": [],
+        "refresh": 1,
+        "hide": 2
+      },
+      {
+        "name": "data_end",
+        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "kpi-postgres-datasource"
+        },
+        "query": "SELECT COALESCE(CAST(MAX(timestamp_value) * 1000 AS BIGINT), 0) FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND c.cluster_name LIKE (CASE WHEN '${cluster}' = 'All' THEN '%%' ELSE '${cluster}' END) AND COALESCE(c.cluster_type, 'N/A') LIKE (CASE WHEN '${cluster_type}' = 'All' THEN '%%' ELSE '${cluster_type}' END)",
+        "definition": "SELECT COALESCE(CAST(MAX(timestamp_value) * 1000 AS BIGINT), 0) FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE kpi_id LIKE (CASE WHEN '${kpi}' = 'All' THEN '%%' ELSE '${kpi}' END) AND c.cluster_name LIKE (CASE WHEN '${cluster}' = 'All' THEN '%%' ELSE '${cluster}' END) AND COALESCE(c.cluster_type, 'N/A') LIKE (CASE WHEN '${cluster_type}' = 'All' THEN '%%' ELSE '${cluster_type}' END)",
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "options": [],
+        "refresh": 1,
+        "hide": 2
       }
     ]
   },
   "time": {
-    "from": "now-7d",
+    "from": "now-24h",
     "to": "now"
   },
   "title": "KPI Collection Tool - Dynamic Dashboard (PostgreSQL)",
