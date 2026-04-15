@@ -44,7 +44,7 @@
       },
       "gridPos": {
         "h": 10,
-        "w": 18,
+        "w": 24,
         "x": 0,
         "y": 0
       },
@@ -351,58 +351,19 @@
     },
     {
       "id": 2,
-      "type": "stat",
-      "title": "KPI Statistics Summary",
-      "datasource": {
-        "type": "frser-sqlite-datasource",
-        "uid": "kpi-datasource"
-      },
+      "type": "text",
+      "title": "",
       "gridPos": {
-        "h": 10,
-        "w": 6,
-        "x": 18,
-        "y": 0
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 10
       },
       "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "center",
-        "orientation": "vertical",
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "textMode": "value_and_name",
-        "showPercentChange": false
+        "mode": "html",
+        "content": "<div style=\"text-align: center; vertical-align: middle\">sample count: ${samples_count}, average value: ${avg_value}, max value: ${max_value}, min value: ${min_value}</div>"
       },
-      "targets": [
-        {
-          "queryType": "table",
-          "rawQueryText": "SELECT COUNT(*) as 'Samples', ROUND(AVG(metric_value), 6) as 'Average', ROUND(MIN(metric_value), 6) as 'Minimum', ROUND(MAX(metric_value), 6) as 'Maximum' FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR json_extract(metric_labels, '$.node') = '${node}') AND ('${job}' = 'All' OR json_extract(metric_labels, '$.job') = '${job}') AND ('${pod}' = 'All' OR json_extract(metric_labels, '$.pod') = '${pod}') AND ('${container}' = 'All' OR json_extract(metric_labels, '$.container') = '${container}')",
-          "refId": "A"
-        }
-      ]
+      "transparent": true
     },
     {
       "id": 3,
@@ -416,7 +377,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 10
+        "y": 12
       },
       "fieldConfig": {
         "defaults": {
@@ -484,7 +445,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 20
+        "y": 22
       },
       "fieldConfig": {
         "defaults": {
@@ -549,7 +510,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 28
+        "y": 30
       },
       "fieldConfig": {
         "defaults": {
@@ -609,7 +570,7 @@
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 37
+        "y": 39
       },
       "fieldConfig": {
         "defaults": {
@@ -777,6 +738,74 @@
           "value": "All"
         },
         "refresh": 1
+      },
+      {
+        "name": "samples_count",
+        "type": "query",
+        "datasource": {
+          "type": "frser-sqlite-datasource",
+          "uid": "kpi-datasource"
+        },
+        "query": "SELECT COALESCE(COUNT(*), 0) FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR json_extract(metric_labels, '$.node') = '${node}') AND ('${job}' = 'All' OR json_extract(metric_labels, '$.job') = '${job}') AND ('${pod}' = 'All' OR json_extract(metric_labels, '$.pod') = '${pod}') AND ('${container}' = 'All' OR json_extract(metric_labels, '$.container') = '${container}')",
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "refresh": 1,
+        "hide": 2
+      },
+      {
+        "name": "avg_value",
+        "type": "query",
+        "datasource": {
+          "type": "frser-sqlite-datasource",
+          "uid": "kpi-datasource"
+        },
+        "query": "SELECT COALESCE(ROUND(AVG(metric_value), 6), 'N/A') FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR json_extract(metric_labels, '$.node') = '${node}') AND ('${job}' = 'All' OR json_extract(metric_labels, '$.job') = '${job}') AND ('${pod}' = 'All' OR json_extract(metric_labels, '$.pod') = '${pod}') AND ('${container}' = 'All' OR json_extract(metric_labels, '$.container') = '${container}')",
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "refresh": 1,
+        "hide": 2
+      },
+      {
+        "name": "min_value",
+        "type": "query",
+        "datasource": {
+          "type": "frser-sqlite-datasource",
+          "uid": "kpi-datasource"
+        },
+        "query": "SELECT COALESCE(ROUND(MIN(metric_value), 6), 'N/A') FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR json_extract(metric_labels, '$.node') = '${node}') AND ('${job}' = 'All' OR json_extract(metric_labels, '$.job') = '${job}') AND ('${pod}' = 'All' OR json_extract(metric_labels, '$.pod') = '${pod}') AND ('${container}' = 'All' OR json_extract(metric_labels, '$.container') = '${container}')",
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "refresh": 1,
+        "hide": 2
+      },
+      {
+        "name": "max_value",
+        "type": "query",
+        "datasource": {
+          "type": "frser-sqlite-datasource",
+          "uid": "kpi-datasource"
+        },
+        "query": "SELECT COALESCE(ROUND(MAX(metric_value), 6), 'N/A') FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR json_extract(metric_labels, '$.node') = '${node}') AND ('${job}' = 'All' OR json_extract(metric_labels, '$.job') = '${job}') AND ('${pod}' = 'All' OR json_extract(metric_labels, '$.pod') = '${pod}') AND ('${container}' = 'All' OR json_extract(metric_labels, '$.container') = '${container}')",
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "refresh": 1,
+        "hide": 2
       },
       {
         "name": "data_start",
