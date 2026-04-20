@@ -103,12 +103,12 @@ func validateRangeWindow(kpi Query) []error {
 
 	if rw.Since == nil {
 		errors = append(errors, fmt.Errorf("KPI '%s': range.since is required when query-type is 'range'", kpi.ID))
-	} else if err := validateTimestampPositive(kpi.ID, "since", rw.Since); err != nil {
+	} else if err := validateTimeRefPositive(kpi.ID, "since", rw.Since); err != nil {
 		errors = append(errors, err)
 	}
 
 	if rw.Until != nil {
-		if err := validateTimestampPositive(kpi.ID, "until", rw.Until); err != nil {
+		if err := validateTimeRefPositive(kpi.ID, "until", rw.Until); err != nil {
 			errors = append(errors, err)
 		}
 	}
@@ -144,8 +144,8 @@ func validateRangeWindow(kpi Query) []error {
 	return nil
 }
 
-func validateTimestampPositive(kpiID, field string, ts *Timestamp) error {
-	if ts.IsDuration() && ts.DurationValue() <= 0 {
+func validateTimeRefPositive(kpiID, field string, timeRef *TimeRef) error {
+	if timeRef.IsDuration() && timeRef.DurationValue() <= 0 {
 		return fmt.Errorf("KPI '%s': range.%s must be > 0 when specified as a duration", kpiID, field)
 	}
 

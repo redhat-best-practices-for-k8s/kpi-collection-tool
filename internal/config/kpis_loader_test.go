@@ -362,7 +362,7 @@ var _ = Describe("KPIs Loader", func() {
 							QueryType: "range",
 							Range: &RangeWindow{
 								Step:  &Duration{Duration: 30 * time.Second},
-								Since: &Timestamp{duration: &sinceVal},
+								Since: &TimeRef{duration: &sinceVal},
 							},
 						},
 					},
@@ -383,8 +383,8 @@ var _ = Describe("KPIs Loader", func() {
 							QueryType: "range",
 							Range: &RangeWindow{
 								Step:  &Duration{Duration: 30 * time.Second},
-								Since: &Timestamp{duration: &sinceVal},
-								Until: &Timestamp{duration: &untilVal},
+								Since: &TimeRef{duration: &sinceVal},
+								Until: &TimeRef{duration: &untilVal},
 							},
 						},
 					},
@@ -395,203 +395,203 @@ var _ = Describe("KPIs Loader", func() {
 			})
 
 			It("should reject since after until when both are durations", func() {
-			sinceVal := 2 * time.Hour
-			untilVal := 4 * time.Hour
-			kpis := KPIs{
-				Queries: []Query{
-					{
-						ID:        "bad-dur-order",
-						PromQuery: "rate(node_cpu_seconds_total[5m])",
-						QueryType: "range",
-						Range: &RangeWindow{
-							Step:  &Duration{Duration: 30 * time.Second},
-							Since: &Timestamp{duration: &sinceVal},
-							Until: &Timestamp{duration: &untilVal},
+				sinceVal := 2 * time.Hour
+				untilVal := 4 * time.Hour
+				kpis := KPIs{
+					Queries: []Query{
+						{
+							ID:        "bad-dur-order",
+							PromQuery: "rate(node_cpu_seconds_total[5m])",
+							QueryType: "range",
+							Range: &RangeWindow{
+								Step:  &Duration{Duration: 30 * time.Second},
+								Since: &TimeRef{duration: &sinceVal},
+								Until: &TimeRef{duration: &untilVal},
+							},
 						},
 					},
-				},
-			}
+				}
 
-			errors := ValidateKPIs(kpis)
-			Expect(errors).To(HaveLen(1))
-			Expect(errors[0].Error()).To(ContainSubstring("since must be before until"))
-		})
+				errors := ValidateKPIs(kpis)
+				Expect(errors).To(HaveLen(1))
+				Expect(errors[0].Error()).To(ContainSubstring("since must be before until"))
+			})
 
-		It("should reject since equal to until when both are durations", func() {
-			d := 2 * time.Hour
-			kpis := KPIs{
-				Queries: []Query{
-					{
-						ID:        "equal-dur",
-						PromQuery: "rate(node_cpu_seconds_total[5m])",
-						QueryType: "range",
-						Range: &RangeWindow{
-							Step:  &Duration{Duration: 30 * time.Second},
-							Since: &Timestamp{duration: &d},
-							Until: &Timestamp{duration: &d},
+			It("should reject since equal to until when both are durations", func() {
+				d := 2 * time.Hour
+				kpis := KPIs{
+					Queries: []Query{
+						{
+							ID:        "equal-dur",
+							PromQuery: "rate(node_cpu_seconds_total[5m])",
+							QueryType: "range",
+							Range: &RangeWindow{
+								Step:  &Duration{Duration: 30 * time.Second},
+								Since: &TimeRef{duration: &d},
+								Until: &TimeRef{duration: &d},
+							},
 						},
 					},
-				},
-			}
+				}
 
-			errors := ValidateKPIs(kpis)
-			Expect(errors).To(HaveLen(1))
-			Expect(errors[0].Error()).To(ContainSubstring("since must be before until"))
-		})
+				errors := ValidateKPIs(kpis)
+				Expect(errors).To(HaveLen(1))
+				Expect(errors[0].Error()).To(ContainSubstring("since must be before until"))
+			})
 
-		It("should warn but not error when step is larger than since-until window (both durations)", func() {
-			sinceVal := 2 * time.Hour
-			untilVal := time.Hour
-			kpis := KPIs{
-				Queries: []Query{
-					{
-						ID:        "big-step-dur",
-						PromQuery: "rate(node_cpu_seconds_total[5m])",
-						QueryType: "range",
-						Range: &RangeWindow{
-							Step:  &Duration{Duration: 2 * time.Hour},
-							Since: &Timestamp{duration: &sinceVal},
-							Until: &Timestamp{duration: &untilVal},
+			It("should warn but not error when step is larger than since-until window (both durations)", func() {
+				sinceVal := 2 * time.Hour
+				untilVal := time.Hour
+				kpis := KPIs{
+					Queries: []Query{
+						{
+							ID:        "big-step-dur",
+							PromQuery: "rate(node_cpu_seconds_total[5m])",
+							QueryType: "range",
+							Range: &RangeWindow{
+								Step:  &Duration{Duration: 2 * time.Hour},
+								Since: &TimeRef{duration: &sinceVal},
+								Until: &TimeRef{duration: &untilVal},
+							},
 						},
 					},
-				},
-			}
+				}
 
-			errors := ValidateKPIs(kpis)
-			Expect(errors).To(BeEmpty())
-		})
+				errors := ValidateKPIs(kpis)
+				Expect(errors).To(BeEmpty())
+			})
 
-		It("should reject step equal to zero", func() {
-			sinceVal := time.Hour
-			kpis := KPIs{
-				Queries: []Query{
-					{
-						ID:        "zero-step",
-						PromQuery: "up",
-						QueryType: "range",
-						Range: &RangeWindow{
-							Step:  &Duration{Duration: 0},
-							Since: &Timestamp{duration: &sinceVal},
+			It("should reject step equal to zero", func() {
+				sinceVal := time.Hour
+				kpis := KPIs{
+					Queries: []Query{
+						{
+							ID:        "zero-step",
+							PromQuery: "up",
+							QueryType: "range",
+							Range: &RangeWindow{
+								Step:  &Duration{Duration: 0},
+								Since: &TimeRef{duration: &sinceVal},
+							},
 						},
 					},
-				},
-			}
+				}
 
-			errors := ValidateKPIs(kpis)
-			Expect(errors).To(HaveLen(1))
-			Expect(errors[0].Error()).To(ContainSubstring("range.step must be > 0"))
-		})
+				errors := ValidateKPIs(kpis)
+				Expect(errors).To(HaveLen(1))
+				Expect(errors[0].Error()).To(ContainSubstring("range.step must be > 0"))
+			})
 
-		It("should reject negative step", func() {
-			sinceVal := time.Hour
-			kpis := KPIs{
-				Queries: []Query{
-					{
-						ID:        "negative-step",
-						PromQuery: "up",
-						QueryType: "range",
-						Range: &RangeWindow{
-							Step:  &Duration{Duration: -30 * time.Second},
-							Since: &Timestamp{duration: &sinceVal},
+			It("should reject negative step", func() {
+				sinceVal := time.Hour
+				kpis := KPIs{
+					Queries: []Query{
+						{
+							ID:        "negative-step",
+							PromQuery: "up",
+							QueryType: "range",
+							Range: &RangeWindow{
+								Step:  &Duration{Duration: -30 * time.Second},
+								Since: &TimeRef{duration: &sinceVal},
+							},
 						},
 					},
-				},
-			}
+				}
 
-			errors := ValidateKPIs(kpis)
-			Expect(errors).To(HaveLen(1))
-			Expect(errors[0].Error()).To(ContainSubstring("range.step must be > 0"))
-		})
+				errors := ValidateKPIs(kpis)
+				Expect(errors).To(HaveLen(1))
+				Expect(errors[0].Error()).To(ContainSubstring("range.step must be > 0"))
+			})
 
-		It("should reject since duration equal to zero", func() {
-			sinceVal := time.Duration(0)
-			kpis := KPIs{
-				Queries: []Query{
-					{
-						ID:        "zero-since",
-						PromQuery: "up",
-						QueryType: "range",
-						Range: &RangeWindow{
-							Step:  &Duration{Duration: 30 * time.Second},
-							Since: &Timestamp{duration: &sinceVal},
+			It("should reject since duration equal to zero", func() {
+				sinceVal := time.Duration(0)
+				kpis := KPIs{
+					Queries: []Query{
+						{
+							ID:        "zero-since",
+							PromQuery: "up",
+							QueryType: "range",
+							Range: &RangeWindow{
+								Step:  &Duration{Duration: 30 * time.Second},
+								Since: &TimeRef{duration: &sinceVal},
+							},
 						},
 					},
-				},
-			}
+				}
 
-			errors := ValidateKPIs(kpis)
-			Expect(errors).To(HaveLen(1))
-			Expect(errors[0].Error()).To(ContainSubstring("range.since must be > 0"))
-		})
+				errors := ValidateKPIs(kpis)
+				Expect(errors).To(HaveLen(1))
+				Expect(errors[0].Error()).To(ContainSubstring("range.since must be > 0"))
+			})
 
-		It("should reject negative since duration", func() {
-			sinceVal := -time.Hour
-			kpis := KPIs{
-				Queries: []Query{
-					{
-						ID:        "negative-since",
-						PromQuery: "up",
-						QueryType: "range",
-						Range: &RangeWindow{
-							Step:  &Duration{Duration: 30 * time.Second},
-							Since: &Timestamp{duration: &sinceVal},
+			It("should reject negative since duration", func() {
+				sinceVal := -time.Hour
+				kpis := KPIs{
+					Queries: []Query{
+						{
+							ID:        "negative-since",
+							PromQuery: "up",
+							QueryType: "range",
+							Range: &RangeWindow{
+								Step:  &Duration{Duration: 30 * time.Second},
+								Since: &TimeRef{duration: &sinceVal},
+							},
 						},
 					},
-				},
-			}
+				}
 
-			errors := ValidateKPIs(kpis)
-			Expect(errors).To(HaveLen(1))
-			Expect(errors[0].Error()).To(ContainSubstring("range.since must be > 0"))
-		})
+				errors := ValidateKPIs(kpis)
+				Expect(errors).To(HaveLen(1))
+				Expect(errors[0].Error()).To(ContainSubstring("range.since must be > 0"))
+			})
 
-		It("should reject until duration equal to zero", func() {
-			sinceVal := time.Hour
-			untilVal := time.Duration(0)
-			kpis := KPIs{
-				Queries: []Query{
-					{
-						ID:        "zero-until",
-						PromQuery: "up",
-						QueryType: "range",
-						Range: &RangeWindow{
-							Step:  &Duration{Duration: 30 * time.Second},
-							Since: &Timestamp{duration: &sinceVal},
-							Until: &Timestamp{duration: &untilVal},
+			It("should reject until duration equal to zero", func() {
+				sinceVal := time.Hour
+				untilVal := time.Duration(0)
+				kpis := KPIs{
+					Queries: []Query{
+						{
+							ID:        "zero-until",
+							PromQuery: "up",
+							QueryType: "range",
+							Range: &RangeWindow{
+								Step:  &Duration{Duration: 30 * time.Second},
+								Since: &TimeRef{duration: &sinceVal},
+								Until: &TimeRef{duration: &untilVal},
+							},
 						},
 					},
-				},
-			}
+				}
 
-			errors := ValidateKPIs(kpis)
-			Expect(errors).To(HaveLen(1))
-			Expect(errors[0].Error()).To(ContainSubstring("range.until must be > 0"))
-		})
+				errors := ValidateKPIs(kpis)
+				Expect(errors).To(HaveLen(1))
+				Expect(errors[0].Error()).To(ContainSubstring("range.until must be > 0"))
+			})
 
-		It("should reject negative until duration", func() {
-			sinceVal := 2 * time.Hour
-			untilVal := -time.Hour
-			kpis := KPIs{
-				Queries: []Query{
-					{
-						ID:        "negative-until",
-						PromQuery: "up",
-						QueryType: "range",
-						Range: &RangeWindow{
-							Step:  &Duration{Duration: 30 * time.Second},
-							Since: &Timestamp{duration: &sinceVal},
-							Until: &Timestamp{duration: &untilVal},
+			It("should reject negative until duration", func() {
+				sinceVal := 2 * time.Hour
+				untilVal := -time.Hour
+				kpis := KPIs{
+					Queries: []Query{
+						{
+							ID:        "negative-until",
+							PromQuery: "up",
+							QueryType: "range",
+							Range: &RangeWindow{
+								Step:  &Duration{Duration: 30 * time.Second},
+								Since: &TimeRef{duration: &sinceVal},
+								Until: &TimeRef{duration: &untilVal},
+							},
 						},
 					},
-				},
-			}
+				}
 
-			errors := ValidateKPIs(kpis)
-			Expect(errors).To(HaveLen(1))
-			Expect(errors[0].Error()).To(ContainSubstring("range.until must be > 0"))
-		})
+				errors := ValidateKPIs(kpis)
+				Expect(errors).To(HaveLen(1))
+				Expect(errors[0].Error()).To(ContainSubstring("range.until must be > 0"))
+			})
 
-		It("should reject invalid query-type value", func() {
+			It("should reject invalid query-type value", func() {
 				kpis := KPIs{
 					Queries: []Query{
 						{ID: "bad-type", PromQuery: "up", QueryType: "window"},
@@ -623,7 +623,7 @@ var _ = Describe("KPIs Loader", func() {
 							ID:        "missing-step",
 							PromQuery: "up",
 							QueryType: "range",
-							Range:     &RangeWindow{Since: &Timestamp{duration: &sinceVal}},
+							Range:     &RangeWindow{Since: &TimeRef{duration: &sinceVal}},
 						},
 					},
 				}
@@ -643,7 +643,7 @@ var _ = Describe("KPIs Loader", func() {
 							QueryType: "range",
 							Range: &RangeWindow{
 								Step:  &Duration{Duration: 10 * time.Minute},
-								Since: &Timestamp{duration: &sinceVal},
+								Since: &TimeRef{duration: &sinceVal},
 							},
 						},
 					},
@@ -663,7 +663,7 @@ var _ = Describe("KPIs Loader", func() {
 							QueryType: "instant",
 							Range: &RangeWindow{
 								Step:  &Duration{Duration: 30 * time.Second},
-								Since: &Timestamp{duration: &sinceVal},
+								Since: &TimeRef{duration: &sinceVal},
 							},
 						},
 					},
@@ -706,8 +706,8 @@ var _ = Describe("KPIs Loader", func() {
 							QueryType: "range",
 							Range: &RangeWindow{
 								Step:  &Duration{Duration: 30 * time.Second},
-								Since: &Timestamp{absolute: &start},
-								Until: &Timestamp{absolute: &end},
+								Since: &TimeRef{absolute: &start},
+								Until: &TimeRef{absolute: &end},
 							},
 						},
 					},
@@ -728,8 +728,8 @@ var _ = Describe("KPIs Loader", func() {
 							QueryType: "range",
 							Range: &RangeWindow{
 								Step:  &Duration{Duration: 30 * time.Second},
-								Since: &Timestamp{duration: &sinceVal},
-								Until: &Timestamp{absolute: &untilAbs},
+								Since: &TimeRef{duration: &sinceVal},
+								Until: &TimeRef{absolute: &untilAbs},
 							},
 						},
 					},
@@ -749,8 +749,8 @@ var _ = Describe("KPIs Loader", func() {
 							QueryType: "range",
 							Range: &RangeWindow{
 								Step:  &Duration{Duration: 30 * time.Second},
-								Since: &Timestamp{absolute: &ts},
-								Until: &Timestamp{absolute: &ts},
+								Since: &TimeRef{absolute: &ts},
+								Until: &TimeRef{absolute: &ts},
 							},
 						},
 					},
@@ -772,8 +772,8 @@ var _ = Describe("KPIs Loader", func() {
 							QueryType: "range",
 							Range: &RangeWindow{
 								Step:  &Duration{Duration: 30 * time.Second},
-								Since: &Timestamp{absolute: &start},
-								Until: &Timestamp{absolute: &end},
+								Since: &TimeRef{absolute: &start},
+								Until: &TimeRef{absolute: &end},
 							},
 						},
 					},
@@ -795,8 +795,8 @@ var _ = Describe("KPIs Loader", func() {
 							QueryType: "range",
 							Range: &RangeWindow{
 								Step:  &Duration{Duration: 10 * time.Minute},
-								Since: &Timestamp{absolute: &start},
-								Until: &Timestamp{absolute: &end},
+								Since: &TimeRef{absolute: &start},
+								Until: &TimeRef{absolute: &end},
 							},
 						},
 					},
@@ -814,7 +814,7 @@ var _ = Describe("KPIs Loader", func() {
 							ID:        "instant-with-range",
 							PromQuery: "up",
 							QueryType: "instant",
-							Range:     &RangeWindow{Since: &Timestamp{duration: &sinceVal}},
+							Range:     &RangeWindow{Since: &TimeRef{duration: &sinceVal}},
 						},
 					},
 				}
@@ -966,44 +966,44 @@ var _ = Describe("KPIs Loader", func() {
 	Describe("validateTimestampPositive", func() {
 		It("should return nil for a positive duration", func() {
 			d := 2 * time.Hour
-			ts := &Timestamp{duration: &d}
+			timeRef := &TimeRef{duration: &d}
 
-			err := validateTimestampPositive("my-kpi", "since", ts)
+			err := validateTimeRefPositive("my-kpi", "since", timeRef)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
 		It("should return an error for a zero duration", func() {
 			d := time.Duration(0)
-			ts := &Timestamp{duration: &d}
+			timeRef := &TimeRef{duration: &d}
 
-			err := validateTimestampPositive("my-kpi", "since", ts)
+			err := validateTimeRefPositive("my-kpi", "since", timeRef)
 			Expect(err).To(MatchError("KPI 'my-kpi': range.since must be > 0 when specified as a duration"))
 		})
 
 		It("should return an error for a negative duration", func() {
 			d := -30 * time.Minute
-			ts := &Timestamp{duration: &d}
+			timeRef := &TimeRef{duration: &d}
 
-			err := validateTimestampPositive("neg-kpi", "until", ts)
+			err := validateTimeRefPositive("neg-kpi", "until", timeRef)
 			Expect(err).To(MatchError("KPI 'neg-kpi': range.until must be > 0 when specified as a duration"))
 		})
 
 		It("should return nil for an absolute timestamp", func() {
 			abs := time.Date(2026, 4, 7, 12, 0, 0, 0, time.UTC)
-			ts := &Timestamp{absolute: &abs}
+			timeRef := &TimeRef{absolute: &abs}
 
-			err := validateTimestampPositive("abs-kpi", "since", ts)
+			err := validateTimeRefPositive("abs-kpi", "since", timeRef)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
 		It("should include the correct field name in the error message", func() {
 			d := time.Duration(0)
-			ts := &Timestamp{duration: &d}
+			timeRef := &TimeRef{duration: &d}
 
-			errSince := validateTimestampPositive("kpi-x", "since", ts)
+			errSince := validateTimeRefPositive("kpi-x", "since", timeRef)
 			Expect(errSince).To(MatchError("KPI 'kpi-x': range.since must be > 0 when specified as a duration"))
 
-			errUntil := validateTimestampPositive("kpi-x", "until", ts)
+			errUntil := validateTimeRefPositive("kpi-x", "until", timeRef)
 			Expect(errUntil).To(MatchError("KPI 'kpi-x': range.until must be > 0 when specified as a duration"))
 		})
 	})
