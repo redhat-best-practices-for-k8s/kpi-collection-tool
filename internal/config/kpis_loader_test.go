@@ -938,7 +938,7 @@ var _ = Describe("KPIs Loader", func() {
 				Expect(kpis.Queries[0].Range.Until.AbsoluteValue().Year()).To(Equal(2026))
 			})
 
-			It("should reject non-RFC 3339 and non-duration format in JSON", func() {
+			It("should reject non-RFC-3339 and non-duration format in JSON", func() {
 				kpisJSON := `{
 					"kpis": [
 						{
@@ -960,6 +960,51 @@ var _ = Describe("KPIs Loader", func() {
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("failed to decode kpis file"))
 			})
+		})
+	})
+
+	Describe("validateTimestampPositive", func() {
+		It("should return nil for a positive duration", func() {
+			d := 2 * time.Hour
+			ts := &Timestamp{duration: &d}
+
+			err := validateTimestampPositive("my-kpi", "since", ts)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should return an error for a zero duration", func() {
+			d := time.Duration(0)
+			ts := &Timestamp{duration: &d}
+
+			err := validateTimestampPositive("my-kpi", "since", ts)
+			Expect(err).To(MatchError("KPI 'my-kpi': range.since must be > 0 when specified as a duration"))
+		})
+
+		It("should return an error for a negative duration", func() {
+			d := -30 * time.Minute
+			ts := &Timestamp{duration: &d}
+
+			err := validateTimestampPositive("neg-kpi", "until", ts)
+			Expect(err).To(MatchError("KPI 'neg-kpi': range.until must be > 0 when specified as a duration"))
+		})
+
+		It("should return nil for an absolute timestamp", func() {
+			abs := time.Date(2026, 4, 7, 12, 0, 0, 0, time.UTC)
+			ts := &Timestamp{absolute: &abs}
+
+			err := validateTimestampPositive("abs-kpi", "since", ts)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should include the correct field name in the error message", func() {
+			d := time.Duration(0)
+			ts := &Timestamp{duration: &d}
+
+			errSince := validateTimestampPositive("kpi-x", "since", ts)
+			Expect(errSince).To(MatchError("KPI 'kpi-x': range.since must be > 0 when specified as a duration"))
+
+			errUntil := validateTimestampPositive("kpi-x", "until", ts)
+			Expect(errUntil).To(MatchError("KPI 'kpi-x': range.until must be > 0 when specified as a duration"))
 		})
 	})
 })
