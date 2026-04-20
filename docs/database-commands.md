@@ -2,6 +2,7 @@
 
 The `db` command provides direct access to query and manage collected KPI data stored in the database. It works with both SQLite (default) and PostgreSQL.
 
+
 Related guides:
 - [Collecting Metrics](collecting-metrics.md)
 - [Grafana](grafana.md)
@@ -101,6 +102,12 @@ kpi-collector db show kpis \
   --since="24h" \
   --limit=50 \
   --sort="desc"
+
+# Output as JSON
+kpi-collector db show kpis --name="<kpi-name>" -o json
+
+# Export to CSV file
+kpi-collector db show kpis --name="<kpi-name>" -o csv > metrics.csv
 ```
 
 Available flags:
@@ -111,6 +118,8 @@ Available flags:
 - `--until`: duration format like `1h`, `15m`, `12h`
 - `--limit`: maximum rows (`0` means no limit)
 - `--sort`: `asc` or `desc` by execution time (default: `asc`)
+- `-o`, `--output`: output format — `table` (default), `json`, or `csv`
+- `--no-truncate`: show full label values without truncation
 
 Output:
 

@@ -9,6 +9,8 @@ import (
 	"crypto/tls"
 	"database/sql"
 	"fmt"
+	"log"
+	"math"
 	"net/http"
 	"os"
 	"time"
@@ -144,6 +146,24 @@ func executeQuery(ctx context.Context, v1api promv1.API, db *sql.DB, dbImpl data
 		return
 	}
 
+	// Filter out NaN/Inf values
+	var nanCount int
+	result, nanCount = filterNaNValues(result)
+
+	// Check if anything remains to store
+	if isEmptyResult(result) {
+		queryResult.Success = true
+		output.PrintQueryResult(info, queryResult)
+		if nanCount > 0 {
+			fmt.Printf("  Warning: all %d sample(s) were NaN — nothing stored\n", nanCount)
+			log.Printf("[%s] All %d sample(s) were NaN, nothing stored: %s", info.QueryID, nanCount, info.PromQuery)
+		} else {
+			fmt.Printf("  Warning: query returned no data (metric may not exist on this cluster)\n")
+			log.Printf("[%s] Query returned no data: %s", info.QueryID, info.PromQuery)
+		}
+		return
+	}
+
 	// Store results
 	err = dbImpl.StoreQueryResults(db, clusterID, info.QueryID, result)
 	if err != nil {
@@ -155,4 +175,60 @@ func executeQuery(ctx context.Context, v1api promv1.API, db *sql.DB, dbImpl data
 
 	queryResult.Success = true
 	output.PrintQueryResult(info, queryResult)
+	if nanCount > 0 {
+		fmt.Printf("  Note: skipped %d NaN value(s)\n", nanCount)
+		log.Printf("[%s] Skipped %d NaN/Inf value(s): %s", info.QueryID, nanCount, info.PromQuery)
+	}
+}
+
+// isEmptyResult checks whether a Prometheus query returned no data points.
+func isEmptyResult(result model.Value) bool {
+	switch v := result.(type) {
+	case model.Vector:
+		return len(v) == 0
+	case model.Matrix:
+		return len(v) == 0
+	default:
+		return false
+	}
+}
+
+// filterNaNValues removes NaN and Inf samples from a Prometheus result,
+// returning the cleaned result and the number of samples removed.
+func filterNaNValues(result model.Value) (model.Value, int) {
+	switch v := result.(type) {
+	case model.Vector:
+		filtered := make(model.Vector, 0, len(v))
+		for _, sample := range v {
+			if math.IsNaN(float64(sample.Value)) || math.IsInf(float64(sample.Value), 0) {
+				continue
+			}
+			filtered = append(filtered, sample)
+		}
+		return filtered, len(v) - len(filtered)
+
+	case model.Matrix:
+		skipped := 0
+		filtered := make(model.Matrix, 0, len(v))
+		for _, stream := range v {
+			cleanPairs := make([]model.SamplePair, 0, len(stream.Values))
+			for _, pair := range stream.Values {
+				if math.IsNaN(float64(pair.Value)) || math.IsInf(float64(pair.Value), 0) {
+					skipped++
+					continue
+				}
+				cleanPairs = append(cleanPairs, pair)
+			}
+			if len(cleanPairs) > 0 {
+				filtered = append(filtered, &model.SampleStream{
+					Metric: stream.Metric,
+					Values: cleanPairs,
+				})
+			}
+		}
+		return filtered, skipped
+
+	default:
+		return result, 0
+	}
 }

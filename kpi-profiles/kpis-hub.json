@@ -1,0 +1,96 @@
+{
+    "kpis": [
+        {
+            "id": "apiserver-request-duration-99p",
+            "promquery": "histogram_quantile(0.99, sum(rate(apiserver_request_duration_seconds_bucket{verb!=\"WATCH\"}[5m])) by (verb, le))"
+        },
+        {
+            "id": "apiserver-request-rate",
+            "promquery": "sum(rate(apiserver_request_total[5m])) by (verb, code)"
+        },
+        {
+            "id": "apiserver-error-rate",
+            "promquery": "sum(rate(apiserver_request_total{code=~\"5..\"}[5m])) by (verb)"
+        },
+        {
+            "id": "etcd-db-size",
+            "promquery": "etcd_mvcc_db_total_size_in_bytes"
+        },
+        {
+            "id": "etcd-disk-wal-fsync-duration-99p",
+            "promquery": "histogram_quantile(0.99, sum(rate(etcd_disk_wal_fsync_duration_seconds_bucket[5m])) by (le))"
+        },
+        {
+            "id": "etcd-leader-changes",
+            "promquery": "increase(etcd_server_leader_changes_seen_total[1h])",
+            "sample-frequency": "5m"
+        },
+        {
+            "id": "cpu-node-total",
+            "promquery": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)"
+        },
+        {
+            "id": "memory-node-used-percentage",
+            "promquery": "100 * (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes))"
+        },
+        {
+            "id": "acm-cpu-usage",
+            "promquery": "sort_desc(sum(rate(container_cpu_usage_seconds_total{container!=\"\",container!=\"POD\",namespace=~\"open-cluster-management.*|multicluster-engine\"}[5m])) by (namespace, pod))"
+        },
+        {
+            "id": "acm-memory-usage",
+            "promquery": "sort_desc(sum(container_memory_working_set_bytes{container!=\"\",container!=\"POD\",namespace=~\"open-cluster-management.*|multicluster-engine\"}) by (namespace, pod))"
+        },
+        {
+            "id": "gitops-cpu-usage",
+            "promquery": "sort_desc(sum(rate(container_cpu_usage_seconds_total{container!=\"\",container!=\"POD\",namespace=~\"openshift-gitops.*\"}[5m])) by (namespace, pod))"
+        },
+        {
+            "id": "gitops-memory-usage",
+            "promquery": "sort_desc(sum(container_memory_working_set_bytes{container!=\"\",container!=\"POD\",namespace=~\"openshift-gitops.*\"}) by (namespace, pod))"
+        },
+        {
+            "id": "acm-managed-clusters",
+            "promquery": "count(acm_managed_cluster_info)",
+            "sample-frequency": "5m"
+        },
+        {
+            "id": "acm-policy-noncompliant",
+            "promquery": "count(policy_governance_info{type=\"root\",compliant=\"NonCompliant\"})",
+            "sample-frequency": "5m"
+        },
+        {
+            "id": "disk-usage-percentage",
+            "promquery": "100 - ((node_filesystem_avail_bytes{mountpoint=\"/\",fstype!=\"tmpfs\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!=\"tmpfs\"}) * 100)"
+        },
+        {
+            "id": "pv-usage-percentage",
+            "promquery": "100 * (1 - (kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes))"
+        },
+        {
+            "id": "network-node-rx-bytes",
+            "promquery": "sort_desc(rate(node_network_receive_bytes_total{device!~\"lo|veth.*|br.*|ovs.*\"}[5m]))"
+        },
+        {
+            "id": "network-node-tx-bytes",
+            "promquery": "sort_desc(rate(node_network_transmit_bytes_total{device!~\"lo|veth.*|br.*|ovs.*\"}[5m]))"
+        },
+        {
+            "id": "node-load-1min",
+            "promquery": "node_load1"
+        },
+        {
+            "id": "pod-restart-count",
+            "promquery": "sort_desc(sum(kube_pod_container_status_restarts_total) by (namespace, pod))"
+        },
+        {
+            "id": "pod-status-not-ready",
+            "promquery": "count(kube_pod_status_phase{phase=~\"Pending|Failed\"}) by (namespace, phase)"
+        },
+        {
+            "id": "cluster-uptime",
+            "promquery": "max(time() - process_start_time_seconds{job=\"kubelet\"})",
+            "run-once": true
+        }
+    ]
+}

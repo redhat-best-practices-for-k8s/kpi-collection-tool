@@ -1,5 +1,8 @@
 // KPI Configuration Template
 //
+// This file is a structural reference for building custom KPI configurations.
+// For ready-to-use profiles, see the kpi-profiles/ directory.
+//
 // Each KPI entry has:
 //   - id:               Unique identifier (used in database and output)
 //   - promquery:        PromQL query to execute against Prometheus/Thanos

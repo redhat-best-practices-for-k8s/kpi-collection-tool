@@ -27,25 +27,18 @@ func SubstituteCPUPlaceholders(kpis KPIs, cpus *CPUPlaceholders) KPIs {
 		return kpis
 	}
 
-	substituted := KPIs{
+	resolvedKPIs := KPIs{
 		Queries: make([]Query, len(kpis.Queries)),
 	}
 
-	for i, kpi := range kpis.Queries {
-		query := kpi.PromQuery
-		query = strings.ReplaceAll(query, "{{RESERVED_CPUS}}", cpus.Reserved)
-		query = strings.ReplaceAll(query, "{{ISOLATED_CPUS}}", cpus.Isolated)
+	for i, originalQuery := range kpis.Queries {
+		resolvedPromQL := originalQuery.PromQuery
+		resolvedPromQL = strings.ReplaceAll(resolvedPromQL, "{{RESERVED_CPUS}}", cpus.Reserved)
+		resolvedPromQL = strings.ReplaceAll(resolvedPromQL, "{{ISOLATED_CPUS}}", cpus.Isolated)
 
-		substituted.Queries[i] = Query{
-			ID:              kpi.ID,
-			PromQuery:       query,
-			SampleFrequency: kpi.SampleFrequency,
-			QueryType:       kpi.QueryType,
-			Range:           kpi.Range,
-			RunOnce:         kpi.RunOnce,
-		}
+		resolvedKPIs.Queries[i] = originalQuery
+		resolvedKPIs.Queries[i].PromQuery = resolvedPromQL
 	}
 
-	return substituted
+	return resolvedKPIs
 }
-

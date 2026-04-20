@@ -1,0 +1,13 @@
+{
+    "kpis": [
+        {
+            "id": "node-cpu-usage",
+            "promquery": "avg by (instance) (rate(node_cpu_seconds_total{mode!=\"idle\"}[5m]))"
+        },
+        {
+            "id": "cluster-uptime",
+            "promquery": "max(time() - process_start_time_seconds{job=\"kubelet\"})",
+            "run-once": true
+        }
+    ]
+}

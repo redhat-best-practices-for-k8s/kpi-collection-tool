@@ -1,0 +1,49 @@
+{
+    "kpis": [
+        {
+            "id": "node-cpu-usage",
+            "promquery": "avg by (instance) (rate(node_cpu_seconds_total{mode!=\"idle\"}[5m]))"
+        },
+        {
+            "id": "node-memory-used-percentage",
+            "promquery": "100 * (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes))"
+        },
+        {
+            "id": "node-memory-available",
+            "promquery": "node_memory_MemAvailable_bytes"
+        },
+        {
+            "id": "node-load-1min",
+            "promquery": "node_load1"
+        },
+        {
+            "id": "node-load-5min",
+            "promquery": "node_load5"
+        },
+        {
+            "id": "disk-usage-percentage",
+            "promquery": "100 - ((node_filesystem_avail_bytes{mountpoint=\"/\",fstype!=\"tmpfs\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!=\"tmpfs\"}) * 100)"
+        },
+        {
+            "id": "cpu-usage-by-namespace",
+            "promquery": "sort_desc(sum(rate(container_cpu_usage_seconds_total{container!=\"\",container!=\"POD\"}[5m])) by (namespace))"
+        },
+        {
+            "id": "memory-usage-by-namespace",
+            "promquery": "sort_desc(sum(container_memory_working_set_bytes{container!=\"\",container!=\"POD\"}) by (namespace))"
+        },
+        {
+            "id": "pod-restart-count",
+            "promquery": "sort_desc(sum(kube_pod_container_status_restarts_total) by (namespace, pod))"
+        },
+        {
+            "id": "pod-status-not-ready",
+            "promquery": "count(kube_pod_status_phase{phase=~\"Pending|Failed\"}) by (namespace, phase)"
+        },
+        {
+            "id": "cluster-uptime",
+            "promquery": "max(time() - process_start_time_seconds{job=\"kubelet\"})",
+            "run-once": true
+        }
+    ]
+}

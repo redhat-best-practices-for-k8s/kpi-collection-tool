@@ -1,0 +1,128 @@
+{
+    "kpis": [
+        {
+            "id": "cpu-reserved-cores",
+            "promquery": "avg by (cpu) (rate(node_cpu_seconds_total{cpu=~\"{{RESERVED_CPUS}}\",mode!=\"idle\"}[5m]))"
+        },
+        {
+            "id": "cpu-isolated-cores",
+            "promquery": "avg by (cpu) (rate(node_cpu_seconds_total{cpu=~\"{{ISOLATED_CPUS}}\",mode!=\"idle\"}[5m]))"
+        },
+        {
+            "id": "cpu-node-total",
+            "promquery": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)"
+        },
+        {
+            "id": "cpu-system-slice",
+            "promquery": "sort_desc(rate(container_cpu_usage_seconds_total{id=~\"/system.slice/.*\"}[5m]))"
+        },
+        {
+            "id": "cpu-ovs-slice",
+            "promquery": "sort_desc(rate(container_cpu_usage_seconds_total{id=~\"/ovs.slice/.*\"}[5m]))"
+        },
+        {
+            "id": "cpu-pods-average",
+            "promquery": "sort_desc(avg_over_time(pod:container_cpu_usage:sum[5m]))"
+        },
+        {
+            "id": "memory-node-used-percentage",
+            "promquery": "100 * (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes))"
+        },
+        {
+            "id": "memory-working-set-by-pod",
+            "promquery": "sort_desc(sum(container_memory_working_set_bytes{container!=\"\",container!=\"POD\"}) by (pod, namespace))"
+        },
+        {
+            "id": "memory-rss-by-pod",
+            "promquery": "sort_desc(sum(container_memory_rss{container!=\"\",container!=\"POD\"}) by (pod, namespace))"
+        },
+        {
+            "id": "hugepages-1g-free",
+            "promquery": "node_hugepages_free{hugepagesize=\"1048576\"}"
+        },
+        {
+            "id": "hugepages-1g-total",
+            "promquery": "node_hugepages_total{hugepagesize=\"1048576\"}"
+        },
+        {
+            "id": "hugepages-2m-free",
+            "promquery": "node_hugepages_free{hugepagesize=\"2048\"}"
+        },
+        {
+            "id": "hugepages-2m-total",
+            "promquery": "node_hugepages_total{hugepagesize=\"2048\"}"
+        },
+        {
+            "id": "network-node-rx-bytes",
+            "promquery": "sort_desc(rate(node_network_receive_bytes_total{device!~\"lo|veth.*|br.*|ovs.*\"}[5m]))"
+        },
+        {
+            "id": "network-node-tx-bytes",
+            "promquery": "sort_desc(rate(node_network_transmit_bytes_total{device!~\"lo|veth.*|br.*|ovs.*\"}[5m]))"
+        },
+        {
+            "id": "network-node-rx-errors",
+            "promquery": "sort_desc(rate(node_network_receive_errs_total{device!~\"lo|veth.*|br.*|ovs.*\"}[5m]))"
+        },
+        {
+            "id": "network-node-tx-errors",
+            "promquery": "sort_desc(rate(node_network_transmit_errs_total{device!~\"lo|veth.*|br.*|ovs.*\"}[5m]))"
+        },
+        {
+            "id": "network-container-rx-bytes",
+            "promquery": "sort_desc(rate(container_network_receive_bytes_total{interface=\"eth0\"}[5m]))"
+        },
+        {
+            "id": "network-container-tx-bytes",
+            "promquery": "sort_desc(rate(container_network_transmit_bytes_total{interface=\"eth0\"}[5m]))"
+        },
+        {
+            "id": "ptp-offset-master",
+            "promquery": "openshift_ptp_offset_ns{iface=\"CLOCK_REALTIME\",process=\"phc2sys\"}"
+        },
+        {
+            "id": "ptp-max-offset-master",
+            "promquery": "openshift_ptp_max_offset_ns{iface=\"CLOCK_REALTIME\",process=\"phc2sys\"}"
+        },
+        {
+            "id": "ptp-clock-state",
+            "promquery": "openshift_ptp_clock_state"
+        },
+        {
+            "id": "ptp-interface-role",
+            "promquery": "openshift_ptp_interface_role"
+        },
+        {
+            "id": "disk-io-read-bytes",
+            "promquery": "sort_desc(rate(node_disk_read_bytes_total{device!~\"dm-.*\"}[5m]))"
+        },
+        {
+            "id": "disk-io-write-bytes",
+            "promquery": "sort_desc(rate(node_disk_written_bytes_total{device!~\"dm-.*\"}[5m]))"
+        },
+        {
+            "id": "disk-usage-percentage",
+            "promquery": "100 - ((node_filesystem_avail_bytes{mountpoint=\"/\",fstype!=\"tmpfs\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!=\"tmpfs\"}) * 100)"
+        },
+        {
+            "id": "ovn-controller-cpu",
+            "promquery": "rate(container_cpu_usage_seconds_total{container=\"ovn-controller\"}[5m])"
+        },
+        {
+            "id": "ovn-controller-memory",
+            "promquery": "container_memory_working_set_bytes{container=\"ovn-controller\"}"
+        },
+        {
+            "id": "node-context-switches",
+            "promquery": "rate(node_context_switches_total[5m])"
+        },
+        {
+            "id": "node-interrupts",
+            "promquery": "rate(node_intr_total[5m])"
+        },
+        {
+            "id": "pod-restart-count",
+            "promquery": "sort_desc(sum(kube_pod_container_status_restarts_total) by (namespace, pod))"
+        }
+    ]
+}

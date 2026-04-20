@@ -3,6 +3,7 @@ package prometheus
 import (
 	"context"
 	"database/sql"
+	"math"
 	"os"
 	"time"
 
@@ -91,6 +92,167 @@ func (m *mockPromAPI) Buildinfo(ctx context.Context) (v1.BuildinfoResult, error)
 func (m *mockPromAPI) QueryExemplars(ctx context.Context, query string, startTime, endTime time.Time) ([]v1.ExemplarQueryResult, error) {
 	return nil, nil
 }
+
+var _ = Describe("filterNaNValues", func() {
+	Describe("Vector input", func() {
+		It("should keep all samples when none are NaN or Inf", func() {
+			input := model.Vector{
+				&model.Sample{Metric: model.Metric{"__name__": "cpu"}, Value: 0.5, Timestamp: model.Now()},
+				&model.Sample{Metric: model.Metric{"__name__": "cpu"}, Value: 1.0, Timestamp: model.Now()},
+			}
+
+			result, skipped := filterNaNValues(input)
+
+			vec := result.(model.Vector)
+			Expect(vec).To(HaveLen(2))
+			Expect(skipped).To(Equal(0))
+		})
+
+		It("should remove NaN samples from vector", func() {
+			input := model.Vector{
+				&model.Sample{Metric: model.Metric{"job": "a"}, Value: 0.5},
+				&model.Sample{Metric: model.Metric{"job": "b"}, Value: model.SampleValue(math.NaN())},
+				&model.Sample{Metric: model.Metric{"job": "c"}, Value: 0.9},
+			}
+
+			result, skipped := filterNaNValues(input)
+
+			vec := result.(model.Vector)
+			Expect(vec).To(HaveLen(2))
+			Expect(skipped).To(Equal(1))
+			Expect(float64(vec[0].Value)).To(Equal(0.5))
+			Expect(float64(vec[1].Value)).To(Equal(0.9))
+		})
+
+		It("should remove +Inf and -Inf samples from vector", func() {
+			input := model.Vector{
+				&model.Sample{Metric: model.Metric{"job": "a"}, Value: model.SampleValue(math.Inf(1))},
+				&model.Sample{Metric: model.Metric{"job": "b"}, Value: 42},
+				&model.Sample{Metric: model.Metric{"job": "c"}, Value: model.SampleValue(math.Inf(-1))},
+			}
+
+			result, skipped := filterNaNValues(input)
+
+			vec := result.(model.Vector)
+			Expect(vec).To(HaveLen(1))
+			Expect(skipped).To(Equal(2))
+			Expect(float64(vec[0].Value)).To(Equal(42.0))
+		})
+
+		It("should return empty vector and correct count when all values are NaN", func() {
+			input := model.Vector{
+				&model.Sample{Metric: model.Metric{"job": "a"}, Value: model.SampleValue(math.NaN())},
+				&model.Sample{Metric: model.Metric{"job": "b"}, Value: model.SampleValue(math.NaN())},
+			}
+
+			result, skipped := filterNaNValues(input)
+
+			vec := result.(model.Vector)
+			Expect(vec).To(BeEmpty())
+			Expect(skipped).To(Equal(2))
+		})
+
+		It("should handle an empty vector", func() {
+			result, skipped := filterNaNValues(model.Vector{})
+
+			vec := result.(model.Vector)
+			Expect(vec).To(BeEmpty())
+			Expect(skipped).To(Equal(0))
+		})
+	})
+
+	Describe("Matrix input", func() {
+		It("should keep all sample pairs when none are NaN or Inf", func() {
+			input := model.Matrix{
+				&model.SampleStream{
+					Metric: model.Metric{"__name__": "cpu", "instance": "node1"},
+					Values: []model.SamplePair{
+						{Timestamp: model.TimeFromUnix(1000), Value: 0.1},
+						{Timestamp: model.TimeFromUnix(1030), Value: 0.2},
+					},
+				},
+			}
+
+			result, skipped := filterNaNValues(input)
+
+			mat := result.(model.Matrix)
+			Expect(mat).To(HaveLen(1))
+			Expect(mat[0].Values).To(HaveLen(2))
+			Expect(skipped).To(Equal(0))
+		})
+
+		It("should remove NaN sample pairs and keep the stream", func() {
+			input := model.Matrix{
+				&model.SampleStream{
+					Metric: model.Metric{"cpu": "0"},
+					Values: []model.SamplePair{
+						{Timestamp: model.TimeFromUnix(1000), Value: 0.5},
+						{Timestamp: model.TimeFromUnix(1030), Value: model.SampleValue(math.NaN())},
+						{Timestamp: model.TimeFromUnix(1060), Value: 0.7},
+					},
+				},
+			}
+
+			result, skipped := filterNaNValues(input)
+
+			mat := result.(model.Matrix)
+			Expect(mat).To(HaveLen(1))
+			Expect(mat[0].Values).To(HaveLen(2))
+			Expect(skipped).To(Equal(1))
+		})
+
+		It("should drop an entire stream when all its values are NaN/Inf", func() {
+			input := model.Matrix{
+				&model.SampleStream{
+					Metric: model.Metric{"cpu": "0"},
+					Values: []model.SamplePair{
+						{Timestamp: model.TimeFromUnix(1000), Value: model.SampleValue(math.NaN())},
+						{Timestamp: model.TimeFromUnix(1030), Value: model.SampleValue(math.Inf(1))},
+					},
+				},
+				&model.SampleStream{
+					Metric: model.Metric{"cpu": "1"},
+					Values: []model.SamplePair{
+						{Timestamp: model.TimeFromUnix(1000), Value: 0.3},
+					},
+				},
+			}
+
+			result, skipped := filterNaNValues(input)
+
+			mat := result.(model.Matrix)
+			Expect(mat).To(HaveLen(1))
+			Expect(string(mat[0].Metric["cpu"])).To(Equal("1"))
+			Expect(skipped).To(Equal(2))
+		})
+
+		It("should return empty matrix when all streams are fully NaN", func() {
+			input := model.Matrix{
+				&model.SampleStream{
+					Metric: model.Metric{"cpu": "0"},
+					Values: []model.SamplePair{
+						{Timestamp: model.TimeFromUnix(1000), Value: model.SampleValue(math.NaN())},
+					},
+				},
+			}
+
+			result, skipped := filterNaNValues(input)
+
+			mat := result.(model.Matrix)
+			Expect(mat).To(BeEmpty())
+			Expect(skipped).To(Equal(1))
+		})
+
+		It("should handle an empty matrix", func() {
+			result, skipped := filterNaNValues(model.Matrix{})
+
+			mat := result.(model.Matrix)
+			Expect(mat).To(BeEmpty())
+			Expect(skipped).To(Equal(0))
+		})
+	})
+
+})
 
 var _ = Describe("Client", func() {
 
