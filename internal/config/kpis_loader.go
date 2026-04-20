@@ -123,7 +123,7 @@ func validateRangeWindow(kpi Query) []error {
 		rangeDuration := now.Sub(since)
 		if rangeDuration < rw.Step.Duration {
 			fmt.Printf("WARNING: KPI '%s': step is greater than range window duration (step: %s, range duration: %s)\n",
-				kpi.ID, rw.Step.Duration.String(), rangeDuration.String())
+				kpi.ID, rw.Step.String(), rangeDuration.String())
 		}
 
 		return nil
@@ -138,7 +138,7 @@ func validateRangeWindow(kpi Query) []error {
 	rangeDuration := until.Sub(since)
 	if rangeDuration < rw.Step.Duration {
 		fmt.Printf("WARNING: KPI '%s': step is greater than range window duration (step: %s, range duration: %s)\n",
-			kpi.ID, rw.Step.Duration.String(), rangeDuration.String())
+			kpi.ID, rw.Step.String(), rangeDuration.String())
 	}
 
 	return nil
