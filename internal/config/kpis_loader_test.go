@@ -394,7 +394,204 @@ var _ = Describe("KPIs Loader", func() {
 				Expect(errors).To(BeEmpty())
 			})
 
-			It("should reject invalid query-type value", func() {
+			It("should reject since after until when both are durations", func() {
+			sinceVal := 2 * time.Hour
+			untilVal := 4 * time.Hour
+			kpis := KPIs{
+				Queries: []Query{
+					{
+						ID:        "bad-dur-order",
+						PromQuery: "rate(node_cpu_seconds_total[5m])",
+						QueryType: "range",
+						Range: &RangeWindow{
+							Step:  &Duration{Duration: 30 * time.Second},
+							Since: &Timestamp{duration: &sinceVal},
+							Until: &Timestamp{duration: &untilVal},
+						},
+					},
+				},
+			}
+
+			errors := ValidateKPIs(kpis)
+			Expect(errors).To(HaveLen(1))
+			Expect(errors[0].Error()).To(ContainSubstring("since must be before until"))
+		})
+
+		It("should reject since equal to until when both are durations", func() {
+			d := 2 * time.Hour
+			kpis := KPIs{
+				Queries: []Query{
+					{
+						ID:        "equal-dur",
+						PromQuery: "rate(node_cpu_seconds_total[5m])",
+						QueryType: "range",
+						Range: &RangeWindow{
+							Step:  &Duration{Duration: 30 * time.Second},
+							Since: &Timestamp{duration: &d},
+							Until: &Timestamp{duration: &d},
+						},
+					},
+				},
+			}
+
+			errors := ValidateKPIs(kpis)
+			Expect(errors).To(HaveLen(1))
+			Expect(errors[0].Error()).To(ContainSubstring("since must be before until"))
+		})
+
+		It("should warn but not error when step is larger than since-until window (both durations)", func() {
+			sinceVal := 2 * time.Hour
+			untilVal := time.Hour
+			kpis := KPIs{
+				Queries: []Query{
+					{
+						ID:        "big-step-dur",
+						PromQuery: "rate(node_cpu_seconds_total[5m])",
+						QueryType: "range",
+						Range: &RangeWindow{
+							Step:  &Duration{Duration: 2 * time.Hour},
+							Since: &Timestamp{duration: &sinceVal},
+							Until: &Timestamp{duration: &untilVal},
+						},
+					},
+				},
+			}
+
+			errors := ValidateKPIs(kpis)
+			Expect(errors).To(BeEmpty())
+		})
+
+		It("should reject step equal to zero", func() {
+			sinceVal := time.Hour
+			kpis := KPIs{
+				Queries: []Query{
+					{
+						ID:        "zero-step",
+						PromQuery: "up",
+						QueryType: "range",
+						Range: &RangeWindow{
+							Step:  &Duration{Duration: 0},
+							Since: &Timestamp{duration: &sinceVal},
+						},
+					},
+				},
+			}
+
+			errors := ValidateKPIs(kpis)
+			Expect(errors).To(HaveLen(1))
+			Expect(errors[0].Error()).To(ContainSubstring("range.step must be > 0"))
+		})
+
+		It("should reject negative step", func() {
+			sinceVal := time.Hour
+			kpis := KPIs{
+				Queries: []Query{
+					{
+						ID:        "negative-step",
+						PromQuery: "up",
+						QueryType: "range",
+						Range: &RangeWindow{
+							Step:  &Duration{Duration: -30 * time.Second},
+							Since: &Timestamp{duration: &sinceVal},
+						},
+					},
+				},
+			}
+
+			errors := ValidateKPIs(kpis)
+			Expect(errors).To(HaveLen(1))
+			Expect(errors[0].Error()).To(ContainSubstring("range.step must be > 0"))
+		})
+
+		It("should reject since duration equal to zero", func() {
+			sinceVal := time.Duration(0)
+			kpis := KPIs{
+				Queries: []Query{
+					{
+						ID:        "zero-since",
+						PromQuery: "up",
+						QueryType: "range",
+						Range: &RangeWindow{
+							Step:  &Duration{Duration: 30 * time.Second},
+							Since: &Timestamp{duration: &sinceVal},
+						},
+					},
+				},
+			}
+
+			errors := ValidateKPIs(kpis)
+			Expect(errors).To(HaveLen(1))
+			Expect(errors[0].Error()).To(ContainSubstring("range.since must be > 0"))
+		})
+
+		It("should reject negative since duration", func() {
+			sinceVal := -time.Hour
+			kpis := KPIs{
+				Queries: []Query{
+					{
+						ID:        "negative-since",
+						PromQuery: "up",
+						QueryType: "range",
+						Range: &RangeWindow{
+							Step:  &Duration{Duration: 30 * time.Second},
+							Since: &Timestamp{duration: &sinceVal},
+						},
+					},
+				},
+			}
+
+			errors := ValidateKPIs(kpis)
+			Expect(errors).To(HaveLen(1))
+			Expect(errors[0].Error()).To(ContainSubstring("range.since must be > 0"))
+		})
+
+		It("should reject until duration equal to zero", func() {
+			sinceVal := time.Hour
+			untilVal := time.Duration(0)
+			kpis := KPIs{
+				Queries: []Query{
+					{
+						ID:        "zero-until",
+						PromQuery: "up",
+						QueryType: "range",
+						Range: &RangeWindow{
+							Step:  &Duration{Duration: 30 * time.Second},
+							Since: &Timestamp{duration: &sinceVal},
+							Until: &Timestamp{duration: &untilVal},
+						},
+					},
+				},
+			}
+
+			errors := ValidateKPIs(kpis)
+			Expect(errors).To(HaveLen(1))
+			Expect(errors[0].Error()).To(ContainSubstring("range.until must be > 0"))
+		})
+
+		It("should reject negative until duration", func() {
+			sinceVal := 2 * time.Hour
+			untilVal := -time.Hour
+			kpis := KPIs{
+				Queries: []Query{
+					{
+						ID:        "negative-until",
+						PromQuery: "up",
+						QueryType: "range",
+						Range: &RangeWindow{
+							Step:  &Duration{Duration: 30 * time.Second},
+							Since: &Timestamp{duration: &sinceVal},
+							Until: &Timestamp{duration: &untilVal},
+						},
+					},
+				},
+			}
+
+			errors := ValidateKPIs(kpis)
+			Expect(errors).To(HaveLen(1))
+			Expect(errors[0].Error()).To(ContainSubstring("range.until must be > 0"))
+		})
+
+		It("should reject invalid query-type value", func() {
 				kpis := KPIs{
 					Queries: []Query{
 						{ID: "bad-type", PromQuery: "up", QueryType: "window"},
@@ -436,12 +633,12 @@ var _ = Describe("KPIs Loader", func() {
 				Expect(errors[0].Error()).To(ContainSubstring("step is required"))
 			})
 
-			It("should reject step greater than since-until window", func() {
+			It("should warn but not error when step is larger than since-only window", func() {
 				sinceVal := 5 * time.Minute
 				kpis := KPIs{
 					Queries: []Query{
 						{
-							ID:        "bad-step",
+							ID:        "big-step-no-until",
 							PromQuery: "up",
 							QueryType: "range",
 							Range: &RangeWindow{
@@ -453,8 +650,7 @@ var _ = Describe("KPIs Loader", func() {
 				}
 
 				errors := ValidateKPIs(kpis)
-				Expect(errors).To(HaveLen(1))
-				Expect(errors[0].Error()).To(ContainSubstring("step must be less than or equal to the since-until window"))
+				Expect(errors).To(BeEmpty())
 			})
 
 			It("should reject range when query-type is instant", func() {
@@ -523,7 +719,7 @@ var _ = Describe("KPIs Loader", func() {
 
 			It("should allow mixed since(duration) + until(absolute)", func() {
 				sinceVal := 2 * time.Hour
-				untilAbs := time.Date(2026, 4, 8, 12, 0, 0, 0, time.UTC)
+				untilAbs := time.Now().Add(time.Hour)
 				kpis := KPIs{
 					Queries: []Query{
 						{
@@ -588,7 +784,7 @@ var _ = Describe("KPIs Loader", func() {
 				Expect(errors[0].Error()).To(ContainSubstring("since must be before until"))
 			})
 
-			It("should reject step larger than since-until window with absolute timestamps", func() {
+			It("should warn but not error when step is larger than since-until window (absolute timestamps)", func() {
 				start := time.Date(2026, 4, 7, 12, 0, 0, 0, time.UTC)
 				end := time.Date(2026, 4, 7, 12, 5, 0, 0, time.UTC)
 				kpis := KPIs{
@@ -607,8 +803,7 @@ var _ = Describe("KPIs Loader", func() {
 				}
 
 				errors := ValidateKPIs(kpis)
-				Expect(errors).To(HaveLen(1))
-				Expect(errors[0].Error()).To(ContainSubstring("step must be less than or equal to the since-until window"))
+				Expect(errors).To(BeEmpty())
 			})
 
 			It("should reject range on instant queries", func() {

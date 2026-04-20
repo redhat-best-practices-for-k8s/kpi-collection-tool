@@ -114,7 +114,7 @@ func (t Timestamp) MarshalJSON() ([]byte, error) {
 // Both Since and Until accept either a Go duration ("2h") or an RFC 3339 timestamp.
 type RangeWindow struct {
 	Step  *Duration  `json:"step"`
-	Since *Timestamp `json:"since,omitempty"`
+	Since *Timestamp `json:"since"`
 	Until *Timestamp `json:"until,omitempty"`
 }
 

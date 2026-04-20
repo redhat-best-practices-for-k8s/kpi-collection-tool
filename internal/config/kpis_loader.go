@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/prometheus/prometheus/promql/parser"
 )
@@ -86,64 +87,66 @@ func validateQueryType(kpi Query) []error {
 // validateRangeWindow checks that the range window is properly configured:
 // step and since are required; until is optional (defaults to "now").
 func validateRangeWindow(kpi Query) []error {
-	var errors []error
-
-	if kpi.Range == nil {
-		errors = append(errors, fmt.Errorf("KPI '%s': range is required when query-type is 'range'", kpi.ID))
-		return errors
-	}
-
+	now := time.Now()
 	rw := kpi.Range
 
-	if rw.Step == nil || rw.Step.Duration <= 0 {
-		errors = append(errors, fmt.Errorf("KPI '%s': range.step is required and must be > 0 when query-type is 'range'", kpi.ID))
+	if rw == nil {
+		return []error{fmt.Errorf("KPI '%s': range is required when query-type is 'range'", kpi.ID)}
+	}
+
+	var errors []error
+	if rw.Step == nil {
+		errors = append(errors, fmt.Errorf("KPI '%s': range.step is required when query-type is 'range'", kpi.ID))
+	} else if rw.Step.Duration <= 0 {
+		errors = append(errors, fmt.Errorf("KPI '%s': range.step must be > 0 when query-type is 'range'", kpi.ID))
 	}
 
 	if rw.Since == nil {
-		errors = append(errors,
-			fmt.Errorf("KPI '%s': range.since is required when query-type is 'range'", kpi.ID))
+		errors = append(errors, fmt.Errorf("KPI '%s': range.since is required when query-type is 'range'", kpi.ID))
+	} else if err := validateTimestampPositive(kpi.ID, "since", rw.Since); err != nil {
+		errors = append(errors, err)
+	}
+
+	if rw.Until != nil {
+		if err := validateTimestampPositive(kpi.ID, "until", rw.Until); err != nil {
+			errors = append(errors, err)
+		}
+	}
+
+	// No need to check since before until if there are errors or until is not set
+	if len(errors) > 0 {
 		return errors
 	}
 
-	errors = append(errors, validateTimestampPositive(kpi.ID, "since", rw.Since)...)
-	if rw.Until != nil {
-		errors = append(errors, validateTimestampPositive(kpi.ID, "until", rw.Until)...)
+	since := rw.Since.Resolve(now)
+	if rw.Until == nil {
+		rangeDuration := now.Sub(since)
+		if rangeDuration < rw.Step.Duration {
+			fmt.Printf("WARNING: KPI '%s': step is greater than range window duration (step: %s, range duration: %s)\n",
+				kpi.ID, rw.Step.Duration.String(), rangeDuration.String())
+		}
+
+		return nil
 	}
 
-	errors = append(errors, validateSinceBeforeUntil(kpi)...)
-
-	return errors
-}
-
-func validateTimestampPositive(kpiID, field string, ts *Timestamp) []error {
-	if ts.IsDuration() && ts.DurationValue() <= 0 {
-		return []error{fmt.Errorf("KPI '%s': range.%s must be > 0 when specified as a duration", kpiID, field)}
+	until := rw.Until.Resolve(now)
+	if !since.Before(until) {
+		return []error{fmt.Errorf("KPI '%s': since must be before until (since: %s, until: %s)",
+			kpi.ID, since, until)}
 	}
+
+	rangeDuration := until.Sub(since)
+	if rangeDuration < rw.Step.Duration {
+		fmt.Printf("WARNING: KPI '%s': step is greater than range window duration (step: %s, range duration: %s)\n",
+			kpi.ID, rw.Step.Duration.String(), rangeDuration.String())
+	}
+
 	return nil
 }
 
-func validateSinceBeforeUntil(kpi Query) []error {
-	rw := kpi.Range
-	if rw.Since == nil {
-		return nil
-	}
-
-	if rw.Since.IsDuration() && rw.Until == nil {
-		if rw.Step != nil && rw.Step.Duration > rw.Since.DurationValue() {
-			return []error{fmt.Errorf("KPI '%s': step must be less than or equal to the since-until window", kpi.ID)}
-		}
-		return nil
-	}
-
-	if rw.Since.IsAbsolute() && rw.Until != nil && rw.Until.IsAbsolute() {
-		start := rw.Since.AbsoluteValue()
-		end := rw.Until.AbsoluteValue()
-		if !start.Before(end) {
-			return []error{fmt.Errorf("KPI '%s': since must be before until", kpi.ID)}
-		}
-		if rw.Step != nil && end.Sub(start) < rw.Step.Duration {
-			return []error{fmt.Errorf("KPI '%s': step must be less than or equal to the since-until window", kpi.ID)}
-		}
+func validateTimestampPositive(kpiID, field string, ts *Timestamp) error {
+	if ts.IsDuration() && ts.DurationValue() <= 0 {
+		return fmt.Errorf("KPI '%s': range.%s must be > 0 when specified as a duration", kpiID, field)
 	}
 
 	return nil
