@@ -33,7 +33,7 @@ install-golangci-lint-mac:
 
 # Linux/CI installation via go install
 install-golangci-lint-linux:
-	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4
+	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.1
 
 # Platform-agnostic golangci-lint installation
 install-golangci-lint:
