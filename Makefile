@@ -49,7 +49,7 @@ lint: install-golangci-lint
 
 # Run all tests
 test:
-	go test ./... -v
+	go test ./... -v -ginkgo.v
 
 # Install kpi-collector to user's Go bin directory
 install:
