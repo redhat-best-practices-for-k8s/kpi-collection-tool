@@ -130,7 +130,7 @@ var _ = Describe("parseTimeFilter", func() {
 		Expect(got).To(BeTemporally("~", now.Add(-2*time.Hour)))
 	})
 
-	It("should accept an RFC 3339 timestamp", func() {
+	It("should accept an RFC 3339 timestamp in UTC", func() {
 		input := "2026-04-07T12:24:25Z"
 		got, err := parseTimeFilter(input, now)
 		Expect(err).NotTo(HaveOccurred())
@@ -138,6 +138,22 @@ var _ = Describe("parseTimeFilter", func() {
 		want, err := time.Parse(time.RFC3339, input)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(got).To(BeTemporally("~", want))
+	})
+
+	It("should accept an RFC 3339 timestamp with timezone offset", func() {
+		input := "2026-04-07T12:24:25+02:00"
+		got, err := parseTimeFilter(input, now)
+		Expect(err).NotTo(HaveOccurred())
+
+		want, err := time.Parse(time.RFC3339, input)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(got).To(BeTemporally("~", want))
+	})
+
+	It("should reject a timestamp that is not a valid duration nor RFC 3339", func() {
+		_, err := parseTimeFilter("2026-04-07-12:24:25", now)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("must be a Go duration"))
 	})
 
 	It("should reject a non-positive duration", func() {
