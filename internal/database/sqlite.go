@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/prometheus/common/model"
 	_ "modernc.org/sqlite"
@@ -24,7 +25,13 @@ const (
 // and can be overridden via the --artifacts-dir flag.
 var OutputDir = DefaultOutputDir
 
-type SQLiteDB struct{}
+type SQLiteDB struct {
+	// knownTables caches which category tables have been created during this
+	// process lifetime. It resets on every invocation (including --once), which
+	// is fine because EnsureCategoryTable uses CREATE TABLE IF NOT EXISTS as the
+	// fallback — the cache only avoids redundant DDL within a long-running run.
+	knownTables sync.Map
+}
 
 // NewSQLiteDB creates a new SQLite database instance
 func NewSQLiteDB() *SQLiteDB {
@@ -53,6 +60,17 @@ func (sqlite_db *SQLiteDB) InitDB() (*sql.DB, error) {
 	if _, err = db.Exec(schema.SQLiteSchema); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("creating SQLite schema: %w", err)
+	}
+
+	if _, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS kpi_registry (
+			kpi_id TEXT PRIMARY KEY,
+			category TEXT NOT NULL,
+			table_name TEXT NOT NULL,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("creating kpi_registry table: %w", err)
 	}
 
 	return db, nil
@@ -95,26 +113,86 @@ func (sqlite_db *SQLiteDB) GetQueryErrorCount(db *sql.DB, kpiID string) (int, er
 	return count, err
 }
 
-// StoreQueryResults stores the results of a Prometheus query in the database
-func (sqlite_db *SQLiteDB) StoreQueryResults(db *sql.DB, clusterID int64, queryID string, result model.Value) error {
+// StoreQueryResults stores the results of a Prometheus query in the database.
+// When category is non-empty, writes go to the per-category table (kpi_<category>).
+func (sqlite_db *SQLiteDB) StoreQueryResults(db *sql.DB, clusterID int64, queryID string, category string, result model.Value) error {
+	tableName := "query_results"
+	if category != "" {
+		name, err := sqlite_db.EnsureCategoryTable(db, category, queryID)
+		if err != nil {
+			return fmt.Errorf("ensure category table for '%s': %w", category, err)
+		}
+		tableName = name
+	}
+
 	switch values := result.(type) {
 	case model.Vector:
-		return sqlite_db.storeVectorResults(db, clusterID, queryID, values)
+		return sqlite_db.storeVectorResults(db, clusterID, queryID, tableName, values)
 	case model.Matrix:
-		return sqlite_db.storeMatrixResults(db, clusterID, queryID, values)
+		return sqlite_db.storeMatrixResults(db, clusterID, queryID, tableName, values)
 	default:
 		return fmt.Errorf("unsupported Prometheus result type for KPI '%s': %T", queryID, result)
 	}
 }
 
-func (sqlite_db *SQLiteDB) storeVectorResults(db *sql.DB, clusterID int64, queryID string, vector model.Vector) error {
+// CategoryTableName returns the physical table name for a given sanitised category.
+func CategoryTableName(category string) string {
+	return "kpi_" + category
+}
+
+// EnsureCategoryTable lazily creates the per-category table and registers the
+// KPI→category mapping. The DDL is idempotent and only executed once per
+// process lifetime thanks to the in-memory knownTables cache.
+func (sqlite_db *SQLiteDB) EnsureCategoryTable(db *sql.DB, category string, kpiID string) (string, error) {
+	tableName := CategoryTableName(category)
+
+	if _, ok := sqlite_db.knownTables.Load(tableName); !ok {
+		ddl := fmt.Sprintf(`
+			CREATE TABLE IF NOT EXISTS %s (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				kpi_id TEXT NOT NULL,
+				metric_value REAL,
+				timestamp_value REAL,
+				cluster_id INTEGER NOT NULL REFERENCES clusters(id),
+				execution_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+				metric_labels TEXT
+			);
+			CREATE UNIQUE INDEX IF NOT EXISTS idx_%s_dedup
+			ON %s(kpi_id, cluster_id, timestamp_value, metric_labels)`,
+			tableName, tableName, tableName)
+
+		if _, err := db.Exec(ddl); err != nil {
+			return "", fmt.Errorf("create table %s: %w", tableName, err)
+		}
+
+		sqlite_db.knownTables.Store(tableName, true)
+	}
+
+	_, err := db.Exec(`
+		INSERT INTO kpi_registry (kpi_id, category, table_name) VALUES (?, ?, ?)
+		ON CONFLICT(kpi_id) DO UPDATE SET category = excluded.category, table_name = excluded.table_name`,
+		kpiID, category, tableName)
+	if err != nil {
+		return "", fmt.Errorf("update kpi_registry for '%s': %w", kpiID, err)
+	}
+
+	return tableName, nil
+}
+
+func (sqlite_db *SQLiteDB) storeVectorResults(db *sql.DB, clusterID int64, queryID string, table string, vector model.Vector) error {
 	transaction, err := db.Begin()
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
 	defer func() { _ = transaction.Rollback() }()
 
-	preparedStatement, err := transaction.Prepare(schema.SQLiteInsertResult)
+	insertSQL := fmt.Sprintf(`INSERT INTO %s
+		(kpi_id, metric_value, timestamp_value, cluster_id, metric_labels)
+		VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(kpi_id, cluster_id, timestamp_value, metric_labels) DO NOTHING`, table)
+
+	preparedStatement, err := transaction.Prepare(insertSQL)
 	if err != nil {
 		return fmt.Errorf("prepare statement: %w", err)
 	}
@@ -139,14 +217,19 @@ func (sqlite_db *SQLiteDB) storeVectorResults(db *sql.DB, clusterID int64, query
 	return transaction.Commit()
 }
 
-func (sqlite_db *SQLiteDB) storeMatrixResults(db *sql.DB, clusterID int64, queryID string, matrix model.Matrix) error {
+func (sqlite_db *SQLiteDB) storeMatrixResults(db *sql.DB, clusterID int64, queryID string, table string, matrix model.Matrix) error {
 	transaction, err := db.Begin()
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
 	defer func() { _ = transaction.Rollback() }()
 
-	preparedStatement, err := transaction.Prepare(schema.SQLiteInsertResult)
+	insertSQL := fmt.Sprintf(`INSERT INTO %s
+		(kpi_id, metric_value, timestamp_value, cluster_id, metric_labels)
+		VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(kpi_id, cluster_id, timestamp_value, metric_labels) DO NOTHING`, table)
+
+	preparedStatement, err := transaction.Prepare(insertSQL)
 	if err != nil {
 		return fmt.Errorf("prepare statement: %w", err)
 	}

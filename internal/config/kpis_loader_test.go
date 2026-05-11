@@ -119,6 +119,26 @@ var _ = Describe("KPIs Loader", func() {
 				Expect(kpis.Queries).To(BeEmpty())
 			})
 
+			It("should load KPIs with category field", func() {
+				kpisYAML := `kpis:
+  - id: node-cpu
+    promquery: avg(rate(node_cpu_seconds_total[5m]))
+    category: cpu
+  - id: cluster-up
+    promquery: up
+`
+				kpisPath := filepath.Join(tmpDir, "kpis-cat.yaml")
+				err := os.WriteFile(kpisPath, []byte(kpisYAML), 0644)
+				Expect(err).NotTo(HaveOccurred())
+
+				kpis, err := LoadKPIs(kpisPath)
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(kpis.Queries).To(HaveLen(2))
+				Expect(kpis.Queries[0].Category).To(Equal("cpu"))
+				Expect(kpis.Queries[1].Category).To(BeEmpty())
+			})
+
 			It("should load PromQL queries with double quotes without escaping", func() {
 				kpisYAML := `kpis:
   - id: cpu-system-slice
@@ -940,6 +960,81 @@ var _ = Describe("KPIs Loader", func() {
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("failed to decode kpis file"))
 			})
+		})
+	})
+
+	Describe("SanitizeCategory", func() {
+		It("should lowercase and replace spaces/hyphens with underscores", func() {
+			result, err := SanitizeCategory("CPU Usage")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).To(Equal("cpu_usage"))
+		})
+
+		It("should strip special characters", func() {
+			result, err := SanitizeCategory("mem@ory!!")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).To(Equal("memory"))
+		})
+
+		It("should trim leading/trailing underscores", func() {
+			result, err := SanitizeCategory("_network_")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).To(Equal("network"))
+		})
+
+		It("should return error for empty result after sanitisation", func() {
+			_, err := SanitizeCategory("@!#$")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("empty after sanitisation"))
+		})
+
+		It("should return error when exceeding 32 characters", func() {
+			long := "this_is_a_very_long_category_name_that_exceeds_limit"
+			_, err := SanitizeCategory(long)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("exceeds 32 characters"))
+		})
+
+		It("should accept exactly 32 characters", func() {
+			exact := "abcdefghijklmnopqrstuvwxyz012345"
+			Expect(len(exact)).To(Equal(32))
+			result, err := SanitizeCategory(exact)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result).To(Equal(exact))
+		})
+	})
+
+	Describe("Category validation in ValidateKPIs", func() {
+		It("should accept KPIs with valid category", func() {
+			kpis := KPIs{
+				Queries: []Query{
+					{ID: "cpu-usage", PromQuery: "up", Category: "cpu"},
+				},
+			}
+			errors := ValidateKPIs(kpis)
+			Expect(errors).To(BeEmpty())
+		})
+
+		It("should accept KPIs without category", func() {
+			kpis := KPIs{
+				Queries: []Query{
+					{ID: "up-check", PromQuery: "up"},
+				},
+			}
+			errors := ValidateKPIs(kpis)
+			Expect(errors).To(BeEmpty())
+		})
+
+		It("should reject KPIs with invalid category", func() {
+			kpis := KPIs{
+				Queries: []Query{
+					{ID: "bad-cat", PromQuery: "up", Category: "@#$"},
+				},
+			}
+			errors := ValidateKPIs(kpis)
+			Expect(errors).To(HaveLen(1))
+			Expect(errors[0].Error()).To(ContainSubstring("bad-cat"))
+			Expect(errors[0].Error()).To(ContainSubstring("empty after sanitisation"))
 		})
 	})
 

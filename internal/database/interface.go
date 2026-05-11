@@ -25,6 +25,12 @@ type Database interface {
 	GetQueryErrorCount(db *sql.DB, kpiID string) (int, error)
 
 	// StoreQueryResults stores the results of a Prometheus query in the database.
+	// When category is non-empty, data is written to a category-specific table
+	// (e.g. kpi_cpu); otherwise it goes to the default query_results table.
 	// Supports model.Vector (from instant queries) and model.Matrix (from range queries).
-	StoreQueryResults(db *sql.DB, clusterID int64, queryID string, result model.Value) error
+	StoreQueryResults(db *sql.DB, clusterID int64, queryID string, category string, result model.Value) error
+
+	// EnsureCategoryTable creates the per-category table and dedup index if they
+	// don't already exist, and registers the KPI→category mapping in kpi_registry.
+	EnsureCategoryTable(db *sql.DB, category string, kpiID string) (string, error)
 }

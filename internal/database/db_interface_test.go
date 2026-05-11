@@ -186,7 +186,7 @@ func RunDatabaseInterfaceTests(getImpl func() (Database, *sql.DB)) {
 					},
 				}
 
-				err := dbImpl.StoreQueryResults(db, clusterID, "test-query-1", vector)
+				err := dbImpl.StoreQueryResults(db, clusterID, "test-query-1", "", vector)
 				Expect(err).NotTo(HaveOccurred())
 
 				var count int
@@ -223,7 +223,7 @@ func RunDatabaseInterfaceTests(getImpl func() (Database, *sql.DB)) {
 						Timestamp: model.Time(time.Now().Unix() * 1000),
 					},
 				}
-				err := dbImpl.StoreQueryResults(db, clusterID, "test-query-3", vector)
+				err := dbImpl.StoreQueryResults(db, clusterID, "test-query-3", "", vector)
 				Expect(err).NotTo(HaveOccurred())
 
 				var metricLabels string
@@ -244,7 +244,7 @@ func RunDatabaseInterfaceTests(getImpl func() (Database, *sql.DB)) {
 						Timestamp: model.Time(time.Now().Unix() * 1000),
 					},
 				}
-				err := dbImpl.StoreQueryResults(db, clusterID, "test-query-4", vector)
+				err := dbImpl.StoreQueryResults(db, clusterID, "test-query-4", "", vector)
 				Expect(err).NotTo(HaveOccurred())
 
 				var executionTime, createdAt string
@@ -279,7 +279,7 @@ func RunDatabaseInterfaceTests(getImpl func() (Database, *sql.DB)) {
 					},
 				}
 
-				err := dbImpl.StoreQueryResults(db, clusterID, "test-query-2", vector)
+				err := dbImpl.StoreQueryResults(db, clusterID, "test-query-2", "", vector)
 				Expect(err).NotTo(HaveOccurred())
 
 				var count int
@@ -315,10 +315,10 @@ func RunDatabaseInterfaceTests(getImpl func() (Database, *sql.DB)) {
 					},
 				}
 
-				err := dbImpl.StoreQueryResults(db, clusterID, "query-cluster-1", vector1)
+				err := dbImpl.StoreQueryResults(db, clusterID, "query-cluster-1", "", vector1)
 				Expect(err).NotTo(HaveOccurred())
 
-				err = dbImpl.StoreQueryResults(db, clusterID2, "query-cluster-2", vector2)
+				err = dbImpl.StoreQueryResults(db, clusterID2, "query-cluster-2", "", vector2)
 				Expect(err).NotTo(HaveOccurred())
 
 				var storedClusterID int64

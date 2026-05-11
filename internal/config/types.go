@@ -139,6 +139,7 @@ type InputFlags struct {
 type Query struct {
 	ID              string       `yaml:"id"`
 	PromQuery       string       `yaml:"promquery"`
+	Category        string       `yaml:"category,omitempty"`
 	SampleFrequency *Duration    `yaml:"sample-frequency,omitempty"`
 	QueryType       string       `yaml:"query-type,omitempty"`
 	Range           *RangeWindow `yaml:"range,omitempty"`
