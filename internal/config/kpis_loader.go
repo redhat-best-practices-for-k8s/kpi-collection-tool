@@ -36,7 +36,9 @@ func ValidateKPIs(kpis KPIs) []error {
 	var errors []error
 	seenIDs := make(map[string]bool)
 
-	for _, kpi := range kpis.Queries {
+	for i := range kpis.Queries {
+		kpi := &kpis.Queries[i]
+
 		// Check for empty KPI ID
 		if strings.TrimSpace(kpi.ID) == "" {
 			errors = append(errors, fmt.Errorf("KPI has empty ID"))
@@ -61,7 +63,7 @@ func ValidateKPIs(kpis KPIs) []error {
 		}
 
 		errors = append(errors, validateCategory(kpi)...)
-		errors = append(errors, validateQueryType(kpi)...)
+		errors = append(errors, validateQueryType(*kpi)...)
 	}
 
 	return errors
@@ -175,12 +177,13 @@ func SanitizeCategory(raw string) (string, error) {
 	return s, nil
 }
 
-func validateCategory(kpi Query) []error {
+func validateCategory(kpi *Query) []error {
 	if kpi.Category == "" {
 		return nil
 	}
 
-	if _, err := SanitizeCategory(kpi.Category); err != nil {
+	var err error
+	if kpi.Category, err = SanitizeCategory(kpi.Category); err != nil {
 		return []error{fmt.Errorf("KPI '%s': %w", kpi.ID, err)}
 	}
 

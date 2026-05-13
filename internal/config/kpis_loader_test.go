@@ -1036,6 +1036,17 @@ var _ = Describe("KPIs Loader", func() {
 			Expect(errors[0].Error()).To(ContainSubstring("bad-cat"))
 			Expect(errors[0].Error()).To(ContainSubstring("empty after sanitisation"))
 		})
+
+		It("should sanitize category with hyphens", func() {
+			kpis := KPIs{
+				Queries: []Query{
+					{ID: "test", PromQuery: "up", Category: "node-cpu"},
+				},
+			}
+			errors := ValidateKPIs(kpis)
+			Expect(errors).To(BeEmpty())
+			Expect(kpis.Queries[0].Category).To(Equal("node_cpu"))
+		})
 	})
 
 	Describe("validateTimestampPositive", func() {
