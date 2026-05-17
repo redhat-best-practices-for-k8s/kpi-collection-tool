@@ -9,6 +9,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/prometheus/common/model"
+	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/config"
 )
 
 var _ = Describe("Sqlite", func() {
@@ -188,6 +189,66 @@ var _ = Describe("Sqlite", func() {
 			err = db.QueryRow("SELECT COUNT(*) FROM kpi_memory WHERE kpi_id = 'mem-kpi'").Scan(&count)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(count).To(Equal(1))
+		})
+	})
+
+	Describe("ValidateCategoryConsistency", func() {
+		BeforeEach(func() {
+			_, err := sqliteDB.EnsureCategoryTable(db, "cpu", "node-cpu")
+			Expect(err).NotTo(HaveOccurred())
+			_, err = sqliteDB.EnsureCategoryTable(db, "memory", "mem-usage")
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should pass when categories match", func() {
+			kpis := []config.Query{
+				{ID: "node-cpu", Category: "cpu"},
+				{ID: "mem-usage", Category: "memory"},
+			}
+			err := sqliteDB.ValidateCategoryConsistency(db, kpis)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should pass for new KPIs not yet in registry", func() {
+			kpis := []config.Query{
+				{ID: "node-cpu", Category: "cpu"},
+				{ID: "brand-new-kpi", Category: "network"},
+			}
+			err := sqliteDB.ValidateCategoryConsistency(db, kpis)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should error when a KPI changes category", func() {
+			kpis := []config.Query{
+				{ID: "node-cpu", Category: "networking"},
+			}
+			err := sqliteDB.ValidateCategoryConsistency(db, kpis)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("node-cpu"))
+			Expect(err.Error()).To(ContainSubstring(`"cpu"`))
+			Expect(err.Error()).To(ContainSubstring(`"networking"`))
+		})
+
+		It("should error when a categorised KPI becomes uncategorised", func() {
+			kpis := []config.Query{
+				{ID: "node-cpu", Category: ""},
+			}
+			err := sqliteDB.ValidateCategoryConsistency(db, kpis)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("node-cpu"))
+		})
+
+		It("should pass on an empty registry", func() {
+			freshDB := NewSQLiteDB()
+			freshConn, err := freshDB.InitDB()
+			Expect(err).NotTo(HaveOccurred())
+			defer func() { _ = freshConn.Close() }()
+
+			kpis := []config.Query{
+				{ID: "any-kpi", Category: "whatever"},
+			}
+			err = freshDB.ValidateCategoryConsistency(freshConn, kpis)
+			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 

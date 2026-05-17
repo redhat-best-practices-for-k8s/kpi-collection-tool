@@ -77,6 +77,11 @@ func RunQueries(kpisToRun config.KPIs, flags config.InputFlags, sampleNumber int
 		return fmt.Errorf("failed to get cluster ID: %v", err)
 	}
 
+	// Verify that no KPI has changed its category since the last run
+	if err := dbImpl.ValidateCategoryConsistency(db, kpisToRun.Queries); err != nil {
+		return fmt.Errorf("category consistency check failed: %w", err)
+	}
+
 	// Create Prometheus client
 	v1api, err := setupPromClient(flags.ThanosURL, flags.BearerToken, flags.InsecureTLS)
 	if err != nil {

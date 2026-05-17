@@ -8,6 +8,7 @@ import (
 	"database/sql"
 
 	"github.com/prometheus/common/model"
+	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/config"
 )
 
 // Database defines the interface that all database implementations must satisfy
@@ -33,4 +34,9 @@ type Database interface {
 	// EnsureCategoryTable creates the per-category table and dedup index if they
 	// don't already exist, and registers the KPI→category mapping in kpi_registry.
 	EnsureCategoryTable(db *sql.DB, category string, kpiID string) (string, error)
+
+	// ValidateCategoryConsistency checks that no KPI in the incoming config has
+	// changed its category compared to what is already stored in kpi_registry.
+	// Must be called after InitDB and before any collection begins.
+	ValidateCategoryConsistency(db *sql.DB, kpis []config.Query) error
 }

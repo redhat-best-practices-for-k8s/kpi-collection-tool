@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/prometheus/common/model"
+	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/config"
 	_ "modernc.org/sqlite"
 
 	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/database/schema"
@@ -171,13 +172,52 @@ func (sqlite_db *SQLiteDB) EnsureCategoryTable(db *sql.DB, category string, kpiI
 
 	_, err := db.Exec(`
 		INSERT INTO kpi_registry (kpi_id, category, table_name) VALUES (?, ?, ?)
-		ON CONFLICT(kpi_id) DO UPDATE SET category = excluded.category, table_name = excluded.table_name`,
+		ON CONFLICT(kpi_id) DO NOTHING`,
 		kpiID, category, tableName)
 	if err != nil {
-		return "", fmt.Errorf("update kpi_registry for '%s': %w", kpiID, err)
+		return "", fmt.Errorf("register kpi '%s' in kpi_registry: %w", kpiID, err)
 	}
 
 	return tableName, nil
+}
+
+// ValidateCategoryConsistency loads the existing kpi_registry and returns an
+// error if any incoming KPI has a different category than what was previously
+// recorded. This prevents silent data orphaning when a user changes categories
+// between runs.
+func (sqlite_db *SQLiteDB) ValidateCategoryConsistency(db *sql.DB, kpis []config.Query) error {
+	rows, err := db.Query("SELECT kpi_id, category FROM kpi_registry")
+	if err != nil {
+		return fmt.Errorf("query kpi_registry: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	registered := make(map[string]string)
+	for rows.Next() {
+		var kpiID, category string
+		if err := rows.Scan(&kpiID, &category); err != nil {
+			return fmt.Errorf("scan kpi_registry row: %w", err)
+		}
+		registered[kpiID] = category
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate kpi_registry: %w", err)
+	}
+
+	for i := range kpis {
+		prev, exists := registered[kpis[i].ID]
+		if !exists {
+			continue
+		}
+		if prev != kpis[i].Category {
+			return fmt.Errorf(
+				"KPI '%s' category changed from %q to %q — "+
+					"use a different --artifacts-dir or delete the existing database",
+				kpis[i].ID, prev, kpis[i].Category)
+		}
+	}
+
+	return nil
 }
 
 func (sqlite_db *SQLiteDB) storeVectorResults(db *sql.DB, clusterID int64, queryID string, table string, vector model.Vector) error {

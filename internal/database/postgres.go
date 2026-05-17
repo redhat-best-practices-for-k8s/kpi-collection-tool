@@ -8,6 +8,7 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/prometheus/common/model"
 
+	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/config"
 	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/database/schema"
 )
 
@@ -80,6 +81,13 @@ func (p *PostgresDB) GetQueryErrorCount(db *sql.DB, kpiID string) (int, error) {
 // --- TODO ---
 func (p *PostgresDB) EnsureCategoryTable(_ *sql.DB, _ string, _ string) (string, error) {
 	return "query_results", nil
+}
+
+// ValidateCategoryConsistency is a no-op stub for PostgreSQL until category
+// table support is implemented.
+// --- TODO ---
+func (p *PostgresDB) ValidateCategoryConsistency(_ *sql.DB, _ []config.Query) error {
+	return nil
 }
 
 // StoreQueryResults stores the results of a Prometheus query in the database.
