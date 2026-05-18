@@ -219,14 +219,18 @@ func databaseLocation(flags config.InputFlags) string {
 }
 
 // tokenDurationForCollection returns the token expiration to use when creating
-// a service-account token via kubeconfig.  In single-run mode the token
-// is short-lived (10 min); otherwise it matches the collection duration
-// plus a 10-minute buffer so it won't expire mid-collection.
+// a service-account token via kubeconfig.
+//
+// For periodic collection the token covers the full duration plus a buffer.
+// For single-run mode a fixed 1-hour window is used — generous enough for
+// heavy range queries while still short-lived.
 func tokenDurationForCollection(isSingleRun bool, collectionDuration time.Duration) time.Duration {
+	const buffer = 10 * time.Minute
+
 	if isSingleRun {
-		return 10 * time.Minute
+		return 1 * time.Hour
 	}
-	return collectionDuration + 10*time.Minute
+	return collectionDuration + buffer
 }
 
 // substituteCPUsIfNeeded checks if queries contain CPU placeholders and if so,

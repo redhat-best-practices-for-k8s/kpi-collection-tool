@@ -26,9 +26,11 @@ import (
 )
 
 const (
-	// queryTimeoutPerKPI is the maximum time allowed for each individual KPI query.
-	// The total context timeout is calculated as: numberOfQueries * queryTimeoutPerKPI
-	queryTimeoutPerKPI = 5 * time.Second
+	// Instant queries are lightweight — 30 seconds is generous.
+	instantQueryTimeout = 30 * time.Second
+	// Range queries can scan hours of data; allow up to 10 minutes for the
+	// Prometheus/Thanos HTTP call. Database storage runs separately without a timeout.
+	rangeQueryTimeout = 10 * time.Minute
 )
 
 // setupPromClient creates and configures a Prometheus API client.
@@ -81,11 +83,6 @@ func RunQueries(kpisToRun config.KPIs, flags config.InputFlags, sampleNumber int
 		return fmt.Errorf("failed to create client: %v", err)
 	}
 
-	// Execute queries with a timeout proportional to the number of queries
-	totalTimeout := time.Duration(len(kpisToRun.Queries)) * queryTimeoutPerKPI
-	ctx, cancel := context.WithTimeout(context.Background(), totalTimeout)
-	defer cancel()
-
 	var failedCount int
 	for _, query := range kpisToRun.Queries {
 		queryInfo := output.QueryInfo{
@@ -110,9 +107,17 @@ func RunQueries(kpisToRun config.KPIs, flags config.InputFlags, sampleNumber int
 				queryInfo.Until = now
 			}
 		}
-		if !executeQuery(ctx, v1api, db, dbImpl, clusterID, queryInfo) {
+
+		timeout := instantQueryTimeout
+		if queryInfo.QueryType == "range" {
+			timeout = rangeQueryTimeout
+		}
+		queryCtx, queryCancel := context.WithTimeout(context.Background(), timeout)
+
+		if !executeQuery(queryCtx, v1api, db, dbImpl, clusterID, queryInfo) {
 			failedCount++
 		}
+		queryCancel()
 	}
 
 	if failedCount > 0 {
@@ -125,7 +130,7 @@ func RunQueries(kpisToRun config.KPIs, flags config.InputFlags, sampleNumber int
 // executeQuery executes a single Prometheus query, handles the result,
 // and returns true if the query succeeded.
 func executeQuery(ctx context.Context, v1api promv1.API, db *sql.DB, dbImpl database.Database, clusterID int64, info output.QueryInfo) bool {
-	now := time.Now()
+	queryStart := time.Now()
 
 	var (
 		result   model.Value
@@ -133,7 +138,8 @@ func executeQuery(ctx context.Context, v1api promv1.API, db *sql.DB, dbImpl data
 		err      error
 	)
 
-	// Execute query using the Prometheus client library
+	log.Printf("[%s] Prometheus query starting", info.QueryID)
+
 	if info.QueryType == "range" {
 		queryRange := promv1.Range{
 			Start: info.Since,
@@ -142,8 +148,11 @@ func executeQuery(ctx context.Context, v1api promv1.API, db *sql.DB, dbImpl data
 		}
 		result, warnings, err = v1api.QueryRange(ctx, info.PromQuery, queryRange)
 	} else {
-		result, warnings, err = v1api.Query(ctx, info.PromQuery, now)
+		result, warnings, err = v1api.Query(ctx, info.PromQuery, queryStart)
 	}
+
+	promDuration := time.Since(queryStart)
+	log.Printf("[%s] Prometheus query completed in %s", info.QueryID, promDuration.Round(time.Millisecond))
 
 	queryResult := output.QueryResult{
 		Warnings: warnings,
@@ -159,11 +168,9 @@ func executeQuery(ctx context.Context, v1api promv1.API, db *sql.DB, dbImpl data
 		return false
 	}
 
-	// Filter out NaN/Inf values
 	var nanCount int
 	result, nanCount = filterNaNValues(result)
 
-	// Check if anything remains to store
 	if isEmptyResult(result) {
 		queryResult.Success = true
 		output.PrintQueryResult(info, queryResult)
@@ -177,8 +184,12 @@ func executeQuery(ctx context.Context, v1api promv1.API, db *sql.DB, dbImpl data
 		return true
 	}
 
-	// Store results
+	log.Printf("[%s] Database write starting", info.QueryID)
+	storeStart := time.Now()
 	err = dbImpl.StoreQueryResults(db, clusterID, info.QueryID, result)
+	storeDuration := time.Since(storeStart)
+	log.Printf("[%s] Database write completed in %s", info.QueryID, storeDuration.Round(time.Millisecond))
+
 	if err != nil {
 		queryResult.Success = false
 		queryResult.Error = fmt.Errorf("failed to store: %v", err)
@@ -188,6 +199,12 @@ func executeQuery(ctx context.Context, v1api promv1.API, db *sql.DB, dbImpl data
 
 	queryResult.Success = true
 	output.PrintQueryResult(info, queryResult)
+
+	totalDuration := time.Since(queryStart)
+	log.Printf("[%s] Total: %s (query=%s, store=%s)",
+		info.QueryID, totalDuration.Round(time.Millisecond),
+		promDuration.Round(time.Millisecond), storeDuration.Round(time.Millisecond))
+
 	if nanCount > 0 {
 		fmt.Printf("  Note: skipped %d NaN value(s)\n", nanCount)
 		log.Printf("[%s] Skipped %d NaN/Inf value(s): %s", info.QueryID, nanCount, info.PromQuery)
