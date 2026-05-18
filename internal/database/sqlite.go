@@ -7,8 +7,10 @@ import (
 	"os"
 	"path/filepath"
 
-	_ "modernc.org/sqlite"
 	"github.com/prometheus/common/model"
+	_ "modernc.org/sqlite"
+
+	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/database/schema"
 )
 
 const (
@@ -43,47 +45,26 @@ func (sqlite_db *SQLiteDB) InitDB() (*sql.DB, error) {
 		return nil, err
 	}
 
-	schema := `
-    CREATE TABLE IF NOT EXISTS clusters (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        cluster_name TEXT UNIQUE NOT NULL,
-		cluster_type TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-    
-    
-    CREATE TABLE IF NOT EXISTS query_results (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        kpi_id TEXT NOT NULL,
-        metric_value REAL,
-        timestamp_value REAL,
-		cluster_id INTEGER NOT NULL REFERENCES clusters(id),
-		execution_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        metric_labels TEXT  -- JSON string of all labels
-    );
+	if _, err = db.Exec(schema.SQLitePragmas); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("setting SQLite pragmas: %w", err)
+	}
 
-	CREATE TABLE IF NOT EXISTS query_errors (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		kpi_id TEXT UNIQUE NOT NULL,
-		errors INTEGER DEFAULT 0
-	);
+	if _, err = db.Exec(schema.SQLiteSchema); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("creating SQLite schema: %w", err)
+	}
 
-	CREATE UNIQUE INDEX IF NOT EXISTS idx_query_results_dedup
-	ON query_results(kpi_id, cluster_id, timestamp_value, metric_labels)
-    `
-
-	_, err = db.Exec(schema)
-	return db, err
+	return db, nil
 }
 
 // getOrCreateCluster gets existing cluster ID or creates a new cluster record
 func (sqlite_db *SQLiteDB) GetOrCreateCluster(db *sql.DB, clusterName string, clusterType string) (int64, error) {
 	var clusterID int64
-	err := db.QueryRow("SELECT id FROM clusters WHERE cluster_name = ?", clusterName).Scan(&clusterID)
+	err := db.QueryRow(schema.SQLiteSelectClusterByName, clusterName).Scan(&clusterID)
 	if err == nil {
 		if clusterType != "" {
-			_, updateErr := db.Exec("UPDATE clusters SET cluster_type = ? WHERE id = ?", clusterType, clusterID)
+			_, updateErr := db.Exec(schema.SQLiteUpdateClusterType, clusterType, clusterID)
 			if updateErr != nil {
 				return clusterID, updateErr
 			}
@@ -91,7 +72,7 @@ func (sqlite_db *SQLiteDB) GetOrCreateCluster(db *sql.DB, clusterName string, cl
 		return clusterID, nil
 	}
 
-	result, err := db.Exec("INSERT INTO clusters (cluster_name, cluster_type) VALUES (?, ?)", clusterName, clusterType)
+	result, err := db.Exec(schema.SQLiteInsertCluster, clusterName, clusterType)
 	if err != nil {
 		return 0, err
 	}
@@ -100,17 +81,14 @@ func (sqlite_db *SQLiteDB) GetOrCreateCluster(db *sql.DB, clusterName string, cl
 
 // increments the error count for a given KPI ID in the query_errors table.
 func (sqlite_db *SQLiteDB) IncrementQueryError(db *sql.DB, kpiID string) error {
-	_, err := db.Exec(`
-        INSERT INTO query_errors (kpi_id, errors) VALUES (?, 1)
-        ON CONFLICT(kpi_id) DO UPDATE SET errors = errors + 1
-    `, kpiID)
+	_, err := db.Exec(schema.SQLiteUpsertQueryError, kpiID)
 	return err
 }
 
 // returns the error count for a given KPI ID.
 func (sqlite_db *SQLiteDB) GetQueryErrorCount(db *sql.DB, kpiID string) (int, error) {
 	var count int
-	err := db.QueryRow("SELECT errors FROM query_errors WHERE kpi_id = ?", kpiID).Scan(&count)
+	err := db.QueryRow(schema.SQLiteSelectErrorCount, kpiID).Scan(&count)
 	if err == sql.ErrNoRows {
 		return 0, nil
 	}
@@ -130,54 +108,68 @@ func (sqlite_db *SQLiteDB) StoreQueryResults(db *sql.DB, clusterID int64, queryI
 }
 
 func (sqlite_db *SQLiteDB) storeVectorResults(db *sql.DB, clusterID int64, queryID string, vector model.Vector) error {
-	for _, sample := range vector {
-		metric := sample.Metric
-		value := float64(sample.Value)
-		timestamp := float64(sample.Timestamp) / 1000
+	transaction, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() { _ = transaction.Rollback() }()
 
-		labelsJSON, err := json.Marshal(metric)
+	preparedStatement, err := transaction.Prepare(schema.SQLiteInsertResult)
+	if err != nil {
+		return fmt.Errorf("prepare statement: %w", err)
+	}
+	defer func() { _ = preparedStatement.Close() }()
+
+	for _, sample := range vector {
+		labelsJSON, err := json.Marshal(sample.Metric)
 		if err != nil {
 			return err
 		}
-
-		_, err = db.Exec(`
-            INSERT INTO query_results 
-            (kpi_id, metric_value, timestamp_value, cluster_id, metric_labels)
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(kpi_id, cluster_id, timestamp_value, metric_labels) DO NOTHING`,
-			queryID, value, timestamp, clusterID, string(labelsJSON),
-		)
-		if err != nil {
+		if _, err = preparedStatement.Exec(
+			queryID,
+			float64(sample.Value),
+			float64(sample.Timestamp)/1000,
+			clusterID,
+			string(labelsJSON),
+		); err != nil {
 			return err
 		}
 	}
-	return nil
+
+	return transaction.Commit()
 }
 
 func (sqlite_db *SQLiteDB) storeMatrixResults(db *sql.DB, clusterID int64, queryID string, matrix model.Matrix) error {
+	transaction, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() { _ = transaction.Rollback() }()
+
+	preparedStatement, err := transaction.Prepare(schema.SQLiteInsertResult)
+	if err != nil {
+		return fmt.Errorf("prepare statement: %w", err)
+	}
+	defer func() { _ = preparedStatement.Close() }()
+
 	for _, stream := range matrix {
-		metric := stream.Metric
-		labelsJSON, err := json.Marshal(metric)
+		labelsJSON, err := json.Marshal(stream.Metric)
 		if err != nil {
 			return err
 		}
 
 		for _, samplePair := range stream.Values {
-			value := float64(samplePair.Value)
-			timestamp := float64(samplePair.Timestamp) / 1000
-
-			_, execErr := db.Exec(`
-                INSERT INTO query_results 
-                (kpi_id, metric_value, timestamp_value, cluster_id, metric_labels)
-                VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(kpi_id, cluster_id, timestamp_value, metric_labels) DO NOTHING`,
-				queryID, value, timestamp, clusterID, string(labelsJSON),
-			)
-			if execErr != nil {
-				return execErr
+			if _, err = preparedStatement.Exec(
+				queryID,
+				float64(samplePair.Value),
+				float64(samplePair.Timestamp)/1000,
+				clusterID,
+				string(labelsJSON),
+			); err != nil {
+				return err
 			}
 		}
 	}
 
-	return nil
+	return transaction.Commit()
 }

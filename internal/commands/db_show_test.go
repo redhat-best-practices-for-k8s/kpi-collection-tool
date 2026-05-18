@@ -8,6 +8,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/database"
+	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/database/schema"
 	_ "modernc.org/sqlite"
 )
 
@@ -17,24 +18,8 @@ func newInMemoryKPIDB() (*sql.DB, error) {
 		return nil, err
 	}
 
-	schema := `
-	CREATE TABLE clusters (
-		id INTEGER PRIMARY KEY,
-		cluster_name TEXT NOT NULL
-	);
-	CREATE TABLE query_results (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		kpi_id TEXT NOT NULL,
-		metric_value REAL,
-		timestamp_value REAL,
-		cluster_id INTEGER NOT NULL,
-		execution_time TIMESTAMP,
-		metric_labels TEXT
-	);
-	`
-	if _, err := db.Exec(schema); err != nil {
+	if _, err := db.Exec(schema.SQLiteSchema); err != nil {
 		_ = db.Close()
-
 		return nil, err
 	}
 
