@@ -11,6 +11,12 @@ import (
 	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/config"
 )
 
+// CategoryInfo holds metadata about a registered category.
+type CategoryInfo struct {
+	Category  string
+	TableName string
+}
+
 // Database defines the interface that all database implementations must satisfy
 type Database interface {
 	// InitDB initializes the database and creates required tables
@@ -39,4 +45,15 @@ type Database interface {
 	// changed its category compared to what is already stored in kpi_registry.
 	// Must be called after InitDB and before any collection begins.
 	ValidateCategoryConsistency(db *sql.DB, kpis []config.Query) error
+
+	// ListCategories returns all distinct categories from kpi_registry.
+	ListCategories(db *sql.DB) ([]CategoryInfo, error)
+
+	// LookupCategoryForKPI returns the category and table name for a given KPI ID.
+	// Returns empty strings if the KPI is not in the registry (uncategorized).
+	LookupCategoryForKPI(db *sql.DB, kpiID string) (category string, tableName string, err error)
+
+	// DeleteByCategory removes all metric rows from the given category table.
+	// Also removes the corresponding kpi_registry entries.
+	DeleteByCategory(db *sql.DB, category string) (int64, error)
 }
