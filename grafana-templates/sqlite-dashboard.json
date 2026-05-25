@@ -286,7 +286,7 @@
       "targets": [
         {
           "queryType": "table",
-          "rawQueryText": "SELECT timestamp_value AS time, metric_value, metric_labels FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR json_extract(metric_labels, '$.node') = '${node}' OR json_extract(metric_labels, '$.instance') = '${node}') AND ('${job}' = 'All' OR json_extract(metric_labels, '$.job') = '${job}') AND ('${pod}' = 'All' OR json_extract(metric_labels, '$.pod') = '${pod}') AND ('${container}' = 'All' OR json_extract(metric_labels, '$.container') = '${container}') AND timestamp_value >= $__from / 1000 AND timestamp_value < $__to / 1000 ORDER BY time ASC",
+          "rawQueryText": "SELECT timestamp_value AS time, metric_value, metric_labels FROM ${_table} qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR json_extract(metric_labels, '$.node') = '${node}' OR json_extract(metric_labels, '$.instance') = '${node}') AND ('${job}' = 'All' OR json_extract(metric_labels, '$.job') = '${job}') AND ('${pod}' = 'All' OR json_extract(metric_labels, '$.pod') = '${pod}') AND ('${container}' = 'All' OR json_extract(metric_labels, '$.container') = '${container}') AND timestamp_value >= $__from / 1000 AND timestamp_value < $__to / 1000 ORDER BY time ASC",
           "refId": "A",
           "timeColumns": [
             "time",
@@ -296,21 +296,21 @@
         },
         {
           "queryType": "table",
-          "rawQueryText": "SELECT 'Max Value' AS metric_labels, MAX(metric_value) AS metric_value, $__from/1000 AS time FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR json_extract(metric_labels, '$.node') = '${node}' OR json_extract(metric_labels, '$.instance') = '${node}') AND ('${job}' = 'All' OR json_extract(metric_labels, '$.job') = '${job}') AND ('${pod}' = 'All' OR json_extract(metric_labels, '$.pod') = '${pod}') AND ('${container}' = 'All' OR json_extract(metric_labels, '$.container') = '${container}')",
+          "rawQueryText": "SELECT 'Max Value' AS metric_labels, MAX(metric_value) AS metric_value, $__from/1000 AS time FROM ${_table} qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR json_extract(metric_labels, '$.node') = '${node}' OR json_extract(metric_labels, '$.instance') = '${node}') AND ('${job}' = 'All' OR json_extract(metric_labels, '$.job') = '${job}') AND ('${pod}' = 'All' OR json_extract(metric_labels, '$.pod') = '${pod}') AND ('${container}' = 'All' OR json_extract(metric_labels, '$.container') = '${container}')",
           "refId": "B",
           "legendFormat": "Max Value",
           "hide": true
         },
         {
           "queryType": "table",
-          "rawQueryText": "SELECT 'Min Value' AS metric_labels, MIN(metric_value) AS metric_value, $__from/1000 AS time FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR json_extract(metric_labels, '$.node') = '${node}' OR json_extract(metric_labels, '$.instance') = '${node}') AND ('${job}' = 'All' OR json_extract(metric_labels, '$.job') = '${job}') AND ('${pod}' = 'All' OR json_extract(metric_labels, '$.pod') = '${pod}') AND ('${container}' = 'All' OR json_extract(metric_labels, '$.container') = '${container}')",
+          "rawQueryText": "SELECT 'Min Value' AS metric_labels, MIN(metric_value) AS metric_value, $__from/1000 AS time FROM ${_table} qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR json_extract(metric_labels, '$.node') = '${node}' OR json_extract(metric_labels, '$.instance') = '${node}') AND ('${job}' = 'All' OR json_extract(metric_labels, '$.job') = '${job}') AND ('${pod}' = 'All' OR json_extract(metric_labels, '$.pod') = '${pod}') AND ('${container}' = 'All' OR json_extract(metric_labels, '$.container') = '${container}')",
           "refId": "C",
           "legendFormat": "Min Value",
           "hide": true
         },
         {
           "queryType": "table",
-          "rawQueryText": "SELECT 'Average Value' AS metric_labels, AVG(metric_value) AS metric_value, $__from/1000 AS time FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR json_extract(metric_labels, '$.node') = '${node}' OR json_extract(metric_labels, '$.instance') = '${node}') AND ('${job}' = 'All' OR json_extract(metric_labels, '$.job') = '${job}') AND ('${pod}' = 'All' OR json_extract(metric_labels, '$.pod') = '${pod}') AND ('${container}' = 'All' OR json_extract(metric_labels, '$.container') = '${container}')",
+          "rawQueryText": "SELECT 'Average Value' AS metric_labels, AVG(metric_value) AS metric_value, $__from/1000 AS time FROM ${_table} qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR json_extract(metric_labels, '$.node') = '${node}' OR json_extract(metric_labels, '$.instance') = '${node}') AND ('${job}' = 'All' OR json_extract(metric_labels, '$.job') = '${job}') AND ('${pod}' = 'All' OR json_extract(metric_labels, '$.pod') = '${pod}') AND ('${container}' = 'All' OR json_extract(metric_labels, '$.container') = '${container}')",
           "refId": "D",
           "legendFormat": "Average Value",
           "hide": true
@@ -418,7 +418,7 @@
       "targets": [
         {
           "queryType": "table",
-          "rawQueryText": "SELECT metric_labels, ROUND(AVG(metric_value), 6) AS avg_value, ROUND(MIN(metric_value), 6) AS min_value, ROUND(MAX(metric_value), 6) AS max_value, COUNT(*) AS samples FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR json_extract(metric_labels, '$.node') = '${node}' OR json_extract(metric_labels, '$.instance') = '${node}') AND ('${job}' = 'All' OR json_extract(metric_labels, '$.job') = '${job}') AND ('${pod}' = 'All' OR json_extract(metric_labels, '$.pod') = '${pod}') AND ('${container}' = 'All' OR json_extract(metric_labels, '$.container') = '${container}') GROUP BY metric_labels ORDER BY avg_value DESC LIMIT 100",
+          "rawQueryText": "SELECT metric_labels, ROUND(AVG(metric_value), 6) AS avg_value, ROUND(MIN(metric_value), 6) AS min_value, ROUND(MAX(metric_value), 6) AS max_value, COUNT(*) AS samples FROM ${_table} qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR json_extract(metric_labels, '$.node') = '${node}' OR json_extract(metric_labels, '$.instance') = '${node}') AND ('${job}' = 'All' OR json_extract(metric_labels, '$.job') = '${job}') AND ('${pod}' = 'All' OR json_extract(metric_labels, '$.pod') = '${pod}') AND ('${container}' = 'All' OR json_extract(metric_labels, '$.container') = '${container}') GROUP BY metric_labels ORDER BY avg_value DESC LIMIT 100",
           "refId": "A"
         }
       ],
@@ -553,7 +553,7 @@
       "targets": [
         {
           "queryType": "table",
-          "rawQueryText": "SELECT kpi_id, COUNT(*) AS sample_count, ROUND(AVG(metric_value), 6) AS avg_value, ROUND(MIN(metric_value), 6) AS min_value, ROUND(MAX(metric_value), 6) AS max_value, ROUND(MAX(metric_value) - MIN(metric_value), 6) AS range, COUNT(DISTINCT metric_labels) AS unique_metrics FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR json_extract(metric_labels, '$.node') = '${node}' OR json_extract(metric_labels, '$.instance') = '${node}') AND ('${job}' = 'All' OR json_extract(metric_labels, '$.job') = '${job}') AND ('${pod}' = 'All' OR json_extract(metric_labels, '$.pod') = '${pod}') AND ('${container}' = 'All' OR json_extract(metric_labels, '$.container') = '${container}') GROUP BY kpi_id ORDER BY kpi_id",
+          "rawQueryText": "SELECT kpi_id, COUNT(*) AS sample_count, ROUND(AVG(metric_value), 6) AS avg_value, ROUND(MIN(metric_value), 6) AS min_value, ROUND(MAX(metric_value), 6) AS max_value, ROUND(MAX(metric_value) - MIN(metric_value), 6) AS range, COUNT(DISTINCT metric_labels) AS unique_metrics FROM ${_table} qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR json_extract(metric_labels, '$.node') = '${node}' OR json_extract(metric_labels, '$.instance') = '${node}') AND ('${job}' = 'All' OR json_extract(metric_labels, '$.job') = '${job}') AND ('${pod}' = 'All' OR json_extract(metric_labels, '$.pod') = '${pod}') AND ('${container}' = 'All' OR json_extract(metric_labels, '$.container') = '${container}') GROUP BY kpi_id ORDER BY kpi_id",
           "refId": "A"
         }
       ]
@@ -604,7 +604,7 @@
       "targets": [
         {
           "queryType": "table",
-          "rawQueryText": "SELECT c.cluster_name, c.cluster_type, COUNT(DISTINCT qr.kpi_id) AS kpi_count, COUNT(*) AS total_samples, MAX(qr.created_at) AS last_collection FROM clusters c LEFT JOIN query_results qr ON c.id = qr.cluster_id WHERE ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${node}' = 'All' OR json_extract(qr.metric_labels, '$.node') = '${node}' OR json_extract(qr.metric_labels, '$.instance') = '${node}') AND ('${job}' = 'All' OR json_extract(qr.metric_labels, '$.job') = '${job}') AND ('${pod}' = 'All' OR json_extract(qr.metric_labels, '$.pod') = '${pod}') AND ('${container}' = 'All' OR json_extract(qr.metric_labels, '$.container') = '${container}') GROUP BY c.cluster_name, c.cluster_type ORDER BY c.cluster_name",
+          "rawQueryText": "SELECT c.cluster_name, c.cluster_type, COUNT(DISTINCT qr.kpi_id) AS kpi_count, COUNT(*) AS total_samples, MAX(qr.created_at) AS last_collection FROM clusters c LEFT JOIN ${_table} qr ON c.id = qr.cluster_id WHERE ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${node}' = 'All' OR json_extract(qr.metric_labels, '$.node') = '${node}' OR json_extract(qr.metric_labels, '$.instance') = '${node}') AND ('${job}' = 'All' OR json_extract(qr.metric_labels, '$.job') = '${job}') AND ('${pod}' = 'All' OR json_extract(qr.metric_labels, '$.pod') = '${pod}') AND ('${container}' = 'All' OR json_extract(qr.metric_labels, '$.container') = '${container}') GROUP BY c.cluster_name, c.cluster_type ORDER BY c.cluster_name",
           "refId": "A"
         }
       ]
@@ -645,7 +645,7 @@
           "type": "frser-sqlite-datasource",
           "uid": "kpi-datasource"
         },
-        "query": "SELECT cluster_name FROM (SELECT DISTINCT c.cluster_name, CASE WHEN c.id = (SELECT cluster_id FROM query_results ORDER BY created_at DESC LIMIT 1) THEN 1 ELSE 3 END AS sort_order FROM clusters c WHERE c.cluster_name IS NOT NULL AND c.cluster_name <> '' AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') UNION ALL SELECT 'All', 2) ORDER BY sort_order, cluster_name;",
+        "query": "SELECT cluster_name FROM (SELECT DISTINCT c.cluster_name, CASE WHEN c.id = (SELECT cluster_id FROM ${_table} ORDER BY created_at DESC LIMIT 1) THEN 1 ELSE 3 END AS sort_order FROM clusters c WHERE c.cluster_name IS NOT NULL AND c.cluster_name <> '' AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') UNION ALL SELECT 'All', 2) ORDER BY sort_order, cluster_name;",
         "includeAll": false,
         "multi": false,
         "current": {
@@ -655,6 +655,41 @@
         "refresh": 1
       },
       {
+        "name": "category",
+        "type": "query",
+        "label": "Category",
+        "datasource": {
+          "type": "frser-sqlite-datasource",
+          "uid": "kpi-datasource"
+        },
+        "query": "SELECT category FROM (SELECT DISTINCT category, 1 AS sort_order FROM kpi_registry WHERE category IS NOT NULL AND category <> '' UNION ALL SELECT 'default', 2) ORDER BY sort_order, category;",
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "refresh": 1
+      },
+      {
+        "name": "_table",
+        "type": "query",
+        "label": "",
+        "datasource": {
+          "type": "frser-sqlite-datasource",
+          "uid": "kpi-datasource"
+        },
+        "query": "SELECT CASE WHEN '${category}' = 'default' THEN 'query_results' ELSE 'kpi_' || '${category}' END;",
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "refresh": 1,
+        "hide": 2
+      },
+      {
         "name": "kpi",
         "type": "query",
         "label": "KPI",
@@ -662,7 +697,7 @@
           "type": "frser-sqlite-datasource",
           "uid": "kpi-datasource"
         },
-        "query": "SELECT kpi_id FROM (SELECT DISTINCT kpi_id, 1 AS sort_order FROM query_results WHERE kpi_id IS NOT NULL AND kpi_id <> '' UNION ALL SELECT 'All', 2) ORDER BY sort_order, kpi_id;",
+        "query": "SELECT kpi_id FROM (SELECT DISTINCT kpi_id, 1 AS sort_order FROM ${_table} WHERE kpi_id IS NOT NULL AND kpi_id <> '' UNION ALL SELECT 'All', 2) ORDER BY sort_order, kpi_id;",
         "includeAll": false,
         "multi": false,
         "current": {
@@ -679,7 +714,7 @@
           "type": "frser-sqlite-datasource",
           "uid": "kpi-datasource"
         },
-        "query": "SELECT node FROM (SELECT 'All' AS node, 1 AS sort_order UNION ALL SELECT DISTINCT COALESCE(json_extract(metric_labels, '$.node'), json_extract(metric_labels, '$.instance')), 2 FROM query_results WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND metric_labels IS NOT NULL AND COALESCE(json_extract(metric_labels, '$.node'), json_extract(metric_labels, '$.instance')) IS NOT NULL AND COALESCE(json_extract(metric_labels, '$.node'), json_extract(metric_labels, '$.instance')) <> '') ORDER BY sort_order, node;",
+        "query": "SELECT node FROM (SELECT 'All' AS node, 1 AS sort_order UNION ALL SELECT DISTINCT COALESCE(json_extract(metric_labels, '$.node'), json_extract(metric_labels, '$.instance')), 2 FROM ${_table} WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND metric_labels IS NOT NULL AND COALESCE(json_extract(metric_labels, '$.node'), json_extract(metric_labels, '$.instance')) IS NOT NULL AND COALESCE(json_extract(metric_labels, '$.node'), json_extract(metric_labels, '$.instance')) <> '') ORDER BY sort_order, node;",
         "includeAll": false,
         "multi": false,
         "current": {
@@ -696,7 +731,7 @@
           "type": "frser-sqlite-datasource",
           "uid": "kpi-datasource"
         },
-        "query": "SELECT job FROM (SELECT 'All' AS job, 1 AS sort_order UNION ALL SELECT DISTINCT json_extract(metric_labels, '$.job'), 2 FROM query_results WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND metric_labels IS NOT NULL AND json_extract(metric_labels, '$.job') IS NOT NULL AND json_extract(metric_labels, '$.job') <> '') ORDER BY sort_order, job;",
+        "query": "SELECT job FROM (SELECT 'All' AS job, 1 AS sort_order UNION ALL SELECT DISTINCT json_extract(metric_labels, '$.job'), 2 FROM ${_table} WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND metric_labels IS NOT NULL AND json_extract(metric_labels, '$.job') IS NOT NULL AND json_extract(metric_labels, '$.job') <> '') ORDER BY sort_order, job;",
         "includeAll": false,
         "multi": false,
         "current": {
@@ -713,7 +748,7 @@
           "type": "frser-sqlite-datasource",
           "uid": "kpi-datasource"
         },
-        "query": "SELECT pod FROM (SELECT 'All' AS pod, 1 AS sort_order UNION ALL SELECT DISTINCT json_extract(metric_labels, '$.pod'), 2 FROM query_results WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND metric_labels IS NOT NULL AND json_extract(metric_labels, '$.pod') IS NOT NULL AND json_extract(metric_labels, '$.pod') <> '') ORDER BY sort_order, pod;",
+        "query": "SELECT pod FROM (SELECT 'All' AS pod, 1 AS sort_order UNION ALL SELECT DISTINCT json_extract(metric_labels, '$.pod'), 2 FROM ${_table} WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND metric_labels IS NOT NULL AND json_extract(metric_labels, '$.pod') IS NOT NULL AND json_extract(metric_labels, '$.pod') <> '') ORDER BY sort_order, pod;",
         "includeAll": false,
         "multi": false,
         "current": {
@@ -730,7 +765,7 @@
           "type": "frser-sqlite-datasource",
           "uid": "kpi-datasource"
         },
-        "query": "SELECT container FROM (SELECT 'All' AS container, 1 AS sort_order UNION ALL SELECT DISTINCT json_extract(metric_labels, '$.container'), 2 FROM query_results WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND metric_labels IS NOT NULL AND json_extract(metric_labels, '$.container') IS NOT NULL AND json_extract(metric_labels, '$.container') <> '') ORDER BY sort_order, container;",
+        "query": "SELECT container FROM (SELECT 'All' AS container, 1 AS sort_order UNION ALL SELECT DISTINCT json_extract(metric_labels, '$.container'), 2 FROM ${_table} WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND metric_labels IS NOT NULL AND json_extract(metric_labels, '$.container') IS NOT NULL AND json_extract(metric_labels, '$.container') <> '') ORDER BY sort_order, container;",
         "includeAll": false,
         "multi": false,
         "current": {
@@ -746,7 +781,7 @@
           "type": "frser-sqlite-datasource",
           "uid": "kpi-datasource"
         },
-        "query": "SELECT COALESCE(COUNT(*), 0) FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR json_extract(metric_labels, '$.node') = '${node}' OR json_extract(metric_labels, '$.instance') = '${node}') AND ('${job}' = 'All' OR json_extract(metric_labels, '$.job') = '${job}') AND ('${pod}' = 'All' OR json_extract(metric_labels, '$.pod') = '${pod}') AND ('${container}' = 'All' OR json_extract(metric_labels, '$.container') = '${container}')",
+        "query": "SELECT COALESCE(COUNT(*), 0) FROM ${_table} qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR json_extract(metric_labels, '$.node') = '${node}' OR json_extract(metric_labels, '$.instance') = '${node}') AND ('${job}' = 'All' OR json_extract(metric_labels, '$.job') = '${job}') AND ('${pod}' = 'All' OR json_extract(metric_labels, '$.pod') = '${pod}') AND ('${container}' = 'All' OR json_extract(metric_labels, '$.container') = '${container}')",
         "includeAll": false,
         "multi": false,
         "current": {
@@ -763,7 +798,7 @@
           "type": "frser-sqlite-datasource",
           "uid": "kpi-datasource"
         },
-        "query": "SELECT COALESCE(ROUND(AVG(metric_value), 6), 'N/A') FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR json_extract(metric_labels, '$.node') = '${node}' OR json_extract(metric_labels, '$.instance') = '${node}') AND ('${job}' = 'All' OR json_extract(metric_labels, '$.job') = '${job}') AND ('${pod}' = 'All' OR json_extract(metric_labels, '$.pod') = '${pod}') AND ('${container}' = 'All' OR json_extract(metric_labels, '$.container') = '${container}')",
+        "query": "SELECT COALESCE(ROUND(AVG(metric_value), 6), 'N/A') FROM ${_table} qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR json_extract(metric_labels, '$.node') = '${node}' OR json_extract(metric_labels, '$.instance') = '${node}') AND ('${job}' = 'All' OR json_extract(metric_labels, '$.job') = '${job}') AND ('${pod}' = 'All' OR json_extract(metric_labels, '$.pod') = '${pod}') AND ('${container}' = 'All' OR json_extract(metric_labels, '$.container') = '${container}')",
         "includeAll": false,
         "multi": false,
         "current": {
@@ -780,7 +815,7 @@
           "type": "frser-sqlite-datasource",
           "uid": "kpi-datasource"
         },
-        "query": "SELECT COALESCE(ROUND(MIN(metric_value), 6), 'N/A') FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR json_extract(metric_labels, '$.node') = '${node}' OR json_extract(metric_labels, '$.instance') = '${node}') AND ('${job}' = 'All' OR json_extract(metric_labels, '$.job') = '${job}') AND ('${pod}' = 'All' OR json_extract(metric_labels, '$.pod') = '${pod}') AND ('${container}' = 'All' OR json_extract(metric_labels, '$.container') = '${container}')",
+        "query": "SELECT COALESCE(ROUND(MIN(metric_value), 6), 'N/A') FROM ${_table} qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR json_extract(metric_labels, '$.node') = '${node}' OR json_extract(metric_labels, '$.instance') = '${node}') AND ('${job}' = 'All' OR json_extract(metric_labels, '$.job') = '${job}') AND ('${pod}' = 'All' OR json_extract(metric_labels, '$.pod') = '${pod}') AND ('${container}' = 'All' OR json_extract(metric_labels, '$.container') = '${container}')",
         "includeAll": false,
         "multi": false,
         "current": {
@@ -797,7 +832,7 @@
           "type": "frser-sqlite-datasource",
           "uid": "kpi-datasource"
         },
-        "query": "SELECT COALESCE(ROUND(MAX(metric_value), 6), 'N/A') FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR json_extract(metric_labels, '$.node') = '${node}' OR json_extract(metric_labels, '$.instance') = '${node}') AND ('${job}' = 'All' OR json_extract(metric_labels, '$.job') = '${job}') AND ('${pod}' = 'All' OR json_extract(metric_labels, '$.pod') = '${pod}') AND ('${container}' = 'All' OR json_extract(metric_labels, '$.container') = '${container}')",
+        "query": "SELECT COALESCE(ROUND(MAX(metric_value), 6), 'N/A') FROM ${_table} qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR json_extract(metric_labels, '$.node') = '${node}' OR json_extract(metric_labels, '$.instance') = '${node}') AND ('${job}' = 'All' OR json_extract(metric_labels, '$.job') = '${job}') AND ('${pod}' = 'All' OR json_extract(metric_labels, '$.pod') = '${pod}') AND ('${container}' = 'All' OR json_extract(metric_labels, '$.container') = '${container}')",
         "includeAll": false,
         "multi": false,
         "current": {
@@ -814,7 +849,7 @@
           "type": "frser-sqlite-datasource",
           "uid": "kpi-datasource"
         },
-        "query": "SELECT COALESCE(CAST(MIN(timestamp_value) * 1000 AS INTEGER), 0) FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}')",
+        "query": "SELECT COALESCE(CAST(MIN(timestamp_value) * 1000 AS INTEGER), 0) FROM ${_table} qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}')",
         "includeAll": false,
         "multi": false,
         "current": {
@@ -831,7 +866,7 @@
           "type": "frser-sqlite-datasource",
           "uid": "kpi-datasource"
         },
-        "query": "SELECT COALESCE(CAST(MAX(timestamp_value) * 1000 AS INTEGER), 0) FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}')",
+        "query": "SELECT COALESCE(CAST(MAX(timestamp_value) * 1000 AS INTEGER), 0) FROM ${_table} qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}')",
         "includeAll": false,
         "multi": false,
         "current": {
@@ -849,7 +884,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "KPI Collection Tool - Dynamic Dashboard",
+  "title": "KPI Collection Tool Dashboard",
   "uid": "kpi-collector-dynamic",
   "version": 3,
   "weekStart": ""

@@ -871,7 +871,7 @@
     "from": "now-24h",
     "to": "now"
   },
-  "title": "KPI Collection Tool - Dynamic Dashboard (PostgreSQL)",
+  "title": "KPI Collection Tool Dashboard",
   "uid": "kpi-collector-dynamic",
   "version": 83,
   "weekStart": ""
