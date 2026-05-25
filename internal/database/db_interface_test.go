@@ -7,6 +7,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/prometheus/common/model"
+	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/config"
 )
 
 // RunDatabaseInterfaceTests runs the complete test suite for any Database implementation.
@@ -329,6 +330,203 @@ func RunDatabaseInterfaceTests(getImpl func() (Database, *sql.DB)) {
 				err = db.QueryRow("SELECT cluster_id FROM query_results WHERE kpi_id = $1", "query-cluster-2").Scan(&storedClusterID)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(storedClusterID).To(Equal(clusterID2))
+			})
+		})
+	})
+
+	Describe("Category Tables", func() {
+		var clusterID int64
+
+		BeforeEach(func() {
+			var err error
+			clusterID, err = dbImpl.GetOrCreateCluster(db, "cat-cluster", "ran")
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		Describe("EnsureCategoryTable", func() {
+			It("should create a table and register the KPI", func() {
+				tableName, err := dbImpl.EnsureCategoryTable(db, "cpu", "node-cpu-usage")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(tableName).To(Equal("kpi_cpu"))
+
+				cat, tn, err := dbImpl.LookupCategoryForKPI(db, "node-cpu-usage")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cat).To(Equal("cpu"))
+				Expect(tn).To(Equal("kpi_cpu"))
+			})
+
+			It("should be idempotent for the same category", func() {
+				_, err := dbImpl.EnsureCategoryTable(db, "memory", "mem-usage-1")
+				Expect(err).NotTo(HaveOccurred())
+				_, err = dbImpl.EnsureCategoryTable(db, "memory", "mem-usage-2")
+				Expect(err).NotTo(HaveOccurred())
+
+				categories, err := dbImpl.ListCategories(db)
+				Expect(err).NotTo(HaveOccurred())
+				memCount := 0
+				for _, c := range categories {
+					if c.Category == "memory" {
+						memCount++
+						Expect(c.TableName).To(Equal("kpi_memory"))
+					}
+				}
+				Expect(memCount).To(Equal(1))
+			})
+		})
+
+		Describe("StoreQueryResults with category", func() {
+			It("should route categorised writes to the category table", func() {
+				vector := model.Vector{
+					&model.Sample{
+						Metric:    model.Metric{"__name__": "cpu_seconds"},
+						Value:     model.SampleValue(0.75),
+						Timestamp: model.Time(time.Now().Unix() * 1000),
+					},
+				}
+
+				err := dbImpl.StoreQueryResults(db, clusterID, "node-cpu", "cpu", vector)
+				Expect(err).NotTo(HaveOccurred())
+
+				var count int
+				err = db.QueryRow("SELECT COUNT(*) FROM kpi_cpu WHERE kpi_id = $1", "node-cpu").Scan(&count)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(count).To(Equal(1))
+
+				err = db.QueryRow("SELECT COUNT(*) FROM query_results WHERE kpi_id = $1", "node-cpu").Scan(&count)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(count).To(Equal(0))
+			})
+
+			It("should enforce dedup on category tables", func() {
+				ts := model.Time(time.Now().Unix() * 1000)
+				vector := model.Vector{
+					&model.Sample{
+						Metric:    model.Metric{"__name__": "mem_bytes"},
+						Value:     model.SampleValue(1024),
+						Timestamp: ts,
+					},
+				}
+
+				err := dbImpl.StoreQueryResults(db, clusterID, "mem-kpi", "memory", vector)
+				Expect(err).NotTo(HaveOccurred())
+				err = dbImpl.StoreQueryResults(db, clusterID, "mem-kpi", "memory", vector)
+				Expect(err).NotTo(HaveOccurred())
+
+				var count int
+				err = db.QueryRow("SELECT COUNT(*) FROM kpi_memory WHERE kpi_id = $1", "mem-kpi").Scan(&count)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(count).To(Equal(1))
+			})
+		})
+
+		Describe("ValidateCategoryConsistency", func() {
+			BeforeEach(func() {
+				_, err := dbImpl.EnsureCategoryTable(db, "cpu", "node-cpu")
+				Expect(err).NotTo(HaveOccurred())
+				_, err = dbImpl.EnsureCategoryTable(db, "memory", "mem-usage")
+				Expect(err).NotTo(HaveOccurred())
+			})
+
+			It("should pass when categories match", func() {
+				kpis := []config.Query{
+					{ID: "node-cpu", Category: "cpu"},
+					{ID: "mem-usage", Category: "memory"},
+				}
+				err := dbImpl.ValidateCategoryConsistency(db, kpis)
+				Expect(err).NotTo(HaveOccurred())
+			})
+
+			It("should pass for new KPIs not yet in registry", func() {
+				kpis := []config.Query{
+					{ID: "node-cpu", Category: "cpu"},
+					{ID: "brand-new-kpi", Category: "network"},
+				}
+				err := dbImpl.ValidateCategoryConsistency(db, kpis)
+				Expect(err).NotTo(HaveOccurred())
+			})
+
+			It("should error when a KPI changes category", func() {
+				kpis := []config.Query{
+					{ID: "node-cpu", Category: "networking"},
+				}
+				err := dbImpl.ValidateCategoryConsistency(db, kpis)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("node-cpu"))
+			})
+
+			It("should error when a categorised KPI becomes uncategorised", func() {
+				kpis := []config.Query{
+					{ID: "node-cpu", Category: ""},
+				}
+				err := dbImpl.ValidateCategoryConsistency(db, kpis)
+				Expect(err).To(HaveOccurred())
+			})
+		})
+
+		Describe("ListCategories", func() {
+			It("should return empty list when no categories exist", func() {
+				categories, err := dbImpl.ListCategories(db)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(categories).To(BeEmpty())
+			})
+
+			It("should return all distinct categories", func() {
+				_, err := dbImpl.EnsureCategoryTable(db, "cpu", "node-cpu")
+				Expect(err).NotTo(HaveOccurred())
+				_, err = dbImpl.EnsureCategoryTable(db, "cpu", "container-cpu")
+				Expect(err).NotTo(HaveOccurred())
+				_, err = dbImpl.EnsureCategoryTable(db, "memory", "mem-usage")
+				Expect(err).NotTo(HaveOccurred())
+
+				categories, err := dbImpl.ListCategories(db)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(categories).To(HaveLen(2))
+			})
+		})
+
+		Describe("LookupCategoryForKPI", func() {
+			It("should return empty strings for an unregistered KPI", func() {
+				cat, table, err := dbImpl.LookupCategoryForKPI(db, "unknown-kpi")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cat).To(BeEmpty())
+				Expect(table).To(BeEmpty())
+			})
+
+			It("should return category and table for a registered KPI", func() {
+				_, err := dbImpl.EnsureCategoryTable(db, "cpu", "node-cpu")
+				Expect(err).NotTo(HaveOccurred())
+
+				cat, table, err := dbImpl.LookupCategoryForKPI(db, "node-cpu")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(cat).To(Equal("cpu"))
+				Expect(table).To(Equal("kpi_cpu"))
+			})
+		})
+
+		Describe("DeleteByCategory", func() {
+			It("should delete all rows from the category table and clean registry", func() {
+				vector := model.Vector{
+					&model.Sample{
+						Metric:    model.Metric{"__name__": "cpu_usage"},
+						Value:     model.SampleValue(0.5),
+						Timestamp: model.Time(time.Now().Unix() * 1000),
+					},
+				}
+				err := dbImpl.StoreQueryResults(db, clusterID, "cpu-kpi", "cpu", vector)
+				Expect(err).NotTo(HaveOccurred())
+
+				deleted, err := dbImpl.DeleteByCategory(db, "cpu")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(deleted).To(Equal(int64(1)))
+
+				var count int
+				err = db.QueryRow("SELECT COUNT(*) FROM kpi_cpu").Scan(&count)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(count).To(Equal(0))
+
+				err = db.QueryRow("SELECT COUNT(*) FROM kpi_registry WHERE category = $1", "cpu").Scan(&count)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(count).To(Equal(0))
 			})
 		})
 	})
