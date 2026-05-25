@@ -88,12 +88,19 @@ kpi-collector kpis generate --profile hub --all -f /path/to/hub-kpis.yaml
 
 # Overwrite an existing file
 kpi-collector kpis generate --profile ran --all --overwrite
+
+# Generate without category fields (single-table storage)
+kpi-collector kpis generate --profile ran --all --uncategorized
 ```
 
 By default the output file is named `<profile>-kpis.yaml` in the current
 directory. If the file already exists, the command will refuse to overwrite it
 unless you pass `--overwrite`. In interactive mode (the default), you are
 prompted per category — use `--all` to skip prompts and include everything.
+
+Generated KPIs include a `category` field by default, which routes metrics into
+separate database tables for better query performance. Pass `--uncategorized`
+to omit the `category` field and store all metrics in a single table.
 
 Once generated, you can edit the file to fine-tune individual KPIs before
 passing it to the collector.
