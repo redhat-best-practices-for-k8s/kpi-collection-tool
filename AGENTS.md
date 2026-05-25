@@ -126,7 +126,7 @@ Tests use Ginkgo/Gomega BDD framework. Test files follow the pattern `*_test.go`
 
 ### CLI Structure
 Commands are organized using Cobra:
-- `kpi-collector kpis generate --profile <profile>`: Generate a KPI file for a cluster profile (ran, core, hub)
+- `kpi-collector kpis generate --profile <profile>`: Generate a KPI file for a cluster profile (ran, core, hub). Use `--uncategorized` to omit category fields. Use `--uncategorized` to omit category fields
 - `kpi-collector run`: Collect KPI metrics (use `--once` to collect once and exit)
 - `kpi-collector db show clusters|kpis|errors`: Query stored data
 - `kpi-collector db remove clusters|kpis|errors`: Delete data
