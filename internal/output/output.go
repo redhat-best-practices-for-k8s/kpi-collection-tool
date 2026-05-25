@@ -36,6 +36,7 @@ func ParseFormat(s string) (Format, error) {
 type KPIRecord struct {
 	ID            int64             `json:"id"`
 	KPIName       string            `json:"kpi_name"`
+	Category      string            `json:"category,omitempty"`
 	Cluster       string            `json:"cluster"`
 	Value         float64           `json:"value"`
 	Timestamp     float64           `json:"timestamp"`

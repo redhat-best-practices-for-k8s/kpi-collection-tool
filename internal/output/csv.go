@@ -10,17 +10,16 @@ func (p *Printer) printKPIsCSV(records []KPIRecord) error {
 	w := csv.NewWriter(p.writer)
 	defer w.Flush()
 
-	// Write header
-	if err := w.Write([]string{"id", "kpi_name", "cluster", "value", "timestamp", "execution_time", "labels"}); err != nil {
+	if err := w.Write([]string{"id", "kpi_name", "category", "cluster", "value", "timestamp", "execution_time", "labels"}); err != nil {
 		return err
 	}
 
-	// Write records
 	for _, r := range records {
 		labelsJSON, _ := json.Marshal(r.Labels)
 		row := []string{
 			strconv.FormatInt(r.ID, 10),
 			r.KPIName,
+			r.Category,
 			r.Cluster,
 			strconv.FormatFloat(r.Value, 'f', 6, 64),
 			strconv.FormatFloat(r.Timestamp, 'f', 0, 64),

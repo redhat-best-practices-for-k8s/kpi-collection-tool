@@ -133,6 +133,7 @@ type InputFlags struct {
 	PostgresURL  string // PostgreSQL connection string
 	KPIsFile     string
 	SingleRun    bool // collect metrics once and exit
+	SkipPrompts  bool // skip interactive prompts (--yes/-y)
 }
 
 // Query represents a single KPI query configuration

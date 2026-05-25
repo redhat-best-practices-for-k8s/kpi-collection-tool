@@ -252,5 +252,93 @@ var _ = Describe("Sqlite", func() {
 		})
 	})
 
+	Describe("ListCategories", func() {
+		It("should return empty list when no categories exist", func() {
+			categories, err := sqliteDB.ListCategories(db)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(categories).To(BeEmpty())
+		})
+
+		It("should return all distinct categories", func() {
+			_, err := sqliteDB.EnsureCategoryTable(db, "cpu", "node-cpu")
+			Expect(err).NotTo(HaveOccurred())
+			_, err = sqliteDB.EnsureCategoryTable(db, "cpu", "container-cpu")
+			Expect(err).NotTo(HaveOccurred())
+			_, err = sqliteDB.EnsureCategoryTable(db, "memory", "mem-usage")
+			Expect(err).NotTo(HaveOccurred())
+
+			categories, err := sqliteDB.ListCategories(db)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(categories).To(HaveLen(2))
+			Expect(categories[0].Category).To(Equal("cpu"))
+			Expect(categories[0].TableName).To(Equal("kpi_cpu"))
+			Expect(categories[1].Category).To(Equal("memory"))
+			Expect(categories[1].TableName).To(Equal("kpi_memory"))
+		})
+	})
+
+	Describe("LookupCategoryForKPI", func() {
+		It("should return empty strings for an unregistered KPI", func() {
+			cat, table, err := sqliteDB.LookupCategoryForKPI(db, "unknown-kpi")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(cat).To(BeEmpty())
+			Expect(table).To(BeEmpty())
+		})
+
+		It("should return category and table for a registered KPI", func() {
+			_, err := sqliteDB.EnsureCategoryTable(db, "cpu", "node-cpu")
+			Expect(err).NotTo(HaveOccurred())
+
+			cat, table, err := sqliteDB.LookupCategoryForKPI(db, "node-cpu")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(cat).To(Equal("cpu"))
+			Expect(table).To(Equal("kpi_cpu"))
+		})
+	})
+
+	Describe("DeleteByCategory", func() {
+		var clusterID int64
+
+		BeforeEach(func() {
+			var err error
+			clusterID, err = sqliteDB.GetOrCreateCluster(db, "del-cluster", "ran")
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should delete all rows from the category table and clean registry", func() {
+			vector := model.Vector{
+				&model.Sample{
+					Metric:    model.Metric{"__name__": "cpu_usage"},
+					Value:     model.SampleValue(0.5),
+					Timestamp: model.Time(time.Now().Unix() * 1000),
+				},
+			}
+			err := sqliteDB.StoreQueryResults(db, clusterID, "cpu-kpi", "cpu", vector)
+			Expect(err).NotTo(HaveOccurred())
+
+			deleted, err := sqliteDB.DeleteByCategory(db, "cpu")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(deleted).To(Equal(int64(1)))
+
+			var count int
+			err = db.QueryRow("SELECT COUNT(*) FROM kpi_cpu").Scan(&count)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(count).To(Equal(0))
+
+			err = db.QueryRow("SELECT COUNT(*) FROM kpi_registry WHERE category = 'cpu'").Scan(&count)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(count).To(Equal(0))
+		})
+
+		It("should return 0 when category table is empty", func() {
+			_, err := sqliteDB.EnsureCategoryTable(db, "network", "net-kpi")
+			Expect(err).NotTo(HaveOccurred())
+
+			deleted, err := sqliteDB.DeleteByCategory(db, "network")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(deleted).To(Equal(int64(0)))
+		})
+	})
+
 	RunDatabaseInterfaceTests(func() (Database, *sql.DB) { return sqliteDB, db })
 })

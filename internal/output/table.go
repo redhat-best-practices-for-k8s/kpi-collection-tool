@@ -12,33 +12,30 @@ func (p *Printer) printKPIsTable(records []KPIRecord) error {
 	w := tabwriter.NewWriter(p.writer, 0, 0, 2, ' ', 0)
 
 	if p.noTruncate {
-		// Display without labels column, print pretty JSON below each entry
-		_, _ = fmt.Fprintln(w, "ID\tKPI_NAME\tCLUSTER\tVALUE\tTIMESTAMP\tEXECUTION_TIME")
-		_, _ = fmt.Fprintln(w, "---\t---\t---\t---\t---\t---")
+		_, _ = fmt.Fprintln(w, "ID\tKPI_NAME\tCATEGORY\tCLUSTER\tVALUE\tTIMESTAMP\tEXECUTION_TIME")
+		_, _ = fmt.Fprintln(w, "---\t---\t---\t---\t---\t---\t---")
 
 		for _, r := range records {
-			_, _ = fmt.Fprintf(w, "%d\t%s\t%s\t%.6f\t%.0f\t%s\n",
-				r.ID, r.KPIName, r.Cluster, r.Value,
+			_, _ = fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%.6f\t%.0f\t%s\n",
+				r.ID, r.KPIName, categoryDisplay(r.Category), r.Cluster, r.Value,
 				r.Timestamp, r.ExecutionTime.Format("2006-01-02 15:04:05"))
 			_ = w.Flush()
 
-			// Print pretty labels below the entry
 			_, _ = fmt.Fprintln(p.writer, "  Labels:")
 			p.printPrettyLabels(r.Labels)
 			_, _ = fmt.Fprintln(p.writer)
 		}
 	} else {
-		// Default: display with truncated labels in table
-		_, _ = fmt.Fprintln(w, "ID\tKPI_NAME\tCLUSTER\tVALUE\tTIMESTAMP\tEXECUTION_TIME\tLABELS")
-		_, _ = fmt.Fprintln(w, "---\t---\t---\t---\t---\t---\t---")
+		_, _ = fmt.Fprintln(w, "ID\tKPI_NAME\tCATEGORY\tCLUSTER\tVALUE\tTIMESTAMP\tEXECUTION_TIME\tLABELS")
+		_, _ = fmt.Fprintln(w, "---\t---\t---\t---\t---\t---\t---\t---")
 
 		for _, r := range records {
 			labels := r.LabelsRaw
 			if len(labels) > 50 {
 				labels = labels[:47] + "..."
 			}
-			_, _ = fmt.Fprintf(w, "%d\t%s\t%s\t%.6f\t%.0f\t%s\t%s\n",
-				r.ID, r.KPIName, r.Cluster, r.Value,
+			_, _ = fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%.6f\t%.0f\t%s\t%s\n",
+				r.ID, r.KPIName, categoryDisplay(r.Category), r.Cluster, r.Value,
 				r.Timestamp, r.ExecutionTime.Format("2006-01-02 15:04:05"), labels)
 		}
 		_ = w.Flush()
@@ -46,6 +43,13 @@ func (p *Printer) printKPIsTable(records []KPIRecord) error {
 
 	_, _ = fmt.Fprintf(p.writer, "\nTotal results: %d\n", len(records))
 	return nil
+}
+
+func categoryDisplay(category string) string {
+	if category == "" {
+		return "-"
+	}
+	return category
 }
 
 func (p *Printer) printPrettyLabels(labels map[string]string) {

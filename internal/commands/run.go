@@ -1,10 +1,12 @@
 package commands
 
 import (
+	"bufio"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/collector"
@@ -95,6 +97,10 @@ func init() {
 	runCmd.Flags().BoolVar(&flags.SingleRun, "once", false,
 		"collect all KPI metrics once and exit (ignores --frequency and --duration)")
 
+	// Skip interactive prompts
+	runCmd.Flags().BoolVarP(&flags.SkipPrompts, "yes", "y", false,
+		"skip interactive prompts (e.g. category advisory)")
+
 	// Mark required flags
 	if err := runCmd.MarkFlagRequired("cluster-name"); err != nil {
 		panic(fmt.Sprintf("failed to mark cluster-name as required: %v", err))
@@ -156,6 +162,12 @@ func runCollect(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("found %d KPI validation error(s)", len(validationErrors))
 	}
 	fmt.Printf("✓ Validated %d KPI(s)\n", len(kpis.Queries))
+
+	if !flags.SkipPrompts {
+		if abort := promptIfManyUncategorized(kpis); abort {
+			return fmt.Errorf("aborted by user")
+		}
+	}
 
 	kpis, err = substituteCPUsIfNeeded(kpis, flags)
 	if err != nil {
@@ -282,6 +294,36 @@ func validateRangeFrequency(kpis config.KPIs, flags config.InputFlags) error {
 	}
 
 	return nil
+}
+
+const uncategorizedThreshold = 15
+
+// promptIfManyUncategorized asks the user for confirmation when 15+ KPIs
+// have no category set. Returns true if the user chose to abort.
+func promptIfManyUncategorized(kpis config.KPIs) bool {
+	uncategorized := 0
+	for _, q := range kpis.Queries {
+		if q.Category == "" {
+			uncategorized++
+		}
+	}
+
+	if uncategorized < uncategorizedThreshold {
+		return false
+	}
+
+	fmt.Fprintf(os.Stderr,
+		"\n⚠  %d KPIs detected without categories.\n"+
+			"   Without categories, all data is stored in a single table which\n"+
+			"   degrades query performance at scale.\n\n"+
+			"   Proceed anyway? [y/N] ",
+		uncategorized)
+
+	reader := bufio.NewReader(os.Stdin)
+	answer, _ := reader.ReadString('\n')
+	answer = strings.TrimSpace(strings.ToLower(answer))
+
+	return answer != "y" && answer != "yes"
 }
 
 // warnFrequencyExceedsDuration prints a warning if any KPI's sampling frequency

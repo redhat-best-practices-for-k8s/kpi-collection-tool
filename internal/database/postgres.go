@@ -120,7 +120,7 @@ func (p *PostgresDB) GetQueryErrorCount(db *sql.DB, kpiID string) (int, error) {
 // will be implemented in a future PR; all writes go to query_results for now.
 // --- TODO ---
 func (p *PostgresDB) EnsureCategoryTable(_ *sql.DB, _ string, _ string) (string, error) {
-	return "query_results", nil
+	return DefaultTableName, nil
 }
 
 // ValidateCategoryConsistency is a no-op stub for PostgreSQL until category
@@ -128,6 +128,24 @@ func (p *PostgresDB) EnsureCategoryTable(_ *sql.DB, _ string, _ string) (string,
 // --- TODO ---
 func (p *PostgresDB) ValidateCategoryConsistency(_ *sql.DB, _ []config.Query) error {
 	return nil
+}
+
+// ListCategories is a no-op stub for PostgreSQL until category support is implemented.
+// --- TODO ---
+func (p *PostgresDB) ListCategories(_ *sql.DB) ([]CategoryInfo, error) {
+	return nil, nil
+}
+
+// LookupCategoryForKPI is a no-op stub for PostgreSQL until category support is implemented.
+// --- TODO ---
+func (p *PostgresDB) LookupCategoryForKPI(_ *sql.DB, _ string) (string, string, error) {
+	return "", "", nil
+}
+
+// DeleteByCategory is a no-op stub for PostgreSQL until category support is implemented.
+// --- TODO ---
+func (p *PostgresDB) DeleteByCategory(_ *sql.DB, _ string) (int64, error) {
+	return 0, nil
 }
 
 // StoreQueryResults stores the results of a Prometheus query in the database.

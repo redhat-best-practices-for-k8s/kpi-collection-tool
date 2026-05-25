@@ -18,6 +18,8 @@ const (
 	DefaultOutputDir = "kpi-collector-artifacts"
 	// DefaultDBFileName is the SQLite database file name
 	DefaultDBFileName = "kpi_metrics.db"
+	// DefaultTableName is the legacy table used for uncategorized KPIs
+	DefaultTableName = "query_results"
 )
 
 // OutputDir is the resolved artifacts directory. It defaults to DefaultOutputDir
@@ -135,7 +137,7 @@ func (sqlite_db *SQLiteDB) GetQueryErrorCount(db *sql.DB, kpiID string) (int, er
 // StoreQueryResults stores the results of a Prometheus query in the database.
 // When category is non-empty, writes go to the per-category table (kpi_<category>).
 func (sqlite_db *SQLiteDB) StoreQueryResults(db *sql.DB, clusterID int64, queryID string, category string, result model.Value) error {
-	tableName := "query_results"
+	tableName := DefaultTableName
 	if category != "" {
 		name, err := sqlite_db.EnsureCategoryTable(db, category, queryID)
 		if err != nil {
@@ -236,6 +238,62 @@ func (sqlite_db *SQLiteDB) ValidateCategoryConsistency(db *sql.DB, kpis []config
 	}
 
 	return nil
+}
+
+// ListCategories returns all distinct categories registered in kpi_registry.
+func (sqlite_db *SQLiteDB) ListCategories(db *sql.DB) ([]CategoryInfo, error) {
+	rows, err := db.Query("SELECT DISTINCT category, table_name FROM kpi_registry ORDER BY category")
+	if err != nil {
+		return nil, fmt.Errorf("query kpi_registry: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var categories []CategoryInfo
+	for rows.Next() {
+		var ci CategoryInfo
+		if err := rows.Scan(&ci.Category, &ci.TableName); err != nil {
+			return nil, fmt.Errorf("scan kpi_registry row: %w", err)
+		}
+		categories = append(categories, ci)
+	}
+
+	return categories, rows.Err()
+}
+
+// LookupCategoryForKPI returns the category and table name for a KPI ID.
+// Returns empty strings when the KPI has no registry entry (uncategorized).
+func (sqlite_db *SQLiteDB) LookupCategoryForKPI(db *sql.DB, kpiID string) (string, string, error) {
+	var category, tableName string
+	err := db.QueryRow("SELECT category, table_name FROM kpi_registry WHERE kpi_id = ?", kpiID).
+		Scan(&category, &tableName)
+
+	if err == sql.ErrNoRows {
+		return "", "", nil
+	}
+	if err != nil {
+		return "", "", fmt.Errorf("lookup kpi_registry for '%s': %w", kpiID, err)
+	}
+
+	return category, tableName, nil
+}
+
+// DeleteByCategory removes all rows from the given category table and cleans
+// up the corresponding kpi_registry entries. Returns the number of metric rows deleted.
+func (sqlite_db *SQLiteDB) DeleteByCategory(db *sql.DB, category string) (int64, error) {
+	tableName := CategoryTableName(category)
+
+	result, err := db.Exec(fmt.Sprintf("DELETE FROM %s", tableName))
+	if err != nil {
+		return 0, fmt.Errorf("delete from %s: %w", tableName, err)
+	}
+	deleted, _ := result.RowsAffected()
+
+	_, err = db.Exec("DELETE FROM kpi_registry WHERE category = ?", category)
+	if err != nil {
+		return deleted, fmt.Errorf("clean kpi_registry for category '%s': %w", category, err)
+	}
+
+	return deleted, nil
 }
 
 func (sqlite_db *SQLiteDB) storeVectorResults(db *sql.DB, clusterID int64, queryID string, table string, vector model.Vector) error {

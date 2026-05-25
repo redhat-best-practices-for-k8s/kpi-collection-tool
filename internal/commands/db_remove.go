@@ -13,6 +13,7 @@ import (
 var (
 	removeClusterName string
 	removeKPIName     string
+	removeCategory    string
 	removeAll         bool
 )
 
@@ -38,12 +39,18 @@ WARNING: This operation cannot be undone. All metric samples for the cluster wil
 var removeKPIsCmd = &cobra.Command{
 	Use:   "kpis",
 	Short: "Remove KPI metrics",
-	Long:  `Delete KPI metrics from the database, optionally filtered by cluster and KPI name.`,
+	Long: `Delete KPI metrics from the database, filtered by cluster, KPI name, or category.
+
+When --category is used, all data in that category table is removed along with
+the registry entries. This is independent of the --cluster-name flag.`,
 	Example: `  # Remove all KPIs from a cluster
   kpi-collector db remove kpis --cluster-name="mycluster1"
   
   # Remove specific KPI from a cluster
-  kpi-collector db remove kpis --cluster-name="mycluster1" --name="cpu-system"`,
+  kpi-collector db remove kpis --cluster-name="mycluster1" --name="cpu-system"
+
+  # Remove all data for a category
+  kpi-collector db remove kpis --category=cpu`,
 	RunE: runRemoveKPIs,
 }
 
@@ -72,10 +79,11 @@ func init() {
 
 	// Flags for 'remove kpis'
 	removeKPIsCmd.Flags().StringVar(&removeClusterName, "cluster-name", "",
-		"cluster name (required)")
+		"cluster name (required unless --category is used)")
 	removeKPIsCmd.Flags().StringVar(&removeKPIName, "name", "",
 		"KPI name to remove (optional)")
-	_ = removeKPIsCmd.MarkFlagRequired("cluster-name")
+	removeKPIsCmd.Flags().StringVar(&removeCategory, "category", "",
+		"remove all data for a category (e.g. cpu, memory)")
 
 	// Flags for 'remove errors'
 	removeErrorsCmd.Flags().StringVar(&removeKPIName, "name", "",
@@ -112,11 +120,29 @@ func runRemoveClusters(cmd *cobra.Command, args []string) error {
 }
 
 func runRemoveKPIs(cmd *cobra.Command, args []string) error {
+	// user must provide the cluster namr OR a category to remove KPIs
+	if removeCategory == "" && removeClusterName == "" {
+		return fmt.Errorf("must specify either --cluster-name or --category")
+	}
+
 	db, dbImpl, err := connectToDB()
 	if err != nil {
 		return fmt.Errorf("failed to connect to DB: %w", err)
 	}
 	defer func() { _ = db.Close() }()
+
+	if removeCategory != "" {
+		deleted, err := dbImpl.DeleteByCategory(db, removeCategory)
+		if err != nil {
+			return fmt.Errorf("failed to delete category '%s': %w", removeCategory, err)
+		}
+		if deleted == 0 {
+			fmt.Printf("No metrics found for category '%s'.\n", removeCategory)
+			return nil
+		}
+		fmt.Printf("✓ Deleted %s metric samples from category '%s'.\n", humanize.Comma(deleted), removeCategory)
+		return nil
+	}
 
 	_, deleted, err := deleteClusterMetrics(db, dbImpl, removeClusterName, removeKPIName)
 	if err != nil {
@@ -180,23 +206,33 @@ func deleteClusterMetrics(db *sql.DB, dbImpl database.Database, clusterName, kpi
 	}
 	cluster := clusters[0]
 
-	query := "DELETE FROM query_results WHERE cluster_id = $1"
-	queryArgs := []interface{}{cluster.ID}
-
-	if kpiName != "" {
-		query += " AND kpi_id = $2"
-		queryArgs = append(queryArgs, kpiName)
-	}
-
-	if _, ok := dbImpl.(*database.SQLiteDB); ok {
-		query = convertPostgresToSQLitePlaceholders(query)
-	}
-
-	result, err := db.Exec(query, queryArgs...)
+	tables, err := allCategoryTables(db, dbImpl)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to delete metrics: %w", err)
+		return nil, 0, fmt.Errorf("list tables: %w", err)
 	}
 
-	deleted, _ := result.RowsAffected()
-	return &cluster, deleted, nil
+	var totalDeleted int64
+	for _, t := range tables {
+		query := fmt.Sprintf("DELETE FROM %s WHERE cluster_id = $1", t.TableName)
+		queryArgs := []interface{}{cluster.ID}
+
+		if kpiName != "" {
+			query += " AND kpi_id = $2"
+			queryArgs = append(queryArgs, kpiName)
+		}
+
+		if _, ok := dbImpl.(*database.SQLiteDB); ok {
+			query = convertPostgresToSQLitePlaceholders(query)
+		}
+
+		result, err := db.Exec(query, queryArgs...)
+		if err != nil {
+			return nil, totalDeleted, fmt.Errorf("failed to delete from %s: %w", t.TableName, err)
+		}
+
+		deleted, _ := result.RowsAffected()
+		totalDeleted += deleted
+	}
+
+	return &cluster, totalDeleted, nil
 }
