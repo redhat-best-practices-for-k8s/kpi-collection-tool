@@ -59,6 +59,13 @@ type ErrorRecord struct {
 	ErrorCount int    `json:"error_count"`
 }
 
+// CategoryRecord represents a category info record for output
+type CategoryRecord struct {
+	Category  string `json:"category"`
+	TableName string `json:"table_name"`
+	KPICount  int    `json:"kpi_count"`
+}
+
 // Printer handles output formatting
 type Printer struct {
 	format     Format

@@ -87,6 +87,16 @@ var showClustersCmd = &cobra.Command{
 	RunE: runShowClusters,
 }
 
+var showCategoriesCmd = &cobra.Command{
+	Use:   "categories",
+	Short: "List all KPI categories",
+	Long: `Display all KPI categories registered in the database.
+Shows the category name, backing table, and number of KPIs per category.`,
+	Example: `  # List all categories
+  kpi-collector db show categories`,
+	RunE: runShowCategories,
+}
+
 var showErrorsCmd = &cobra.Command{
 	Use:   "errors",
 	Short: "Show query error counts",
@@ -102,6 +112,7 @@ func init() {
 	dbCmd.AddCommand(showCmd)
 	showCmd.AddCommand(showKPIsCmd)
 	showCmd.AddCommand(showClustersCmd)
+	showCmd.AddCommand(showCategoriesCmd)
 	showCmd.AddCommand(showErrorsCmd)
 
 	// Flags for 'show kpis'
@@ -149,6 +160,12 @@ func runShowKPIs(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to connect to DB: %w", err)
 	}
 	defer func() { _ = db.Close() }()
+
+	if kpiQueryFlags.category != "" {
+		if err := validateCategory(db, dbImpl, kpiQueryFlags.category); err != nil {
+			return err
+		}
+	}
 
 	// Parse time filters using a single reference time to avoid drift.
 	sinceTime, untilTime, err := parseKPIQueryTimeWindow(kpiQueryFlags.since, kpiQueryFlags.until, time.Now())
@@ -225,6 +242,36 @@ func runShowClusters(cmd *cobra.Command, args []string) error {
 	}
 
 	output.PrintClustersTable(records)
+	return nil
+}
+
+func runShowCategories(cmd *cobra.Command, args []string) error {
+	db, dbImpl, err := connectToDB()
+	if err != nil {
+		return fmt.Errorf("failed to connect to DB: %w", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	categories, err := dbImpl.ListCategories(db)
+	if err != nil {
+		return fmt.Errorf("failed to list categories: %w", err)
+	}
+
+	if len(categories) == 0 {
+		fmt.Println("No categories found.")
+		return nil
+	}
+
+	records := make([]output.CategoryRecord, len(categories))
+	for i, c := range categories {
+		records[i] = output.CategoryRecord{
+			Category:  c.Category,
+			TableName: c.TableName,
+			KPICount:  c.KPICount,
+		}
+	}
+
+	output.PrintCategoriesTable(records)
 	return nil
 }
 
@@ -608,6 +655,31 @@ func convertToKPIRecords(results []KPIResult) []output.KPIRecord {
 		}
 	}
 	return records
+}
+
+// validateCategory checks that the given category exists in kpi_registry.
+// Returns a descriptive error listing available categories when it does not.
+func validateCategory(db *sql.DB, dbImpl database.Database, category string) error {
+	categories, err := dbImpl.ListCategories(db)
+	if err != nil {
+		return fmt.Errorf("failed to list categories: %w", err)
+	}
+
+	for _, c := range categories {
+		if c.Category == category {
+			return nil
+		}
+	}
+
+	if len(categories) == 0 {
+		return fmt.Errorf("category %q not found (no categories exist in the database)", category)
+	}
+
+	names := make([]string, len(categories))
+	for i, c := range categories {
+		names[i] = c.Category
+	}
+	return fmt.Errorf("category %q not found; available categories: %s", category, strings.Join(names, ", "))
 }
 
 func convertPostgresToSQLitePlaceholders(query string) string {

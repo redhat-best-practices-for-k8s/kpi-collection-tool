@@ -86,3 +86,15 @@ func PrintErrorsTable(records []ErrorRecord) {
 	}
 	_ = w.Flush()
 }
+
+// PrintCategoriesTable prints category records as a table to stdout
+func PrintCategoriesTable(records []CategoryRecord) {
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	_, _ = fmt.Fprintln(w, "CATEGORY\tTABLE\tKPIS")
+	_, _ = fmt.Fprintln(w, "---\t---\t---")
+
+	for _, c := range records {
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%d\n", c.Category, c.TableName, c.KPICount)
+	}
+	_ = w.Flush()
+}

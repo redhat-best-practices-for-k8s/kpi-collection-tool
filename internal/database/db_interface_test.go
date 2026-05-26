@@ -470,7 +470,7 @@ func RunDatabaseInterfaceTests(getImpl func() (Database, *sql.DB)) {
 				Expect(categories).To(BeEmpty())
 			})
 
-			It("should return all distinct categories", func() {
+			It("should return all distinct categories with KPI counts", func() {
 				_, err := dbImpl.EnsureCategoryTable(db, "cpu", "node-cpu")
 				Expect(err).NotTo(HaveOccurred())
 				_, err = dbImpl.EnsureCategoryTable(db, "cpu", "container-cpu")
@@ -481,6 +481,13 @@ func RunDatabaseInterfaceTests(getImpl func() (Database, *sql.DB)) {
 				categories, err := dbImpl.ListCategories(db)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(categories).To(HaveLen(2))
+
+				cpuIdx, memIdx := 0, 1
+				if categories[0].Category == "memory" {
+					cpuIdx, memIdx = 1, 0
+				}
+				Expect(categories[cpuIdx].KPICount).To(Equal(2))
+				Expect(categories[memIdx].KPICount).To(Equal(1))
 			})
 		})
 

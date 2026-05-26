@@ -222,9 +222,14 @@ func (sqlite_db *SQLiteDB) ValidateCategoryConsistency(db *sql.DB, kpis []config
 	return nil
 }
 
-// ListCategories returns all distinct categories registered in kpi_registry.
+// ListCategories returns all distinct categories registered in kpi_registry,
+// along with the number of KPIs in each category.
 func (sqlite_db *SQLiteDB) ListCategories(db *sql.DB) ([]CategoryInfo, error) {
-	rows, err := db.Query("SELECT DISTINCT category, table_name FROM kpi_registry ORDER BY category")
+	rows, err := db.Query(`
+		SELECT category, table_name, COUNT(*) as kpi_count
+		FROM kpi_registry
+		GROUP BY category, table_name
+		ORDER BY category`)
 	if err != nil {
 		return nil, fmt.Errorf("query kpi_registry: %w", err)
 	}
@@ -233,7 +238,7 @@ func (sqlite_db *SQLiteDB) ListCategories(db *sql.DB) ([]CategoryInfo, error) {
 	var categories []CategoryInfo
 	for rows.Next() {
 		var ci CategoryInfo
-		if err := rows.Scan(&ci.Category, &ci.TableName); err != nil {
+		if err := rows.Scan(&ci.Category, &ci.TableName, &ci.KPICount); err != nil {
 			return nil, fmt.Errorf("scan kpi_registry row: %w", err)
 		}
 		categories = append(categories, ci)

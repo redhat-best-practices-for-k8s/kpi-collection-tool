@@ -132,6 +132,9 @@ func runRemoveKPIs(cmd *cobra.Command, args []string) error {
 	defer func() { _ = db.Close() }()
 
 	if removeCategory != "" {
+		if err := validateCategory(db, dbImpl, removeCategory); err != nil {
+			return err
+		}
 		deleted, err := dbImpl.DeleteByCategory(db, removeCategory)
 		if err != nil {
 			return fmt.Errorf("failed to delete category '%s': %w", removeCategory, err)
