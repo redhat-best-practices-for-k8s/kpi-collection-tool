@@ -25,6 +25,7 @@ kpis:
 | `id` | Yes | - | Unique identifier used in the database and output |
 | `promquery` | Yes | - | PromQL query to execute |
 | `sample-frequency` | No | global `--frequency` | Per-query override (duration string like `2m` or seconds like `120`) |
+| `category` | No | — | Storage category; routes metrics to a dedicated `kpi_<category>` table for better query performance |
 | `run-once` | No | false | Collect this query only once, skip repeated sampling |
 | `query-type` | No | `instant` | `instant` or `range` |
 | `range` | No* | — | Object with `step`, `since`, and optionally `until` |
@@ -73,7 +74,14 @@ kpi-collector kpis generate --profile hub --all -f /path/to/hub-kpis.yaml
 
 # Overwrite an existing file
 kpi-collector kpis generate --profile ran --all --overwrite
+
+# Generate without category fields (all data stored in a single table)
+kpi-collector kpis generate --profile ran --all --uncategorized
 ```
+
+By default, generated KPIs include a `category` field that routes metrics into
+per-category database tables for better query performance at scale. Use
+`--uncategorized` to omit the `category` field from the output.
 
 Available profiles:
 

@@ -40,7 +40,7 @@ kpi-collector kpis generate --profile ran --all
 kpi-collector kpis generate --profile ran
 ```
 
-This creates a `ran-kpis.yaml` file in your current directory with battle-tested PromQL queries for that profile. Use `-f <path>` to write to a custom location.
+This creates a `ran-kpis.yaml` file in your current directory with battle-tested PromQL queries for that profile. Use `-f <path>` to write to a custom location. Add `--uncategorized` to omit category fields from the output.
 
 **Alternatively**, you can write a KPI file by hand. Save the following as `my-kpis.yaml` — a minimal example with two basic cluster-health queries:
 
