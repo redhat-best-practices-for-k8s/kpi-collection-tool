@@ -128,7 +128,7 @@ Tests use Ginkgo/Gomega BDD framework. Test files follow the pattern `*_test.go`
 Commands are organized using Cobra:
 - `kpi-collector kpis generate --profile <profile>`: Generate a KPI file for a cluster profile (ran, core, hub). Use `--uncategorized` to omit category fields. Use `--uncategorized` to omit category fields
 - `kpi-collector run`: Collect KPI metrics (use `--once` to collect once and exit)
-- `kpi-collector db show clusters|kpis|errors`: Query stored data
+- `kpi-collector db show clusters|kpis|categories|errors`: Query stored data
 - `kpi-collector db remove clusters|kpis|errors`: Delete data
 - `kpi-collector grafana start|stop`: Manage Grafana dashboard
 
@@ -162,6 +162,8 @@ kpis:
     promquery: your_promql_query
     # Optional: override global frequency (duration string or seconds)
     sample-frequency: 2m
+    # Optional: route to a dedicated kpi_<category> table for better query performance
+    category: cpu
     # Optional: collect this query only once
     run-once: true
     # Optional: instant (default) or range

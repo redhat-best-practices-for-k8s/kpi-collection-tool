@@ -156,10 +156,10 @@ kpi-collector db show kpis --name pods-running
 Expected output:
 
 ```
-ID  KPI_NAME      CLUSTER      VALUE   TIMESTAMP    EXECUTION_TIME        LABELS
---  ---           ---          ---     ---          ---                   ---
-1   pods-running  my-cluster   47      1700000000   YYYY-MM-DD HH:MM:SS  {"instance":"node1"}
-2   pods-running  my-cluster   32      1700000000   YYYY-MM-DD HH:MM:SS  {"instance":"node2"}
+ID  KPI_NAME      CATEGORY  CLUSTER      VALUE   TIMESTAMP    EXECUTION_TIME        LABELS
+--  ---           ---       ---          ---     ---          ---                   ---
+1   pods-running  -         my-cluster   47      1700000000   YYYY-MM-DD HH:MM:SS  {"instance":"node1"}
+2   pods-running  -         my-cluster   32      1700000000   YYYY-MM-DD HH:MM:SS  {"instance":"node2"}
 
 Total results: 2
 ```

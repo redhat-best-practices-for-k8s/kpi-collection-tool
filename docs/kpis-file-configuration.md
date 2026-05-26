@@ -41,9 +41,11 @@ kpis:
 kpis:
   - id: node-cpu-usage
     promquery: avg by (instance) (rate(node_cpu_seconds_total{mode!="idle"}[5m]))
+    category: cpu
 
   - id: node-memory-usage
     promquery: node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes
+    category: memory
     sample-frequency: 2m
 
   - id: cluster-uptime
@@ -52,11 +54,45 @@ kpis:
 
   - id: node-cpu-usage-range
     promquery: avg by (instance) (rate(node_cpu_seconds_total{mode!="idle"}[5m]))
+    category: cpu
     query-type: range
     range:
       step: 30s
       since: 1h
 ```
+
+## Categories
+
+The optional `category` field routes a KPI's metrics into a dedicated database table named `kpi_<category>` instead of the shared `query_results` table. This improves query performance at scale — when the database holds hundreds of thousands of rows, filtering by category avoids scanning unrelated data.
+
+```yaml
+kpis:
+  - id: node-cpu-usage
+    promquery: avg by (instance) (rate(node_cpu_seconds_total{mode!="idle"}[5m]))
+    category: cpu
+
+  - id: node-memory-usage
+    promquery: node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes
+    category: memory
+
+  - id: cluster-uptime
+    promquery: max(time() - process_start_time_seconds{job="kubelet"})
+```
+
+In this example, `node-cpu-usage` is stored in a `kpi_cpu` table, `node-memory-usage` in `kpi_memory`, and `cluster-uptime` in the default `query_results` table (no category).
+
+How it works:
+
+- **On write**: When the collector runs, it automatically creates the `kpi_<category>` table if it doesn't exist and registers the KPI in a `kpi_registry` lookup table.
+- **On read**: `db show kpis` queries all tables (default + every category) and merges the results. Use `--category=cpu` to query only one category, or `--name=node-cpu-usage` to auto-discover the right table via the registry.
+- **On delete**: `db remove kpis --category=cpu` removes all data from the category table and its registry entries.
+- **Listing**: `db show categories` displays all registered categories, their backing tables, and KPI counts.
+
+Category names are freeform strings (e.g. `cpu`, `memory`, `network`, `ptp`). The built-in KPI profiles (`kpis generate --profile`) include categories by default. Use `--uncategorized` to generate without them.
+
+> [!NOTE]
+> Once a KPI is stored with a category, you cannot change its category in a later run.
+> The collector validates consistency at startup and will error if a category mismatch is detected.
 
 ## KPI Profiles
 
