@@ -15,6 +15,7 @@ import (
 type CategoryInfo struct {
 	Category  string
 	TableName string
+	KPICount  int
 }
 
 // Database defines the interface that all database implementations must satisfy

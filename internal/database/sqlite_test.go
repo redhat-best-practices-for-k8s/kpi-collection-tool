@@ -259,7 +259,7 @@ var _ = Describe("Sqlite", func() {
 			Expect(categories).To(BeEmpty())
 		})
 
-		It("should return all distinct categories", func() {
+		It("should return all distinct categories with KPI counts", func() {
 			_, err := sqliteDB.EnsureCategoryTable(db, "cpu", "node-cpu")
 			Expect(err).NotTo(HaveOccurred())
 			_, err = sqliteDB.EnsureCategoryTable(db, "cpu", "container-cpu")
@@ -272,8 +272,10 @@ var _ = Describe("Sqlite", func() {
 			Expect(categories).To(HaveLen(2))
 			Expect(categories[0].Category).To(Equal("cpu"))
 			Expect(categories[0].TableName).To(Equal("kpi_cpu"))
+			Expect(categories[0].KPICount).To(Equal(2))
 			Expect(categories[1].Category).To(Equal("memory"))
 			Expect(categories[1].TableName).To(Equal("kpi_memory"))
+			Expect(categories[1].KPICount).To(Equal(1))
 		})
 	})
 
