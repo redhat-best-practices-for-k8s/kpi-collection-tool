@@ -40,17 +40,6 @@ func (p *PostgresDB) InitDB() (*sql.DB, error) {
 		return nil, fmt.Errorf("creating PostgreSQL schema: %w", err)
 	}
 
-	if _, err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS kpi_registry (
-			kpi_id TEXT PRIMARY KEY,
-			category TEXT NOT NULL,
-			table_name TEXT NOT NULL,
-			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-		)`); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("creating kpi_registry table: %w", err)
-	}
-
 	return db, nil
 }
 
@@ -96,20 +85,7 @@ func (p *PostgresDB) EnsureCategoryTable(db *sql.DB, category, kpiID string) (st
 	tableName := CategoryTableName(category)
 
 	if _, ok := p.knownTables.Load(tableName); !ok {
-		ddl := fmt.Sprintf(`
-			CREATE TABLE IF NOT EXISTS %s (
-				id SERIAL PRIMARY KEY,
-				kpi_id TEXT NOT NULL,
-				metric_value DOUBLE PRECISION,
-				timestamp_value DOUBLE PRECISION,
-				cluster_id INTEGER NOT NULL REFERENCES clusters(id),
-				execution_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-				metric_labels JSONB
-			);
-			CREATE UNIQUE INDEX IF NOT EXISTS idx_%s_dedup
-			ON %s(kpi_id, cluster_id, timestamp_value, metric_labels)`,
-			tableName, tableName, tableName)
+		ddl := fmt.Sprintf(schema.PostgresCategoryTableFmt, tableName, tableName, tableName)
 
 		if _, err := db.Exec(ddl); err != nil {
 			return "", fmt.Errorf("create table %s: %w", tableName, err)
@@ -118,10 +94,7 @@ func (p *PostgresDB) EnsureCategoryTable(db *sql.DB, category, kpiID string) (st
 		p.knownTables.Store(tableName, true)
 	}
 
-	_, err := db.Exec(`
-		INSERT INTO kpi_registry (kpi_id, category, table_name) VALUES ($1, $2, $3)
-		ON CONFLICT(kpi_id) DO NOTHING`,
-		kpiID, category, tableName)
+	_, err := db.Exec(schema.PostgresUpsertRegistry, kpiID, category, tableName)
 	if err != nil {
 		return "", fmt.Errorf("register kpi '%s' in kpi_registry: %w", kpiID, err)
 	}
@@ -132,7 +105,7 @@ func (p *PostgresDB) EnsureCategoryTable(db *sql.DB, category, kpiID string) (st
 // ValidateCategoryConsistency checks that no KPI in the incoming config has
 // changed its category compared to what is already stored in kpi_registry.
 func (p *PostgresDB) ValidateCategoryConsistency(db *sql.DB, kpis []config.Query) error {
-	rows, err := db.Query("SELECT kpi_id, category FROM kpi_registry")
+	rows, err := db.Query(schema.PostgresSelectRegistryAll)
 	if err != nil {
 		return fmt.Errorf("query kpi_registry: %w", err)
 	}
@@ -169,11 +142,7 @@ func (p *PostgresDB) ValidateCategoryConsistency(db *sql.DB, kpis []config.Query
 // ListCategories returns all distinct categories registered in kpi_registry,
 // along with the number of KPIs in each category.
 func (p *PostgresDB) ListCategories(db *sql.DB) ([]CategoryInfo, error) {
-	rows, err := db.Query(`
-		SELECT category, table_name, COUNT(*) as kpi_count
-		FROM kpi_registry
-		GROUP BY category, table_name
-		ORDER BY category`)
+	rows, err := db.Query(schema.PostgresSelectRegistryCategories)
 	if err != nil {
 		return nil, fmt.Errorf("query kpi_registry: %w", err)
 	}
@@ -194,8 +163,7 @@ func (p *PostgresDB) ListCategories(db *sql.DB) ([]CategoryInfo, error) {
 // LookupCategoryForKPI returns the category and table name for a KPI ID.
 // Returns empty strings when the KPI has no registry entry (uncategorized).
 func (p *PostgresDB) LookupCategoryForKPI(db *sql.DB, kpiID string) (category, tableName string, err error) {
-	err = db.QueryRow("SELECT category, table_name FROM kpi_registry WHERE kpi_id = $1", kpiID).
-		Scan(&category, &tableName)
+	err = db.QueryRow(schema.PostgresSelectRegistryByKPI, kpiID).Scan(&category, &tableName)
 
 	if err == sql.ErrNoRows {
 		return "", "", nil
@@ -218,7 +186,7 @@ func (p *PostgresDB) DeleteByCategory(db *sql.DB, category string) (int64, error
 	}
 	deleted, _ := result.RowsAffected()
 
-	_, err = db.Exec("DELETE FROM kpi_registry WHERE category = $1", category)
+	_, err = db.Exec(schema.PostgresDeleteRegistryByCategory, category)
 	if err != nil {
 		return deleted, fmt.Errorf("clean kpi_registry for category '%s': %w", category, err)
 	}
@@ -249,10 +217,7 @@ func (p *PostgresDB) StoreQueryResults(db *sql.DB, clusterID int64, queryID, cat
 }
 
 func (p *PostgresDB) storeVectorResults(db *sql.DB, clusterID int64, queryID, table string, vector model.Vector) error {
-	insertSQL := fmt.Sprintf(`INSERT INTO %s
-		(kpi_id, metric_value, timestamp_value, cluster_id, metric_labels)
-		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT (kpi_id, cluster_id, timestamp_value, metric_labels) DO NOTHING`, table)
+	insertSQL := fmt.Sprintf(schema.PostgresInsertResultFmt, table)
 
 	for _, sample := range vector {
 		labelsJSON, err := json.Marshal(sample.Metric)
@@ -271,10 +236,7 @@ func (p *PostgresDB) storeVectorResults(db *sql.DB, clusterID int64, queryID, ta
 }
 
 func (p *PostgresDB) storeMatrixResults(db *sql.DB, clusterID int64, queryID, table string, matrix model.Matrix) error {
-	insertSQL := fmt.Sprintf(`INSERT INTO %s
-		(kpi_id, metric_value, timestamp_value, cluster_id, metric_labels)
-		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT (kpi_id, cluster_id, timestamp_value, metric_labels) DO NOTHING`, table)
+	insertSQL := fmt.Sprintf(schema.PostgresInsertResultFmt, table)
 
 	for _, stream := range matrix {
 		labelsJSON, err := json.Marshal(stream.Metric)

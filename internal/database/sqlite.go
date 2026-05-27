@@ -65,17 +65,6 @@ func (sqlite_db *SQLiteDB) InitDB() (*sql.DB, error) {
 		return nil, fmt.Errorf("creating SQLite schema: %w", err)
 	}
 
-	if _, err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS kpi_registry (
-			kpi_id TEXT PRIMARY KEY,
-			category TEXT NOT NULL,
-			table_name TEXT NOT NULL,
-			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-		)`); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("creating kpi_registry table: %w", err)
-	}
-
 	return db, nil
 }
 
@@ -150,20 +139,7 @@ func (sqlite_db *SQLiteDB) EnsureCategoryTable(db *sql.DB, category string, kpiI
 	tableName := CategoryTableName(category)
 
 	if _, ok := sqlite_db.knownTables.Load(tableName); !ok {
-		ddl := fmt.Sprintf(`
-			CREATE TABLE IF NOT EXISTS %s (
-				id INTEGER PRIMARY KEY AUTOINCREMENT,
-				kpi_id TEXT NOT NULL,
-				metric_value REAL,
-				timestamp_value REAL,
-				cluster_id INTEGER NOT NULL REFERENCES clusters(id),
-				execution_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-				metric_labels TEXT
-			);
-			CREATE UNIQUE INDEX IF NOT EXISTS idx_%s_dedup
-			ON %s(kpi_id, cluster_id, timestamp_value, metric_labels)`,
-			tableName, tableName, tableName)
+		ddl := fmt.Sprintf(schema.SQLiteCategoryTableFmt, tableName, tableName, tableName)
 
 		if _, err := db.Exec(ddl); err != nil {
 			return "", fmt.Errorf("create table %s: %w", tableName, err)
@@ -172,10 +148,7 @@ func (sqlite_db *SQLiteDB) EnsureCategoryTable(db *sql.DB, category string, kpiI
 		sqlite_db.knownTables.Store(tableName, true)
 	}
 
-	_, err := db.Exec(`
-		INSERT INTO kpi_registry (kpi_id, category, table_name) VALUES (?, ?, ?)
-		ON CONFLICT(kpi_id) DO NOTHING`,
-		kpiID, category, tableName)
+	_, err := db.Exec(schema.SQLiteUpsertRegistry, kpiID, category, tableName)
 	if err != nil {
 		return "", fmt.Errorf("register kpi '%s' in kpi_registry: %w", kpiID, err)
 	}
@@ -188,7 +161,7 @@ func (sqlite_db *SQLiteDB) EnsureCategoryTable(db *sql.DB, category string, kpiI
 // recorded. This prevents silent data orphaning when a user changes categories
 // between runs.
 func (sqlite_db *SQLiteDB) ValidateCategoryConsistency(db *sql.DB, kpis []config.Query) error {
-	rows, err := db.Query("SELECT kpi_id, category FROM kpi_registry")
+	rows, err := db.Query(schema.SQLiteSelectRegistryAll)
 	if err != nil {
 		return fmt.Errorf("query kpi_registry: %w", err)
 	}
@@ -225,11 +198,7 @@ func (sqlite_db *SQLiteDB) ValidateCategoryConsistency(db *sql.DB, kpis []config
 // ListCategories returns all distinct categories registered in kpi_registry,
 // along with the number of KPIs in each category.
 func (sqlite_db *SQLiteDB) ListCategories(db *sql.DB) ([]CategoryInfo, error) {
-	rows, err := db.Query(`
-		SELECT category, table_name, COUNT(*) as kpi_count
-		FROM kpi_registry
-		GROUP BY category, table_name
-		ORDER BY category`)
+	rows, err := db.Query(schema.SQLiteSelectRegistryCategories)
 	if err != nil {
 		return nil, fmt.Errorf("query kpi_registry: %w", err)
 	}
@@ -251,8 +220,7 @@ func (sqlite_db *SQLiteDB) ListCategories(db *sql.DB) ([]CategoryInfo, error) {
 // Returns empty strings when the KPI has no registry entry (uncategorized).
 func (sqlite_db *SQLiteDB) LookupCategoryForKPI(db *sql.DB, kpiID string) (string, string, error) {
 	var category, tableName string
-	err := db.QueryRow("SELECT category, table_name FROM kpi_registry WHERE kpi_id = ?", kpiID).
-		Scan(&category, &tableName)
+	err := db.QueryRow(schema.SQLiteSelectRegistryByKPI, kpiID).Scan(&category, &tableName)
 
 	if err == sql.ErrNoRows {
 		return "", "", nil
@@ -275,7 +243,7 @@ func (sqlite_db *SQLiteDB) DeleteByCategory(db *sql.DB, category string) (int64,
 	}
 	deleted, _ := result.RowsAffected()
 
-	_, err = db.Exec("DELETE FROM kpi_registry WHERE category = ?", category)
+	_, err = db.Exec(schema.SQLiteDeleteRegistryByCategory, category)
 	if err != nil {
 		return deleted, fmt.Errorf("clean kpi_registry for category '%s': %w", category, err)
 	}
@@ -290,12 +258,7 @@ func (sqlite_db *SQLiteDB) storeVectorResults(db *sql.DB, clusterID int64, query
 	}
 	defer func() { _ = transaction.Rollback() }()
 
-	insertSQL := fmt.Sprintf(`INSERT INTO %s
-		(kpi_id, metric_value, timestamp_value, cluster_id, metric_labels)
-		VALUES (?, ?, ?, ?, ?)
-		ON CONFLICT(kpi_id, cluster_id, timestamp_value, metric_labels) DO NOTHING`, table)
-
-	preparedStatement, err := transaction.Prepare(insertSQL)
+	preparedStatement, err := transaction.Prepare(fmt.Sprintf(schema.SQLiteInsertResultFmt, table))
 	if err != nil {
 		return fmt.Errorf("prepare statement: %w", err)
 	}
@@ -327,12 +290,7 @@ func (sqlite_db *SQLiteDB) storeMatrixResults(db *sql.DB, clusterID int64, query
 	}
 	defer func() { _ = transaction.Rollback() }()
 
-	insertSQL := fmt.Sprintf(`INSERT INTO %s
-		(kpi_id, metric_value, timestamp_value, cluster_id, metric_labels)
-		VALUES (?, ?, ?, ?, ?)
-		ON CONFLICT(kpi_id, cluster_id, timestamp_value, metric_labels) DO NOTHING`, table)
-
-	preparedStatement, err := transaction.Prepare(insertSQL)
+	preparedStatement, err := transaction.Prepare(fmt.Sprintf(schema.SQLiteInsertResultFmt, table))
 	if err != nil {
 		return fmt.Errorf("prepare statement: %w", err)
 	}

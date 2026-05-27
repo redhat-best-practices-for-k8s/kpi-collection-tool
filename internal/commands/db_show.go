@@ -487,7 +487,6 @@ func queryFromTable(db *sql.DB, dbImpl database.Database, tableName, category st
 	if params.Until != nil {
 		query += fmt.Sprintf(" AND qr.timestamp_value <= $%d", argIndex)
 		args = append(args, float64(params.Until.Truncate(time.Second).Unix()))
-		argIndex++
 	}
 
 	if _, ok := dbImpl.(*database.SQLiteDB); ok {
