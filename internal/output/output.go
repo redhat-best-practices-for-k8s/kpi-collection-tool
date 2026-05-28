@@ -38,8 +38,8 @@ type KPIRecord struct {
 	KPIName       string            `json:"kpi_name"`
 	Cluster       string            `json:"cluster"`
 	Value         float64           `json:"value"`
-	Timestamp     float64           `json:"timestamp"`
-	ExecutionTime time.Time         `json:"execution_time"`
+	Timestamp     string            `json:"timestamp"`
+	ExecutionTime time.Time         `json:"execution_time,omitempty"`
 	Labels        map[string]string `json:"labels"`
 	LabelsRaw     string            `json:"-"` // Original JSON string, used for table display
 }
@@ -60,9 +60,10 @@ type ErrorRecord struct {
 
 // Printer handles output formatting
 type Printer struct {
-	format     Format
-	writer     io.Writer
-	noTruncate bool // For table format: show full labels
+	format       Format
+	writer       io.Writer
+	noTruncate   bool // For table format: show full labels
+	showExecTime bool // Include execution_time column in output
 }
 
 // NewPrinter creates a new Printer with the specified format
@@ -82,6 +83,12 @@ func (p *Printer) WithWriter(w io.Writer) *Printer {
 // WithNoTruncate disables label truncation for table format
 func (p *Printer) WithNoTruncate(noTruncate bool) *Printer {
 	p.noTruncate = noTruncate
+	return p
+}
+
+// WithShowExecTime includes execution_time in the output
+func (p *Printer) WithShowExecTime(show bool) *Printer {
+	p.showExecTime = show
 	return p
 }
 
