@@ -3,12 +3,17 @@ package config
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/prometheus/prometheus/promql/parser"
 	"gopkg.in/yaml.v3"
 )
+
+const maxCategoryLength = 32
+
+var categoryCleanRE = regexp.MustCompile(`[^a-z0-9_]`)
 
 // LoadKPIs loads Prometheus queries from a YAML kpis file
 func LoadKPIs(filepath string) (KPIs, error) {
@@ -31,7 +36,9 @@ func ValidateKPIs(kpis KPIs) []error {
 	var errors []error
 	seenIDs := make(map[string]bool)
 
-	for _, kpi := range kpis.Queries {
+	for i := range kpis.Queries {
+		kpi := &kpis.Queries[i]
+
 		// Check for empty KPI ID
 		if strings.TrimSpace(kpi.ID) == "" {
 			errors = append(errors, fmt.Errorf("KPI has empty ID"))
@@ -55,7 +62,8 @@ func ValidateKPIs(kpis KPIs) []error {
 			errors = append(errors, fmt.Errorf("KPI '%s': invalid PromQL syntax - %w", kpi.ID, err))
 		}
 
-		errors = append(errors, validateQueryType(kpi)...)
+		errors = append(errors, validateCategory(kpi)...)
+		errors = append(errors, validateQueryType(*kpi)...)
 	}
 
 	return errors
@@ -141,6 +149,42 @@ func validateRangeWindow(kpi Query) []error {
 func validateTimeRefPositive(kpiID, field string, timeRef *TimeRef) error {
 	if timeRef.IsDuration() && timeRef.DurationValue() <= 0 {
 		return fmt.Errorf("KPI '%s': range.%s must be > 0 when specified as a duration", kpiID, field)
+	}
+
+	return nil
+}
+
+// SanitizeCategory normalises a user-supplied category string into a safe,
+// lowercase, underscore-separated identifier suitable for use as a SQL table
+// name suffix. Returns an error if the sanitised result exceeds 32 characters
+// or is empty.
+func SanitizeCategory(raw string) (string, error) {
+	s := strings.ToLower(strings.TrimSpace(raw))
+	s = strings.ReplaceAll(s, " ", "_")
+	s = strings.ReplaceAll(s, "-", "_")
+	s = categoryCleanRE.ReplaceAllString(s, "")
+	s = strings.Trim(s, "_")
+
+	if s == "" {
+		return "", fmt.Errorf("category %q is empty after sanitisation", raw)
+	}
+
+	if len(s) > maxCategoryLength {
+		return "", fmt.Errorf("category %q exceeds %d characters after sanitisation (%d chars: %q)",
+			raw, maxCategoryLength, len(s), s)
+	}
+
+	return s, nil
+}
+
+func validateCategory(kpi *Query) []error {
+	if kpi.Category == "" {
+		return nil
+	}
+
+	var err error
+	if kpi.Category, err = SanitizeCategory(kpi.Category); err != nil {
+		return []error{fmt.Errorf("KPI '%s': %w", kpi.ID, err)}
 	}
 
 	return nil
