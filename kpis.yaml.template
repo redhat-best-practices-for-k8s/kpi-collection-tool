@@ -7,6 +7,8 @@
 #   id:               Unique identifier (used in database and output)
 #   promquery:        PromQL query to execute against Prometheus/Thanos
 #   sample-frequency: (Optional) Override global --frequency for this KPI
+#   category:         (Optional) Storage category — routes metrics to a dedicated kpi_<category>
+#                     table for better query performance at scale
 #   query-type:       (Optional) "instant" (default) or "range"
 #   range:            (Required for range) Nested object with step, since, and optionally until
 #     step:           Resolution between points in query_range (e.g. 30s)
@@ -32,8 +34,10 @@ kpis:
     promquery: avg by (instance) (rate(node_cpu_seconds_total{mode!="idle"}[5m]))
 
   # Memory currently in use per node — sampled less frequently (every 2 min)
+  # The category field routes this KPI to the kpi_memory table
   - id: node-memory-usage
     promquery: node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes
+    category: memory
     sample-frequency: 120
 
   # CPU usage on reserved cores (dynamically fetched from PerformanceProfile)

@@ -2,9 +2,10 @@ package schema
 
 // PostgreSQL DML queries use $N placeholders.
 
-const PostgresInsertResult = `
-INSERT INTO query_results
-(kpi_id, metric_value, timestamp_value, cluster_id, metric_labels)
+// PostgresInsertResultFmt inserts a metric row into any table (query_results or
+// a per-category table). Requires one %s argument: the target table name.
+const PostgresInsertResultFmt = `
+INSERT INTO %s (kpi_id, metric_value, timestamp_value, cluster_id, metric_labels)
 VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (kpi_id, cluster_id, timestamp_value, metric_labels) DO NOTHING`
 
@@ -22,3 +23,21 @@ const PostgresUpsertCluster = `
 INSERT INTO clusters (cluster_name, cluster_type) VALUES ($1, $2)
 ON CONFLICT (cluster_name) DO UPDATE SET cluster_type = EXCLUDED.cluster_type
 RETURNING id`
+
+// --- kpi_registry queries ---
+
+const PostgresUpsertRegistry = `
+INSERT INTO kpi_registry (kpi_id, category, table_name) VALUES ($1, $2, $3)
+ON CONFLICT(kpi_id) DO NOTHING`
+
+const PostgresSelectRegistryAll = `SELECT kpi_id, category FROM kpi_registry`
+
+const PostgresSelectRegistryCategories = `
+SELECT category, table_name, COUNT(*) as kpi_count
+FROM kpi_registry
+GROUP BY category, table_name
+ORDER BY category`
+
+const PostgresSelectRegistryByKPI = `SELECT category, table_name FROM kpi_registry WHERE kpi_id = $1`
+
+const PostgresDeleteRegistryByCategory = `DELETE FROM kpi_registry WHERE category = $1`

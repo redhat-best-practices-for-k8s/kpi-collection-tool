@@ -50,5 +50,23 @@ ON query_results(timestamp_value, kpi_id, cluster_id);
 `
 
 // PostgresSchema is the full DDL for initializing a PostgreSQL database
-// (tables + indexes combined).
-const PostgresSchema = PostgresTables + PostgresIndexes
+// (tables + indexes + registry combined).
+const PostgresSchema = PostgresTables + PostgresIndexes + KPIRegistryTable
+
+// PostgresCategoryTableFmt creates a per-category table with the same column
+// layout as query_results (using PostgreSQL types) plus a dedup index.
+// Requires three identical %s arguments: the table name.
+const PostgresCategoryTableFmt = `
+CREATE TABLE IF NOT EXISTS %s (
+    id SERIAL PRIMARY KEY,
+    kpi_id TEXT NOT NULL,
+    metric_value DOUBLE PRECISION,
+    timestamp_value DOUBLE PRECISION,
+    cluster_id INTEGER NOT NULL REFERENCES clusters(id),
+    execution_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    metric_labels JSONB
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_%s_dedup
+ON %s(kpi_id, cluster_id, timestamp_value, metric_labels);
+`

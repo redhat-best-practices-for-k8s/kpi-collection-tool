@@ -52,5 +52,23 @@ ON query_results(timestamp_value, kpi_id, cluster_id);
 `
 
 // SQLiteSchema is the full DDL for initializing an SQLite database
-// (tables + indexes combined).
-const SQLiteSchema = SQLiteTables + SQLiteIndexes
+// (tables + indexes + registry combined).
+const SQLiteSchema = SQLiteTables + SQLiteIndexes + KPIRegistryTable
+
+// SQLiteCategoryTableFmt creates a per-category table with the same column
+// layout as query_results plus a dedup index. Requires three identical %s
+// arguments: the table name (for CREATE TABLE, index name, and ON clause).
+const SQLiteCategoryTableFmt = `
+CREATE TABLE IF NOT EXISTS %s (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kpi_id TEXT NOT NULL,
+    metric_value REAL,
+    timestamp_value REAL,
+    cluster_id INTEGER NOT NULL REFERENCES clusters(id),
+    execution_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    metric_labels TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_%s_dedup
+ON %s(kpi_id, cluster_id, timestamp_value, metric_labels);
+`

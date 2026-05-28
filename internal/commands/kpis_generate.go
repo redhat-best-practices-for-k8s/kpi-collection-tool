@@ -34,10 +34,11 @@ var profiles = map[string]profile{
 }
 
 var kpisGenerateFlags struct {
-	profile   string
-	file      string
-	all       bool
-	overwrite bool
+	profile       string
+	file          string
+	all           bool
+	overwrite     bool
+	uncategorized bool
 }
 
 var kpisGenerateCmd = &cobra.Command{
@@ -48,7 +49,11 @@ var kpisGenerateCmd = &cobra.Command{
 Supported profiles: ran, core, hub
 
 In interactive mode (default), you will be prompted to select which KPI
-categories to include. Use --all to include all categories without prompts.`,
+categories to include. Use --all to include all categories without prompts.
+
+By default, each KPI includes a category field that routes metrics into
+per-category database tables for better query performance. Use --uncategorized
+to omit category fields and store all metrics in a single table.`,
 	Example: `  # Generate all RAN KPIs
   kpi-collector kpis generate --profile ran --all
 
@@ -56,7 +61,10 @@ categories to include. Use --all to include all categories without prompts.`,
   kpi-collector kpis generate --profile core -f core-kpis.yaml
 
   # Generate Hub KPIs to a custom path
-  kpi-collector kpis generate --profile hub --all -f /path/to/hub-kpis.yaml`,
+  kpi-collector kpis generate --profile hub --all -f /path/to/hub-kpis.yaml
+
+  # Generate without category fields (single-table storage)
+  kpi-collector kpis generate --profile ran --all --uncategorized`,
 	Args: cobra.NoArgs,
 	RunE: runKpisGenerate,
 }
@@ -72,6 +80,8 @@ func init() {
 		"include all KPI categories without prompts")
 	kpisGenerateCmd.Flags().BoolVar(&kpisGenerateFlags.overwrite, "overwrite", false,
 		"overwrite the output file if it already exists")
+	kpisGenerateCmd.Flags().BoolVar(&kpisGenerateFlags.uncategorized, "uncategorized", false,
+		"generate KPIs without category fields (all data stored in a single table)")
 
 	_ = kpisGenerateCmd.MarkFlagRequired("profile")
 }
@@ -104,6 +114,10 @@ func runKpisGenerate(_ *cobra.Command, _ []string) error {
 	if len(queries) == 0 {
 		fmt.Println("No KPI categories selected. No file generated.")
 		return nil
+	}
+
+	if kpisGenerateFlags.uncategorized {
+		queries = stripCategories(queries)
 	}
 
 	return writeKPIsFile(filePath, queries)
@@ -174,6 +188,15 @@ func writeKPIsFile(filePath string, queries []config.Query) error {
 	fmt.Println("  query-type        instant (default) or range for time-window queries")
 	fmt.Println("  range             Required when query-type is range (nested: step, since, until)")
 	return nil
+}
+
+func stripCategories(queries []config.Query) []config.Query {
+	stripped := make([]config.Query, len(queries))
+	copy(stripped, queries)
+	for i := range stripped {
+		stripped[i].Category = ""
+	}
+	return stripped
 }
 
 // ---------------------------------------------------------------------------

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 // kpiQueryFlags holds the flags for the 'show kpis' command
 var kpiQueryFlags struct {
 	kpiName      string
+	category     string
 	clusterName  string
 	labelsFilter string
 	since        string
@@ -40,11 +42,14 @@ var showCmd = &cobra.Command{
 var showKPIsCmd = &cobra.Command{
 	Use:   "kpis",
 	Short: "Show KPI metrics",
-	Long: `Query and display KPI metrics with optional filtering by name, cluster, labels, and time range.
+	Long: `Query and display KPI metrics with optional filtering by name, category, cluster, labels, and time range.
 
 The results can be displayed in table, JSON, or CSV format.`,
 	Example: `  # Show all metrics for a KPI
   kpi-collector db show kpis --name="cpu-system"
+  
+  # Show all metrics in a category
+  kpi-collector db show kpis --category=cpu
   
   # Filter by cluster
   kpi-collector db show kpis --name="cpu-system" --cluster-name="mycluster1"
@@ -82,6 +87,16 @@ var showClustersCmd = &cobra.Command{
 	RunE: runShowClusters,
 }
 
+var showCategoriesCmd = &cobra.Command{
+	Use:   "categories",
+	Short: "List all KPI categories",
+	Long: `Display all KPI categories registered in the database.
+Shows the category name, backing table, and number of KPIs per category.`,
+	Example: `  # List all categories
+  kpi-collector db show categories`,
+	RunE: runShowCategories,
+}
+
 var showErrorsCmd = &cobra.Command{
 	Use:   "errors",
 	Short: "Show query error counts",
@@ -97,11 +112,14 @@ func init() {
 	dbCmd.AddCommand(showCmd)
 	showCmd.AddCommand(showKPIsCmd)
 	showCmd.AddCommand(showClustersCmd)
+	showCmd.AddCommand(showCategoriesCmd)
 	showCmd.AddCommand(showErrorsCmd)
 
 	// Flags for 'show kpis'
 	showKPIsCmd.Flags().StringVar(&kpiQueryFlags.kpiName, "name", "",
 		"KPI name to filter by")
+	showKPIsCmd.Flags().StringVar(&kpiQueryFlags.category, "category", "",
+		"category to filter by (e.g. cpu, memory, network)")
 	showKPIsCmd.Flags().StringVar(&kpiQueryFlags.clusterName, "cluster-name", "",
 		"cluster name to filter by")
 	showKPIsCmd.Flags().StringVar(&kpiQueryFlags.labelsFilter, "labels-filter", "",
@@ -125,6 +143,12 @@ func init() {
 }
 
 func runShowKPIs(cmd *cobra.Command, args []string) error {
+	if kpiQueryFlags.kpiName != "" && kpiQueryFlags.category != "" {
+		return fmt.Errorf("--name and --category cannot be used together: " +
+			"--name looks up a specific KPI (auto-discovers its table), " +
+			"--category queries all KPIs in a category")
+	}
+
 	// Parse output format first (fail fast if invalid)
 	format, err := output.ParseFormat(kpiQueryFlags.outputFormat)
 	if err != nil {
@@ -136,6 +160,12 @@ func runShowKPIs(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to connect to DB: %w", err)
 	}
 	defer func() { _ = db.Close() }()
+
+	if kpiQueryFlags.category != "" {
+		if err := validateCategory(db, dbImpl, kpiQueryFlags.category); err != nil {
+			return err
+		}
+	}
 
 	// Parse time filters using a single reference time to avoid drift.
 	sinceTime, untilTime, err := parseKPIQueryTimeWindow(kpiQueryFlags.since, kpiQueryFlags.until, time.Now())
@@ -155,6 +185,7 @@ func runShowKPIs(cmd *cobra.Command, args []string) error {
 	// Build query parameters
 	params := KPIQueryParams{
 		KPIName:      kpiQueryFlags.kpiName,
+		Category:     kpiQueryFlags.category,
 		ClusterName:  kpiQueryFlags.clusterName,
 		LabelFilters: labelFilters,
 		Since:        sinceTime,
@@ -211,6 +242,36 @@ func runShowClusters(cmd *cobra.Command, args []string) error {
 	}
 
 	output.PrintClustersTable(records)
+	return nil
+}
+
+func runShowCategories(cmd *cobra.Command, args []string) error {
+	db, dbImpl, err := connectToDB()
+	if err != nil {
+		return fmt.Errorf("failed to connect to DB: %w", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	categories, err := dbImpl.ListCategories(db)
+	if err != nil {
+		return fmt.Errorf("failed to list categories: %w", err)
+	}
+
+	if len(categories) == 0 {
+		fmt.Println("No categories found.")
+		return nil
+	}
+
+	records := make([]output.CategoryRecord, len(categories))
+	for i, c := range categories {
+		records[i] = output.CategoryRecord{
+			Category:  c.Category,
+			TableName: c.TableName,
+			KPICount:  c.KPICount,
+		}
+	}
+
+	output.PrintCategoriesTable(records)
 	return nil
 }
 
@@ -304,6 +365,7 @@ func parseLabelFilters(filterStr string) (map[string]string, error) {
 type KPIResult struct {
 	ID             int64
 	KPIName        string
+	Category       string
 	ClusterName    string
 	MetricValue    float64
 	TimestampValue float64
@@ -313,6 +375,7 @@ type KPIResult struct {
 
 type KPIQueryParams struct {
 	KPIName      string
+	Category     string
 	ClusterName  string
 	LabelFilters map[string]string
 	Since        *time.Time
@@ -322,13 +385,80 @@ type KPIQueryParams struct {
 }
 
 func queryKPIs(db *sql.DB, dbImpl database.Database, params KPIQueryParams) ([]KPIResult, error) {
-	query := `
-		SELECT qr.id, qr.kpi_id, c.cluster_name, qr.metric_value, 
+	if params.KPIName != "" {
+		return queryByName(db, dbImpl, params)
+	}
+	if params.Category != "" {
+		return queryByCategory(db, dbImpl, params)
+	}
+	return queryAll(db, dbImpl, params)
+}
+
+// queryByName resolves which table holds the KPI via the registry and queries it.
+func queryByName(db *sql.DB, dbImpl database.Database, params KPIQueryParams) ([]KPIResult, error) {
+	category, tableName, err := dbImpl.LookupCategoryForKPI(db, params.KPIName)
+	if err != nil {
+		return nil, fmt.Errorf("lookup KPI %q: %w", params.KPIName, err)
+	}
+	if tableName == "" {
+		tableName = database.DefaultTableName
+	}
+	return queryFromTable(db, dbImpl, tableName, category, params)
+}
+
+// queryByCategory queries the single category-specific table.
+func queryByCategory(db *sql.DB, dbImpl database.Database, params KPIQueryParams) ([]KPIResult, error) {
+	tableName := database.CategoryTableName(params.Category)
+	return queryFromTable(db, dbImpl, tableName, params.Category, params)
+}
+
+// allCategoryTables returns the default table plus every registered category table.
+func allCategoryTables(db *sql.DB, dbImpl database.Database) ([]database.CategoryInfo, error) {
+	categories, err := dbImpl.ListCategories(db)
+	if err != nil {
+		return nil, err
+	}
+	all := make([]database.CategoryInfo, 0, 1+len(categories))
+	all = append(all, database.CategoryInfo{TableName: database.DefaultTableName})
+	all = append(all, categories...)
+	return all, nil
+}
+
+// queryAll scans every known table (default + all categories), merges, sorts, and limits.
+// Sort and limit must happen here (not in SQL) because rows come from separate tables —
+// we can't know the global ordering or which rows survive the limit until all tables are merged.
+func queryAll(db *sql.DB, dbImpl database.Database, params KPIQueryParams) ([]KPIResult, error) {
+	tables, err := allCategoryTables(db, dbImpl)
+	if err != nil {
+		return nil, fmt.Errorf("list tables: %w", err)
+	}
+
+	var results []KPIResult
+	for _, t := range tables {
+		rows, err := queryFromTable(db, dbImpl, t.TableName, t.Category, params)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, rows...)
+	}
+
+	sortResults(results, params.Sort)
+
+	if params.Limit > 0 && len(results) > params.Limit {
+		results = results[:params.Limit]
+	}
+
+	return results, nil
+}
+
+func queryFromTable(db *sql.DB, dbImpl database.Database, tableName, category string, params KPIQueryParams) ([]KPIResult, error) {
+	query := fmt.Sprintf(`
+		SELECT qr.id, qr.kpi_id, c.cluster_name, qr.metric_value,
 		       qr.timestamp_value, qr.execution_time, qr.metric_labels
-		FROM query_results qr
+		FROM %s qr
 		JOIN clusters c ON qr.cluster_id = c.id
 		WHERE 1=1
-	`
+	`, tableName)
 
 	args := []interface{}{}
 	argIndex := 1
@@ -357,21 +487,8 @@ func queryKPIs(db *sql.DB, dbImpl database.Database, params KPIQueryParams) ([]K
 	if params.Until != nil {
 		query += fmt.Sprintf(" AND qr.timestamp_value <= $%d", argIndex)
 		args = append(args, float64(params.Until.Truncate(time.Second).Unix()))
-		argIndex++
 	}
 
-	if params.Sort == "desc" {
-		query += " ORDER BY qr.timestamp_value DESC"
-	} else {
-		query += " ORDER BY qr.timestamp_value ASC"
-	}
-
-	if params.Limit > 0 {
-		query += fmt.Sprintf(" LIMIT $%d", argIndex)
-		args = append(args, params.Limit)
-	}
-
-	// Convert placeholders for SQLite
 	if _, ok := dbImpl.(*database.SQLiteDB); ok {
 		query = convertPostgresToSQLitePlaceholders(query)
 	}
@@ -390,18 +507,25 @@ func queryKPIs(db *sql.DB, dbImpl database.Database, params KPIQueryParams) ([]K
 		if err != nil {
 			return nil, err
 		}
+		r.Category = category
 
-		// Apply label filters
-		if len(params.LabelFilters) > 0 {
-			if !matchesLabelFilters(r.MetricLabels, params.LabelFilters) {
-				continue
-			}
+		if len(params.LabelFilters) > 0 && !matchesLabelFilters(r.MetricLabels, params.LabelFilters) {
+			continue
 		}
 
 		results = append(results, r)
 	}
 
 	return results, rows.Err()
+}
+
+func sortResults(results []KPIResult, order string) {
+	sort.Slice(results, func(i, j int) bool {
+		if order == "desc" {
+			return results[i].ExecutionTime.After(results[j].ExecutionTime)
+		}
+		return results[i].ExecutionTime.Before(results[j].ExecutionTime)
+	})
 }
 
 func matchesLabelFilters(labelsJSON string, filters map[string]string) bool {
@@ -427,41 +551,61 @@ type ClusterInfo struct {
 }
 
 func listClusters(db *sql.DB, dbImpl database.Database, clusterName string) ([]ClusterInfo, error) {
-	query := `
-		SELECT c.id, c.cluster_name, c.created_at, COUNT(qr.id) as total_metrics
-		FROM clusters c
-		LEFT JOIN query_results qr ON c.id = qr.cluster_id
-	`
-	args := []interface{}{}
-
-	if clusterName != "" {
-		query += " WHERE c.cluster_name = $1"
-		args = append(args, clusterName)
-	}
-
-	query += " GROUP BY c.id, c.cluster_name, c.created_at ORDER BY c.created_at DESC"
-
-	if _, ok := dbImpl.(*database.SQLiteDB); ok {
-		query = convertPostgresToSQLitePlaceholders(query)
-	}
-
-	rows, err := db.Query(query, args...)
+	tables, err := allCategoryTables(db, dbImpl)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list tables: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
 
-	var clusters []ClusterInfo
-	for rows.Next() {
-		var c ClusterInfo
-		err := rows.Scan(&c.ID, &c.Name, &c.CreatedAt, &c.TotalMetrics)
+	clusterMap := make(map[int64]*ClusterInfo)
+	var clusterOrder []int64
+
+	for _, t := range tables {
+		query := fmt.Sprintf(`
+			SELECT c.id, c.cluster_name, c.created_at, COUNT(qr.id) as total_metrics
+			FROM clusters c
+			LEFT JOIN %s qr ON c.id = qr.cluster_id
+		`, t.TableName)
+		args := []interface{}{}
+
+		if clusterName != "" {
+			query += " WHERE c.cluster_name = $1"
+			args = append(args, clusterName)
+		}
+		query += " GROUP BY c.id, c.cluster_name, c.created_at"
+
+		if _, ok := dbImpl.(*database.SQLiteDB); ok {
+			query = convertPostgresToSQLitePlaceholders(query)
+		}
+
+		rows, err := db.Query(query, args...)
 		if err != nil {
 			return nil, err
 		}
-		clusters = append(clusters, c)
+
+		for rows.Next() {
+			var c ClusterInfo
+			if err := rows.Scan(&c.ID, &c.Name, &c.CreatedAt, &c.TotalMetrics); err != nil {
+				_ = rows.Close()
+				return nil, err
+			}
+			if existing, ok := clusterMap[c.ID]; ok {
+				existing.TotalMetrics += c.TotalMetrics
+			} else {
+				clusterMap[c.ID] = &c
+				clusterOrder = append(clusterOrder, c.ID)
+			}
+		}
+		_ = rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
 	}
 
-	return clusters, rows.Err()
+	clusters := make([]ClusterInfo, 0, len(clusterOrder))
+	for _, id := range clusterOrder {
+		clusters = append(clusters, *clusterMap[id])
+	}
+	return clusters, nil
 }
 
 type ErrorInfo struct {
@@ -491,17 +635,16 @@ func listErrors(db *sql.DB) ([]ErrorInfo, error) {
 	return errors, rows.Err()
 }
 
-// convertToKPIRecords converts internal KPIResult to output.KPIRecord
 func convertToKPIRecords(results []KPIResult) []output.KPIRecord {
 	records := make([]output.KPIRecord, len(results))
 	for i, r := range results {
-		// Parse labels JSON into map
 		var labels map[string]string
 		_ = json.Unmarshal([]byte(r.MetricLabels), &labels)
 
 		records[i] = output.KPIRecord{
 			ID:            r.ID,
 			KPIName:       r.KPIName,
+			Category:      r.Category,
 			Cluster:       r.ClusterName,
 			Value:         r.MetricValue,
 			Timestamp:     r.TimestampValue,
@@ -511,6 +654,31 @@ func convertToKPIRecords(results []KPIResult) []output.KPIRecord {
 		}
 	}
 	return records
+}
+
+// validateCategory checks that the given category exists in kpi_registry.
+// Returns a descriptive error listing available categories when it does not.
+func validateCategory(db *sql.DB, dbImpl database.Database, category string) error {
+	categories, err := dbImpl.ListCategories(db)
+	if err != nil {
+		return fmt.Errorf("failed to list categories: %w", err)
+	}
+
+	for _, c := range categories {
+		if c.Category == category {
+			return nil
+		}
+	}
+
+	if len(categories) == 0 {
+		return fmt.Errorf("category %q not found (no categories exist in the database)", category)
+	}
+
+	names := make([]string, len(categories))
+	for i, c := range categories {
+		names[i] = c.Category
+	}
+	return fmt.Errorf("category %q not found; available categories: %s", category, strings.Join(names, ", "))
 }
 
 func convertPostgresToSQLitePlaceholders(query string) string {
