@@ -114,7 +114,7 @@ func init() {
 	showKPIsCmd.Flags().IntVar(&kpiQueryFlags.limit, "limit", 0,
 		"limit number of results (0 = no limit)")
 	showKPIsCmd.Flags().StringVar(&kpiQueryFlags.sort, "sort", "asc",
-		"sort order by metric timestamp: asc or desc")
+		"sort order by metric timestamp (UTC): asc or desc")
 	showKPIsCmd.Flags().BoolVar(&kpiQueryFlags.noTruncate, "no-truncate", false,
 		"show full labels without truncation")
 	showKPIsCmd.Flags().BoolVar(&kpiQueryFlags.showExecTime, "show-exec-time", false,
@@ -508,7 +508,7 @@ func convertToKPIRecords(results []KPIResult) []output.KPIRecord {
 			KPIName:       r.KPIName,
 			Cluster:       r.ClusterName,
 			Value:         r.MetricValue,
-			Timestamp:     time.Unix(int64(r.TimestampValue), 0).Format("2006-01-02 15:04:05"),
+			Timestamp:     time.Unix(int64(r.TimestampValue), 0).UTC().Format("2006-01-02 15:04:05"),
 			ExecutionTime: r.ExecutionTime,
 			Labels:        labels,
 			LabelsRaw:     r.MetricLabels,

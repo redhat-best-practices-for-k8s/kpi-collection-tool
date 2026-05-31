@@ -100,11 +100,11 @@ Artifacts stored in: kpi-collector-artifacts
 ```bash
 $ kpi-collector db show kpis --name node-cpu-usage --limit 3
 
-ID  KPI_NAME        CLUSTER      VALUE     TIMESTAMP   EXECUTION_TIME       LABELS
---- ---             ---          ---       ---         ---                  ---
-1   node-cpu-usage  my-cluster   0.034200  1744467000  2026-04-12 14:30:00  {"instance":"worker-0"}
-2   node-cpu-usage  my-cluster   0.012800  1744467000  2026-04-12 14:30:00  {"instance":"worker-1"}
-3   node-cpu-usage  my-cluster   0.069400  1744467000  2026-04-12 14:30:00  {"instance":"master-0"}
+ID  KPI_NAME        CLUSTER      VALUE   TIMESTAMP            LABELS
+--- ---             ---          ---     ---                  ---
+1   node-cpu-usage  my-cluster   0.0342  2026-04-12 14:30:00  {"instance":"worker-0"}
+2   node-cpu-usage  my-cluster   0.0128  2026-04-12 14:30:00  {"instance":"worker-1"}
+3   node-cpu-usage  my-cluster   0.0694  2026-04-12 14:30:00  {"instance":"master-0"}
 
 Total results: 3
 ```

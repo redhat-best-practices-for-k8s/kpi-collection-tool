@@ -156,13 +156,15 @@ kpi-collector db show kpis --name pods-running
 Expected output:
 
 ```
-ID  KPI_NAME      CLUSTER      VALUE   TIMESTAMP    EXECUTION_TIME        LABELS
---  ---           ---          ---     ---          ---                   ---
-1   pods-running  my-cluster   47      1700000000   YYYY-MM-DD HH:MM:SS  {"instance":"node1"}
-2   pods-running  my-cluster   32      1700000000   YYYY-MM-DD HH:MM:SS  {"instance":"node2"}
+ID  KPI_NAME      CLUSTER      VALUE  TIMESTAMP            LABELS
+--  ---           ---          ---    ---                  ---
+1   pods-running  my-cluster   47     2024-11-14 22:13:20  {"instance":"node1"}
+2   pods-running  my-cluster   32     2024-11-14 22:13:20  {"instance":"node2"}
 
 Total results: 2
 ```
+
+All timestamps are displayed in UTC.
 
 If you see data, everything is working correctly.
 

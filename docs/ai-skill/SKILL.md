@@ -52,8 +52,9 @@ description: Use and configure the kpi-collector CLI for collecting Prometheus/T
 | `--since` | Duration ago: `2h`, `30m`, `24h` |
 | `--until` | Duration ago: `1h`, `15m` |
 | `--limit` | Max results (0 = no limit) |
-| `--sort` | `asc` or `desc` by execution time |
+| `--sort` | `asc` or `desc` by metric timestamp |
 | `--no-truncate` | Show full labels |
+| `--show-exec-time` | Include execution time column |
 | `-o` | Output format: `table`, `json`, `csv` |
 
 ## kpis.yaml File Format
