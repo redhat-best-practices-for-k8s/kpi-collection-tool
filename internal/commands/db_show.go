@@ -25,6 +25,7 @@ var kpiQueryFlags struct {
 	limit        int
 	sort         string
 	noTruncate   bool
+	showExecTime bool
 	outputFormat string
 }
 
@@ -131,9 +132,11 @@ func init() {
 	showKPIsCmd.Flags().IntVar(&kpiQueryFlags.limit, "limit", 0,
 		"limit number of results (0 = no limit)")
 	showKPIsCmd.Flags().StringVar(&kpiQueryFlags.sort, "sort", "asc",
-		"sort order by metric timestamp: asc or desc")
+		"sort order by metric timestamp (UTC): asc or desc")
 	showKPIsCmd.Flags().BoolVar(&kpiQueryFlags.noTruncate, "no-truncate", false,
 		"show full labels without truncation")
+	showKPIsCmd.Flags().BoolVar(&kpiQueryFlags.showExecTime, "show-exec-time", false,
+		"include execution time (when the metric was collected) in the output")
 	showKPIsCmd.Flags().StringVarP(&kpiQueryFlags.outputFormat, "output", "o", "table",
 		"output format: table, json, or csv")
 
@@ -209,7 +212,9 @@ func runShowKPIs(cmd *cobra.Command, args []string) error {
 	records := convertToKPIRecords(results)
 
 	// Print using the output package
-	printer := output.NewPrinter(format).WithNoTruncate(kpiQueryFlags.noTruncate)
+	printer := output.NewPrinter(format).
+		WithNoTruncate(kpiQueryFlags.noTruncate).
+		WithShowExecTime(kpiQueryFlags.showExecTime)
 	return printer.PrintKPIs(records)
 }
 
@@ -647,7 +652,7 @@ func convertToKPIRecords(results []KPIResult) []output.KPIRecord {
 			Category:      r.Category,
 			Cluster:       r.ClusterName,
 			Value:         r.MetricValue,
-			Timestamp:     r.TimestampValue,
+			Timestamp:     time.Unix(int64(r.TimestampValue), 0).UTC().Format("2006-01-02 15:04:05"),
 			ExecutionTime: r.ExecutionTime,
 			Labels:        labels,
 			LabelsRaw:     r.MetricLabels,

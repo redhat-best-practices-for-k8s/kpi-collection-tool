@@ -10,7 +10,13 @@ func (p *Printer) printKPIsCSV(records []KPIRecord) error {
 	w := csv.NewWriter(p.writer)
 	defer w.Flush()
 
-	if err := w.Write([]string{"id", "kpi_name", "category", "cluster", "value", "timestamp", "execution_time", "labels"}); err != nil {
+	header := []string{"id", "kpi_name", "category", "cluster", "value", "timestamp"}
+	if p.showExecTime {
+		header = append(header, "execution_time")
+	}
+	header = append(header, "labels")
+
+	if err := w.Write(header); err != nil {
 		return err
 	}
 
@@ -21,11 +27,14 @@ func (p *Printer) printKPIsCSV(records []KPIRecord) error {
 			r.KPIName,
 			r.Category,
 			r.Cluster,
-			strconv.FormatFloat(r.Value, 'f', 6, 64),
-			strconv.FormatFloat(r.Timestamp, 'f', 0, 64),
-			r.ExecutionTime.Format("2006-01-02 15:04:05"),
-			string(labelsJSON),
+			strconv.FormatFloat(r.Value, 'f', -1, 64),
+			r.Timestamp,
 		}
+		if p.showExecTime {
+			row = append(row, r.ExecutionTime.Format("2006-01-02 15:04:05"))
+		}
+		row = append(row, string(labelsJSON))
+
 		if err := w.Write(row); err != nil {
 			return err
 		}
