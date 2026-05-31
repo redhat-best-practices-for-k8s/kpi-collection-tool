@@ -10,7 +10,7 @@ func (p *Printer) printKPIsCSV(records []KPIRecord) error {
 	w := csv.NewWriter(p.writer)
 	defer w.Flush()
 
-	header := []string{"id", "kpi_name", "cluster", "value", "timestamp"}
+	header := []string{"id", "kpi_name", "category", "cluster", "value", "timestamp"}
 	if p.showExecTime {
 		header = append(header, "execution_time")
 	}
@@ -25,6 +25,7 @@ func (p *Printer) printKPIsCSV(records []KPIRecord) error {
 		row := []string{
 			strconv.FormatInt(r.ID, 10),
 			r.KPIName,
+			r.Category,
 			r.Cluster,
 			strconv.FormatFloat(r.Value, 'f', -1, 64),
 			r.Timestamp,

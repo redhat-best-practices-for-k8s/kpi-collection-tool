@@ -5,7 +5,7 @@
         "builtIn": 1,
         "datasource": {
           "type": "grafana",
-          "uid": "-- Grafana --"
+          "uid": "kpi-datasource"
         },
         "enable": true,
         "hide": true,
@@ -26,7 +26,7 @@
       "keepTime": false,
       "tags": [],
       "targetBlank": false,
-      "title": "Fit to data",
+      "title": "Auto Fit",
       "tooltip": "Adjust time range to fit all available data",
       "type": "link",
       "url": "/d/kpi-collector-dynamic/?from=${data_start}&to=${data_end}"
@@ -35,18 +35,9 @@
   "liveNow": false,
   "panels": [
     {
-      "id": 1,
-      "type": "timeseries",
-      "title": "Metric Values Over Time",
       "datasource": {
         "type": "postgres",
         "uid": "kpi-datasource"
-      },
-      "gridPos": {
-        "h": 10,
-        "w": 24,
-        "x": 0,
-        "y": 0
       },
       "fieldConfig": {
         "defaults": {
@@ -67,13 +58,13 @@
               "viz": false,
               "legend": false
             },
-            "lineInterpolation": "linear",
+            "lineInterpolation": "smooth",
             "lineWidth": 2,
-            "pointSize": 5,
+            "pointSize": 4,
             "scaleDistribution": {
               "type": "linear"
             },
-            "showPoints": "never",
+            "showPoints": "auto",
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -90,57 +81,11 @@
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "blue",
-                "value": null,
-                "label": "Min"
-              },
-              {
-                "color": "orange",
-                "value": null,
-                "label": "Avg"
-              },
-              {
-                "color": "red",
-                "value": null,
-                "label": "Max"
-              }
-            ],
-            "showThresholdLabels": true,
-            "showThresholdMarkers": {
-              "mode": "off"
-            }
-          },
-          "unit": "short"
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "metric_value"
-            },
-            "properties": [
-              {
-                "id": "custom.lineWidth",
-                "value": 2
-              },
-              {
-                "id": "custom.lineStyle",
-                "value": {
-                  "fill": "solid"
-                }
-              },
-              {
-                "id": "custom.hideFrom",
-                "value": {
-                  "tooltip": false,
-                  "viz": false,
-                  "legend": false
-                }
               }
             ]
-          },
+          }
+        },
+        "overrides": [
           {
             "matcher": {
               "id": "byName",
@@ -177,7 +122,7 @@
                 "value": {
                   "tooltip": true,
                   "viz": false,
-                  "legend": true
+                  "legend": false
                 }
               }
             ]
@@ -209,7 +154,7 @@
               {
                 "id": "color",
                 "value": {
-                  "fixedColor": "blue",
+                  "fixedColor": "green",
                   "mode": "fixed"
                 }
               },
@@ -218,7 +163,7 @@
                 "value": {
                   "tooltip": true,
                   "viz": false,
-                  "legend": true
+                  "legend": false
                 }
               }
             ]
@@ -259,24 +204,30 @@
                 "value": {
                   "tooltip": true,
                   "viz": false,
-                  "legend": true
+                  "legend": false
                 }
               }
             ]
           }
         ]
       },
+      "gridPos": {
+        "h": 10,
+        "w": 18,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
       "options": {
         "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
           "calcs": [
             "last",
             "mean",
-            "min",
             "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
+          ]
         },
         "tooltip": {
           "mode": "multi",
@@ -290,12 +241,12 @@
             "uid": "kpi-datasource"
           },
           "format": "table",
-          "rawSql": "SELECT to_timestamp(timestamp_value) AS time, metric_value, metric_labels FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR metric_labels->>'node' = '${node}' OR metric_labels->>'instance' = '${node}') AND ('${job}' = 'All' OR metric_labels->>'job' = '${job}') AND ('${pod}' = 'All' OR metric_labels->>'pod' = '${pod}') AND ('${container}' = 'All' OR metric_labels->>'container' = '${container}') AND timestamp_value >= $__from / 1000 AND timestamp_value < $__to / 1000 ORDER BY time ASC",
+          "rawSql": "SELECT to_timestamp(timestamp_value) AS time, metric_value, metric_labels FROM ${_table} qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${filter1_key}' = 'All' OR '${filter1_value}' = 'All' OR metric_labels->>'${filter1_key}' = '${filter1_value}') AND ('${filter2_key}' = 'All' OR '${filter2_value}' = 'All' OR metric_labels->>'${filter2_key}' = '${filter2_value}') AND ('${filter3_key}' = 'All' OR '${filter3_value}' = 'All' OR metric_labels->>'${filter3_key}' = '${filter3_value}') AND timestamp_value >= $__from / 1000 AND timestamp_value < $__to / 1000 ORDER BY time ASC",
           "refId": "A",
           "timeColumns": [
-            "time",
-            "ts"
-          ]
+            "time"
+          ],
+          "legendFormat": ""
         },
         {
           "datasource": {
@@ -303,7 +254,7 @@
             "uid": "kpi-datasource"
           },
           "format": "table",
-          "rawSql": "SELECT 'Max Value' AS metric_labels, MAX(metric_value) AS metric_value, to_timestamp($__from/1000) AS time FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR metric_labels->>'node' = '${node}' OR metric_labels->>'instance' = '${node}') AND ('${job}' = 'All' OR metric_labels->>'job' = '${job}') AND ('${pod}' = 'All' OR metric_labels->>'pod' = '${pod}') AND ('${container}' = 'All' OR metric_labels->>'container' = '${container}')",
+          "rawSql": "SELECT 'Max Value' AS metric_labels, MAX(metric_value) AS metric_value, to_timestamp($__from/1000) AS time FROM ${_table} qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${filter1_key}' = 'All' OR '${filter1_value}' = 'All' OR metric_labels->>'${filter1_key}' = '${filter1_value}') AND ('${filter2_key}' = 'All' OR '${filter2_value}' = 'All' OR metric_labels->>'${filter2_key}' = '${filter2_value}') AND ('${filter3_key}' = 'All' OR '${filter3_value}' = 'All' OR metric_labels->>'${filter3_key}' = '${filter3_value}')",
           "refId": "B",
           "legendFormat": "Max Value",
           "timeColumns": [
@@ -317,7 +268,7 @@
             "uid": "kpi-datasource"
           },
           "format": "table",
-          "rawSql": "SELECT 'Min Value' AS metric_labels, MIN(metric_value) AS metric_value, to_timestamp($__from/1000) AS time FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR metric_labels->>'node' = '${node}' OR metric_labels->>'instance' = '${node}') AND ('${job}' = 'All' OR metric_labels->>'job' = '${job}') AND ('${pod}' = 'All' OR metric_labels->>'pod' = '${pod}') AND ('${container}' = 'All' OR metric_labels->>'container' = '${container}')",
+          "rawSql": "SELECT 'Min Value' AS metric_labels, MIN(metric_value) AS metric_value, to_timestamp($__from/1000) AS time FROM ${_table} qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${filter1_key}' = 'All' OR '${filter1_value}' = 'All' OR metric_labels->>'${filter1_key}' = '${filter1_value}') AND ('${filter2_key}' = 'All' OR '${filter2_value}' = 'All' OR metric_labels->>'${filter2_key}' = '${filter2_value}') AND ('${filter3_key}' = 'All' OR '${filter3_value}' = 'All' OR metric_labels->>'${filter3_key}' = '${filter3_value}')",
           "refId": "C",
           "legendFormat": "Min Value",
           "timeColumns": [
@@ -331,7 +282,7 @@
             "uid": "kpi-datasource"
           },
           "format": "table",
-          "rawSql": "SELECT 'Average Value' AS metric_labels, AVG(metric_value) AS metric_value, to_timestamp($__from/1000) AS time FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR metric_labels->>'node' = '${node}' OR metric_labels->>'instance' = '${node}') AND ('${job}' = 'All' OR metric_labels->>'job' = '${job}') AND ('${pod}' = 'All' OR metric_labels->>'pod' = '${pod}') AND ('${container}' = 'All' OR metric_labels->>'container' = '${container}')",
+          "rawSql": "SELECT 'Average Value' AS metric_labels, AVG(metric_value) AS metric_value, to_timestamp($__from/1000) AS time FROM ${_table} qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${filter1_key}' = 'All' OR '${filter1_value}' = 'All' OR metric_labels->>'${filter1_key}' = '${filter1_value}') AND ('${filter2_key}' = 'All' OR '${filter2_value}' = 'All' OR metric_labels->>'${filter2_key}' = '${filter2_value}') AND ('${filter3_key}' = 'All' OR '${filter3_value}' = 'All' OR metric_labels->>'${filter3_key}' = '${filter3_value}')",
           "refId": "D",
           "legendFormat": "Average Value",
           "timeColumns": [
@@ -340,6 +291,8 @@
           "hide": true
         }
       ],
+      "title": "Metric Values Over Time",
+      "type": "timeseries",
       "transformations": [
         {
           "id": "extractFields",
@@ -351,21 +304,6 @@
           }
         },
         {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "metric_labels": true,
-              "undefined": true,
-              "cpu": true,
-              "device": true,
-              "endpoint": true,
-              "instance": true
-            },
-            "indexByName": {},
-            "renameByName": {}
-          }
-        },
-        {
           "id": "prepareTimeSeries",
           "options": {
             "format": "multi"
@@ -374,34 +312,69 @@
       ]
     },
     {
-      "id": 2,
-      "type": "text",
-      "title": "",
-      "gridPos": {
-        "h": 2,
-        "w": 24,
-        "x": 0,
-        "y": 10
-      },
-      "options": {
-        "mode": "html",
-        "content": "<div style=\"text-align: center; vertical-align: middle\">sample count: ${samples_count}, average value: ${avg_value}, max value: ${max_value}, min value: ${min_value}</div>"
-      },
-      "transparent": true
-    },
-    {
-      "id": 3,
-      "type": "table",
-      "title": "Detailed Metrics with All Labels",
       "datasource": {
         "type": "postgres",
         "uid": "kpi-datasource"
       },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
       "gridPos": {
         "h": 10,
-        "w": 24,
-        "x": 0,
-        "y": 12
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "vertical",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "textMode": "value_and_name",
+        "showPercentChange": false
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "kpi-datasource"
+          },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) as \"Samples\", ROUND(CAST(AVG(metric_value) AS numeric), 6) as \"Average\", ROUND(CAST(MIN(metric_value) AS numeric), 6) as \"Minimum\", ROUND(CAST(MAX(metric_value) AS numeric), 6) as \"Maximum\" FROM ${_table} qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${filter1_key}' = 'All' OR '${filter1_value}' = 'All' OR metric_labels->>'${filter1_key}' = '${filter1_value}') AND ('${filter2_key}' = 'All' OR '${filter2_value}' = 'All' OR metric_labels->>'${filter2_key}' = '${filter2_value}') AND ('${filter3_key}' = 'All' OR '${filter3_value}' = 'All' OR metric_labels->>'${filter3_key}' = '${filter3_value}') AND timestamp_value >= $__from / 1000 AND timestamp_value < $__to / 1000",
+          "refId": "A"
+        }
+      ],
+      "title": "KPI Statistics",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "kpi-datasource"
       },
       "fieldConfig": {
         "defaults": {
@@ -429,9 +402,24 @@
         },
         "overrides": []
       },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 10
+      },
+      "id": 3,
       "options": {
         "showHeader": true,
         "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
         "sortBy": [
           {
             "displayName": "Avg Value",
@@ -439,6 +427,7 @@
           }
         ]
       },
+      "pluginVersion": "10.0.0",
       "targets": [
         {
           "datasource": {
@@ -446,10 +435,12 @@
             "uid": "kpi-datasource"
           },
           "format": "table",
-          "rawSql": "SELECT metric_labels, ROUND(CAST(AVG(metric_value) AS numeric), 6) AS avg_value, ROUND(CAST(MIN(metric_value) AS numeric), 6) AS min_value, ROUND(CAST(MAX(metric_value) AS numeric), 6) AS max_value, COUNT(*) AS samples FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR metric_labels->>'node' = '${node}' OR metric_labels->>'instance' = '${node}') AND ('${job}' = 'All' OR metric_labels->>'job' = '${job}') AND ('${pod}' = 'All' OR metric_labels->>'pod' = '${pod}') AND ('${container}' = 'All' OR metric_labels->>'container' = '${container}') GROUP BY metric_labels ORDER BY avg_value DESC LIMIT 100",
+          "rawSql": "SELECT metric_labels, ROUND(CAST(AVG(metric_value) AS numeric), 6) AS avg_value, ROUND(CAST(MIN(metric_value) AS numeric), 6) AS min_value, ROUND(CAST(MAX(metric_value) AS numeric), 6) AS max_value, COUNT(*) AS samples FROM ${_table} qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${filter1_key}' = 'All' OR '${filter1_value}' = 'All' OR metric_labels->>'${filter1_key}' = '${filter1_value}') AND ('${filter2_key}' = 'All' OR '${filter2_value}' = 'All' OR metric_labels->>'${filter2_key}' = '${filter2_value}') AND ('${filter3_key}' = 'All' OR '${filter3_value}' = 'All' OR metric_labels->>'${filter3_key}' = '${filter3_value}') GROUP BY metric_labels ORDER BY avg_value DESC LIMIT 100",
           "refId": "A"
         }
       ],
+      "title": "Detailed Metrics with All Labels",
+      "type": "table",
       "transformations": [
         {
           "id": "extractFields",
@@ -462,23 +453,31 @@
       ]
     },
     {
-      "id": 5,
-      "type": "barchart",
-      "title": "Query Errors by KPI",
       "datasource": {
         "type": "postgres",
         "uid": "kpi-datasource"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 22
       },
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            }
           },
           "mappings": [],
           "thresholds": {
@@ -501,13 +500,22 @@
         },
         "overrides": []
       },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "id": 5,
       "options": {
         "barRadius": 0,
         "barWidth": 0.97,
         "fullHighlight": false,
         "groupWidth": 0.7,
         "legend": {
+          "calcs": [],
           "displayMode": "list",
+          "placement": "bottom",
           "showLegend": false
         },
         "orientation": "horizontal",
@@ -516,8 +524,11 @@
         "tooltip": {
           "mode": "single",
           "sort": "none"
-        }
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
       },
+      "pluginVersion": "10.0.0",
       "targets": [
         {
           "datasource": {
@@ -525,24 +536,17 @@
             "uid": "kpi-datasource"
           },
           "format": "table",
-          "rawSql": "SELECT kpi_id AS metric, errors AS value FROM query_errors WHERE errors > 0 ORDER BY errors DESC;",
+          "rawSql": "SELECT kpi_id AS metric, errors AS value FROM query_errors WHERE errors > 0 ORDER BY errors DESC",
           "refId": "A"
         }
-      ]
+      ],
+      "title": "Query Errors by KPI (Static)",
+      "type": "barchart"
     },
     {
-      "id": 6,
-      "type": "table",
-      "title": "All KPIs - Summary Statistics",
       "datasource": {
         "type": "postgres",
         "uid": "kpi-datasource"
-      },
-      "gridPos": {
-        "h": 9,
-        "w": 24,
-        "x": 0,
-        "y": 30
       },
       "fieldConfig": {
         "defaults": {
@@ -554,7 +558,8 @@
             "cellOptions": {
               "type": "auto"
             },
-            "inspect": false
+            "inspect": false,
+            "filterable": true
           },
           "mappings": [],
           "thresholds": {
@@ -569,11 +574,23 @@
         },
         "overrides": []
       },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 28
+      },
+      "id": 6,
       "options": {
         "showHeader": true,
         "cellHeight": "sm",
         "footer": {
-          "show": false
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
         },
         "sortBy": [
           {
@@ -582,6 +599,7 @@
           }
         ]
       },
+      "pluginVersion": "10.0.0",
       "targets": [
         {
           "datasource": {
@@ -589,24 +607,17 @@
             "uid": "kpi-datasource"
           },
           "format": "table",
-          "rawSql": "SELECT kpi_id, COUNT(*) AS sample_count, ROUND(CAST(AVG(metric_value) AS numeric), 6) AS avg_value, ROUND(CAST(MIN(metric_value) AS numeric), 6) AS min_value, ROUND(CAST(MAX(metric_value) AS numeric), 6) AS max_value, ROUND(CAST(MAX(metric_value) - MIN(metric_value) AS numeric), 6) AS range, COUNT(DISTINCT metric_labels) AS unique_metrics FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR metric_labels->>'node' = '${node}' OR metric_labels->>'instance' = '${node}') AND ('${job}' = 'All' OR metric_labels->>'job' = '${job}') AND ('${pod}' = 'All' OR metric_labels->>'pod' = '${pod}') AND ('${container}' = 'All' OR metric_labels->>'container' = '${container}') GROUP BY kpi_id ORDER BY kpi_id",
+          "rawSql": "SELECT kpi_id, COUNT(*) AS sample_count, ROUND(CAST(AVG(metric_value) AS numeric), 6) AS avg_value, ROUND(CAST(MIN(metric_value) AS numeric), 6) AS min_value, ROUND(CAST(MAX(metric_value) AS numeric), 6) AS max_value, ROUND(CAST(MAX(metric_value) - MIN(metric_value) AS numeric), 6) AS range, COUNT(DISTINCT metric_labels) AS unique_metrics FROM ${_table} qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${filter1_key}' = 'All' OR '${filter1_value}' = 'All' OR metric_labels->>'${filter1_key}' = '${filter1_value}') AND ('${filter2_key}' = 'All' OR '${filter2_value}' = 'All' OR metric_labels->>'${filter2_key}' = '${filter2_value}') AND ('${filter3_key}' = 'All' OR '${filter3_value}' = 'All' OR metric_labels->>'${filter3_key}' = '${filter3_value}') GROUP BY kpi_id ORDER BY kpi_id",
           "refId": "A"
         }
-      ]
+      ],
+      "title": "All KPIs - Summary Statistics",
+      "type": "table"
     },
     {
-      "id": 7,
-      "type": "table",
-      "title": "Cluster Monitoring Status",
       "datasource": {
         "type": "postgres",
         "uid": "kpi-datasource"
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 24,
-        "x": 0,
-        "y": 39
       },
       "fieldConfig": {
         "defaults": {
@@ -633,10 +644,27 @@
         },
         "overrides": []
       },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 37
+      },
+      "id": 7,
       "options": {
         "showHeader": true,
-        "cellHeight": "sm"
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        },
+        "sortBy": []
       },
+      "pluginVersion": "10.0.0",
       "targets": [
         {
           "datasource": {
@@ -644,10 +672,12 @@
             "uid": "kpi-datasource"
           },
           "format": "table",
-          "rawSql": "SELECT c.cluster_name, c.cluster_type, COUNT(DISTINCT qr.kpi_id) AS kpi_count, COUNT(*) AS total_samples, MAX(qr.created_at) AS last_collection FROM clusters c LEFT JOIN query_results qr ON c.id = qr.cluster_id WHERE ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${node}' = 'All' OR qr.metric_labels->>'node' = '${node}' OR qr.metric_labels->>'instance' = '${node}') AND ('${job}' = 'All' OR qr.metric_labels->>'job' = '${job}') AND ('${pod}' = 'All' OR qr.metric_labels->>'pod' = '${pod}') AND ('${container}' = 'All' OR qr.metric_labels->>'container' = '${container}') GROUP BY c.cluster_name, c.cluster_type ORDER BY c.cluster_name",
+          "rawSql": "SELECT c.cluster_name, c.cluster_type, COUNT(DISTINCT qr.kpi_id) AS kpi_count, COUNT(*) AS total_samples, MAX(qr.created_at) AS last_collection FROM clusters c LEFT JOIN ${_table} qr ON c.id = qr.cluster_id WHERE ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${filter1_key}' = 'All' OR '${filter1_value}' = 'All' OR qr.metric_labels->>'${filter1_key}' = '${filter1_value}') AND ('${filter2_key}' = 'All' OR '${filter2_value}' = 'All' OR qr.metric_labels->>'${filter2_key}' = '${filter2_value}') AND ('${filter3_key}' = 'All' OR '${filter3_value}' = 'All' OR qr.metric_labels->>'${filter3_key}' = '${filter3_value}') GROUP BY c.cluster_name, c.cluster_type ORDER BY c.cluster_name",
           "refId": "A"
         }
-      ]
+      ],
+      "title": "Cluster Monitoring Status",
+      "type": "table"
     }
   ],
   "refresh": "",
@@ -661,191 +691,224 @@
   "templating": {
     "list": [
       {
-        "name": "cluster_type",
-        "type": "query",
+        "current": {
+          "text": "All",
+          "value": "All"
+        },
+        "datasource": {
+          "type": "postgres",
+          "uid": "kpi-datasource"
+        },
+        "definition": "SELECT cluster_type FROM (SELECT 'All' AS cluster_type, 1 AS order_col UNION ALL SELECT DISTINCT COALESCE(cluster_type, 'N/A'), 2 AS order_col FROM clusters) AS temp_data ORDER BY order_col, cluster_type;",
+        "hide": 0,
+        "includeAll": false,
         "label": "Cluster Type",
+        "multi": false,
+        "name": "cluster_type",
+        "options": [],
+        "query": "SELECT cluster_type FROM (SELECT 'All' AS cluster_type, 1 AS order_col UNION ALL SELECT DISTINCT COALESCE(cluster_type, 'N/A'), 2 AS order_col FROM clusters) AS temp_data ORDER BY order_col, cluster_type;",
+        "refresh": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "",
+          "value": ""
+        },
         "datasource": {
           "type": "postgres",
           "uid": "kpi-datasource"
         },
-        "query": "SELECT cluster_type FROM (SELECT 'All' AS cluster_type, 1 AS sort_order UNION ALL SELECT DISTINCT cluster_type, 2 AS sort_order FROM clusters WHERE cluster_type IS NOT NULL AND cluster_type <> '') AS t ORDER BY sort_order, cluster_type;",
+        "definition": "SELECT cluster_name FROM (SELECT DISTINCT c.cluster_name, c.created_at, 1 AS sort_order FROM clusters c WHERE c.cluster_name IS NOT NULL AND c.cluster_name <> '' AND (CASE WHEN '${cluster_type}' = 'All' THEN TRUE ELSE c.cluster_type = '${cluster_type}' END) UNION ALL SELECT 'All', '0001-01-01'::timestamp, 2) AS t ORDER BY sort_order, created_at DESC, cluster_name;",
+        "hide": 0,
         "includeAll": false,
-        "multi": false,
-        "current": {
-          "text": "All",
-          "value": "All"
-        },
-        "refresh": 1
-      },
-      {
-        "name": "cluster",
-        "type": "query",
         "label": "Cluster",
+        "multi": false,
+        "name": "cluster",
+        "options": [],
+        "query": "SELECT cluster_name FROM (SELECT DISTINCT c.cluster_name, c.created_at, 1 AS sort_order FROM clusters c WHERE c.cluster_name IS NOT NULL AND c.cluster_name <> '' AND (CASE WHEN '${cluster_type}' = 'All' THEN TRUE ELSE c.cluster_type = '${cluster_type}' END) UNION ALL SELECT 'All', '0001-01-01'::timestamp, 2) AS t ORDER BY sort_order, created_at DESC, cluster_name;",
+        "refresh": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "default",
+          "value": "default"
+        },
         "datasource": {
           "type": "postgres",
           "uid": "kpi-datasource"
         },
-        "query": "SELECT cluster_name FROM (SELECT DISTINCT c.cluster_name, CASE WHEN c.id = (SELECT cluster_id FROM query_results ORDER BY created_at DESC LIMIT 1) THEN 1 ELSE 3 END AS sort_order FROM clusters c WHERE c.cluster_name IS NOT NULL AND c.cluster_name <> '' AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') UNION ALL SELECT 'All', 2) AS t ORDER BY sort_order, cluster_name;",
+        "definition": "SELECT category FROM (SELECT 'default' AS category, 1 AS sort_order UNION ALL SELECT DISTINCT category, 2 AS sort_order FROM kpi_registry WHERE category IS NOT NULL AND category <> '') AS t ORDER BY sort_order, category;",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Category",
+        "multi": false,
+        "name": "category",
+        "options": [],
+        "query": "SELECT category FROM (SELECT 'default' AS category, 1 AS sort_order UNION ALL SELECT DISTINCT category, 2 AS sort_order FROM kpi_registry WHERE category IS NOT NULL AND category <> '') AS t ORDER BY sort_order, category;",
+        "refresh": 1,
+        "type": "query"
+      },
+      {
+        "name": "_table",
+        "type": "query",
+        "label": "",
+        "datasource": {
+          "type": "postgres",
+          "uid": "kpi-datasource"
+        },
+        "query": "SELECT CASE WHEN '${category}' = 'default' THEN 'query_results' ELSE 'kpi_' || '${category}' END;",
+        "definition": "SELECT CASE WHEN '${category}' = 'default' THEN 'query_results' ELSE 'kpi_' || '${category}' END;",
         "includeAll": false,
         "multi": false,
+        "current": {
+          "text": "query_results",
+          "value": "query_results"
+        },
+        "options": [],
+        "refresh": 1,
+        "hide": 2
+      },
+      {
         "current": {
           "text": "",
           "value": ""
         },
-        "refresh": 1
-      },
-      {
-        "name": "kpi",
-        "type": "query",
+        "datasource": {
+          "type": "postgres",
+          "uid": "kpi-datasource"
+        },
+        "definition": "SELECT kpi_id FROM (SELECT DISTINCT kpi_id, 1 AS sort_order FROM ${_table} WHERE kpi_id IS NOT NULL AND kpi_id != '' UNION ALL SELECT 'All', 2) AS t ORDER BY sort_order, kpi_id;",
+        "hide": 0,
+        "includeAll": false,
         "label": "KPI",
-        "datasource": {
-          "type": "postgres",
-          "uid": "kpi-datasource"
-        },
-        "query": "SELECT kpi_id FROM (SELECT DISTINCT kpi_id, 1 AS sort_order FROM query_results WHERE kpi_id IS NOT NULL AND kpi_id <> '' UNION ALL SELECT 'All', 2) AS t ORDER BY sort_order, kpi_id;",
-        "includeAll": false,
         "multi": false,
-        "current": {
-          "text": "",
-          "value": ""
-        },
-        "refresh": 1
+        "name": "kpi",
+        "options": [],
+        "query": "SELECT kpi_id FROM (SELECT DISTINCT kpi_id, 1 AS sort_order FROM ${_table} WHERE kpi_id IS NOT NULL AND kpi_id != '' UNION ALL SELECT 'All', 2) AS t ORDER BY sort_order, kpi_id;",
+        "refresh": 1,
+        "type": "query"
       },
       {
-        "name": "node",
+        "name": "filter1_key",
         "type": "query",
-        "label": "Node",
+        "label": "Filter 1 Label",
         "datasource": {
           "type": "postgres",
           "uid": "kpi-datasource"
         },
-        "query": "SELECT node FROM (SELECT 'All' AS node, 1 AS sort_order UNION ALL SELECT DISTINCT COALESCE(metric_labels->>'node', metric_labels->>'instance'), 2 FROM query_results WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND metric_labels IS NOT NULL AND COALESCE(metric_labels->>'node', metric_labels->>'instance') IS NOT NULL AND COALESCE(metric_labels->>'node', metric_labels->>'instance') <> '') AS t ORDER BY sort_order, node;",
+        "query": "SELECT key FROM (SELECT 'All' AS key, 1 AS sort_order UNION ALL SELECT DISTINCT key, 2 FROM ${_table}, jsonb_object_keys(metric_labels) AS key WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND metric_labels IS NOT NULL AND key <> '__name__') AS t ORDER BY sort_order, key;",
+        "definition": "SELECT key FROM (SELECT 'All' AS key, 1 AS sort_order UNION ALL SELECT DISTINCT key, 2 FROM ${_table}, jsonb_object_keys(metric_labels) AS key WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND metric_labels IS NOT NULL AND key <> '__name__') AS t ORDER BY sort_order, key;",
         "includeAll": false,
         "multi": false,
         "current": {
           "text": "All",
           "value": "All"
         },
-        "refresh": 1
+        "options": [],
+        "refresh": 1,
+        "hide": 0
       },
       {
-        "name": "job",
+        "name": "filter1_value",
         "type": "query",
-        "label": "Job",
+        "label": "Filter 1 Value",
         "datasource": {
           "type": "postgres",
           "uid": "kpi-datasource"
         },
-        "query": "SELECT job FROM (SELECT 'All' AS job, 1 AS sort_order UNION ALL SELECT DISTINCT metric_labels->>'job', 2 FROM query_results WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND metric_labels IS NOT NULL AND metric_labels->>'job' IS NOT NULL AND metric_labels->>'job' <> '') AS t ORDER BY sort_order, job;",
+        "query": "SELECT value FROM (SELECT 'All' AS value, 1 AS sort_order UNION ALL SELECT DISTINCT metric_labels->>'${filter1_key}', 2 FROM ${_table} WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND '${filter1_key}' <> 'All' AND metric_labels IS NOT NULL AND metric_labels->>'${filter1_key}' IS NOT NULL AND metric_labels->>'${filter1_key}' <> '') AS t ORDER BY sort_order, value;",
+        "definition": "SELECT value FROM (SELECT 'All' AS value, 1 AS sort_order UNION ALL SELECT DISTINCT metric_labels->>'${filter1_key}', 2 FROM ${_table} WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND '${filter1_key}' <> 'All' AND metric_labels IS NOT NULL AND metric_labels->>'${filter1_key}' IS NOT NULL AND metric_labels->>'${filter1_key}' <> '') AS t ORDER BY sort_order, value;",
         "includeAll": false,
         "multi": false,
         "current": {
           "text": "All",
           "value": "All"
         },
-        "refresh": 1
+        "options": [],
+        "refresh": 1,
+        "hide": 0
       },
       {
-        "name": "pod",
+        "name": "filter2_key",
         "type": "query",
-        "label": "Pod",
+        "label": "Filter 2 Label",
         "datasource": {
           "type": "postgres",
           "uid": "kpi-datasource"
         },
-        "query": "SELECT pod FROM (SELECT 'All' AS pod, 1 AS sort_order UNION ALL SELECT DISTINCT metric_labels->>'pod', 2 FROM query_results WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND metric_labels IS NOT NULL AND metric_labels->>'pod' IS NOT NULL AND metric_labels->>'pod' <> '') AS t ORDER BY sort_order, pod;",
+        "query": "SELECT key FROM (SELECT 'All' AS key, 1 AS sort_order UNION ALL SELECT DISTINCT key, 2 FROM ${_table}, jsonb_object_keys(metric_labels) AS key WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND metric_labels IS NOT NULL AND key <> '__name__') AS t ORDER BY sort_order, key;",
+        "definition": "SELECT key FROM (SELECT 'All' AS key, 1 AS sort_order UNION ALL SELECT DISTINCT key, 2 FROM ${_table}, jsonb_object_keys(metric_labels) AS key WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND metric_labels IS NOT NULL AND key <> '__name__') AS t ORDER BY sort_order, key;",
         "includeAll": false,
         "multi": false,
         "current": {
           "text": "All",
           "value": "All"
         },
-        "refresh": 1
+        "options": [],
+        "refresh": 1,
+        "hide": 0
       },
       {
-        "name": "container",
+        "name": "filter2_value",
         "type": "query",
-        "label": "Container",
+        "label": "Filter 2 Value",
         "datasource": {
           "type": "postgres",
           "uid": "kpi-datasource"
         },
-        "query": "SELECT container FROM (SELECT 'All' AS container, 1 AS sort_order UNION ALL SELECT DISTINCT metric_labels->>'container', 2 FROM query_results WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND metric_labels IS NOT NULL AND metric_labels->>'container' IS NOT NULL AND metric_labels->>'container' <> '') AS t ORDER BY sort_order, container;",
+        "query": "SELECT value FROM (SELECT 'All' AS value, 1 AS sort_order UNION ALL SELECT DISTINCT metric_labels->>'${filter2_key}', 2 FROM ${_table} WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND '${filter2_key}' <> 'All' AND metric_labels IS NOT NULL AND metric_labels->>'${filter2_key}' IS NOT NULL AND metric_labels->>'${filter2_key}' <> '') AS t ORDER BY sort_order, value;",
+        "definition": "SELECT value FROM (SELECT 'All' AS value, 1 AS sort_order UNION ALL SELECT DISTINCT metric_labels->>'${filter2_key}', 2 FROM ${_table} WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND '${filter2_key}' <> 'All' AND metric_labels IS NOT NULL AND metric_labels->>'${filter2_key}' IS NOT NULL AND metric_labels->>'${filter2_key}' <> '') AS t ORDER BY sort_order, value;",
         "includeAll": false,
         "multi": false,
         "current": {
           "text": "All",
           "value": "All"
         },
-        "refresh": 1
+        "options": [],
+        "refresh": 1,
+        "hide": 0
       },
       {
-        "name": "samples_count",
+        "name": "filter3_key",
         "type": "query",
+        "label": "Filter 3 Label",
         "datasource": {
           "type": "postgres",
           "uid": "kpi-datasource"
         },
-        "query": "SELECT COALESCE(COUNT(*), 0) FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR metric_labels->>'node' = '${node}' OR metric_labels->>'instance' = '${node}') AND ('${job}' = 'All' OR metric_labels->>'job' = '${job}') AND ('${pod}' = 'All' OR metric_labels->>'pod' = '${pod}') AND ('${container}' = 'All' OR metric_labels->>'container' = '${container}')",
+        "query": "SELECT key FROM (SELECT 'All' AS key, 1 AS sort_order UNION ALL SELECT DISTINCT key, 2 FROM ${_table}, jsonb_object_keys(metric_labels) AS key WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND metric_labels IS NOT NULL AND key <> '__name__') AS t ORDER BY sort_order, key;",
+        "definition": "SELECT key FROM (SELECT 'All' AS key, 1 AS sort_order UNION ALL SELECT DISTINCT key, 2 FROM ${_table}, jsonb_object_keys(metric_labels) AS key WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND metric_labels IS NOT NULL AND key <> '__name__') AS t ORDER BY sort_order, key;",
         "includeAll": false,
         "multi": false,
         "current": {
-          "text": "",
-          "value": ""
+          "text": "All",
+          "value": "All"
         },
+        "options": [],
         "refresh": 1,
-        "hide": 2
+        "hide": 0
       },
       {
-        "name": "avg_value",
+        "name": "filter3_value",
         "type": "query",
+        "label": "Filter 3 Value",
         "datasource": {
           "type": "postgres",
           "uid": "kpi-datasource"
         },
-        "query": "SELECT COALESCE(ROUND(CAST(AVG(metric_value) AS numeric), 6)::text, 'N/A') FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR metric_labels->>'node' = '${node}' OR metric_labels->>'instance' = '${node}') AND ('${job}' = 'All' OR metric_labels->>'job' = '${job}') AND ('${pod}' = 'All' OR metric_labels->>'pod' = '${pod}') AND ('${container}' = 'All' OR metric_labels->>'container' = '${container}')",
+        "query": "SELECT value FROM (SELECT 'All' AS value, 1 AS sort_order UNION ALL SELECT DISTINCT metric_labels->>'${filter3_key}', 2 FROM ${_table} WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND '${filter3_key}' <> 'All' AND metric_labels IS NOT NULL AND metric_labels->>'${filter3_key}' IS NOT NULL AND metric_labels->>'${filter3_key}' <> '') AS t ORDER BY sort_order, value;",
+        "definition": "SELECT value FROM (SELECT 'All' AS value, 1 AS sort_order UNION ALL SELECT DISTINCT metric_labels->>'${filter3_key}', 2 FROM ${_table} WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND '${filter3_key}' <> 'All' AND metric_labels IS NOT NULL AND metric_labels->>'${filter3_key}' IS NOT NULL AND metric_labels->>'${filter3_key}' <> '') AS t ORDER BY sort_order, value;",
         "includeAll": false,
         "multi": false,
         "current": {
-          "text": "",
-          "value": ""
+          "text": "All",
+          "value": "All"
         },
+        "options": [],
         "refresh": 1,
-        "hide": 2
-      },
-      {
-        "name": "min_value",
-        "type": "query",
-        "datasource": {
-          "type": "postgres",
-          "uid": "kpi-datasource"
-        },
-        "query": "SELECT COALESCE(ROUND(CAST(MIN(metric_value) AS numeric), 6)::text, 'N/A') FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR metric_labels->>'node' = '${node}' OR metric_labels->>'instance' = '${node}') AND ('${job}' = 'All' OR metric_labels->>'job' = '${job}') AND ('${pod}' = 'All' OR metric_labels->>'pod' = '${pod}') AND ('${container}' = 'All' OR metric_labels->>'container' = '${container}')",
-        "includeAll": false,
-        "multi": false,
-        "current": {
-          "text": "",
-          "value": ""
-        },
-        "refresh": 1,
-        "hide": 2
-      },
-      {
-        "name": "max_value",
-        "type": "query",
-        "datasource": {
-          "type": "postgres",
-          "uid": "kpi-datasource"
-        },
-        "query": "SELECT COALESCE(ROUND(CAST(MAX(metric_value) AS numeric), 6)::text, 'N/A') FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}') AND ('${node}' = 'All' OR metric_labels->>'node' = '${node}' OR metric_labels->>'instance' = '${node}') AND ('${job}' = 'All' OR metric_labels->>'job' = '${job}') AND ('${pod}' = 'All' OR metric_labels->>'pod' = '${pod}') AND ('${container}' = 'All' OR metric_labels->>'container' = '${container}')",
-        "includeAll": false,
-        "multi": false,
-        "current": {
-          "text": "",
-          "value": ""
-        },
-        "refresh": 1,
-        "hide": 2
+        "hide": 0
       },
       {
         "name": "data_start",
@@ -854,13 +917,15 @@
           "type": "postgres",
           "uid": "kpi-datasource"
         },
-        "query": "SELECT COALESCE(CAST(MIN(timestamp_value) * 1000 AS BIGINT), 0) FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}')",
+        "query": "SELECT COALESCE(CAST(MIN(timestamp_value) * 1000 AS BIGINT), 0) FROM ${_table} qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}')",
+        "definition": "SELECT COALESCE(CAST(MIN(timestamp_value) * 1000 AS BIGINT), 0) FROM ${_table} qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}')",
         "includeAll": false,
         "multi": false,
         "current": {
           "text": "",
           "value": ""
         },
+        "options": [],
         "refresh": 1,
         "hide": 2
       },
@@ -871,13 +936,15 @@
           "type": "postgres",
           "uid": "kpi-datasource"
         },
-        "query": "SELECT COALESCE(CAST(MAX(timestamp_value) * 1000 AS BIGINT), 0) FROM query_results qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}')",
+        "query": "SELECT COALESCE(CAST(MAX(timestamp_value) * 1000 AS BIGINT), 0) FROM ${_table} qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}')",
+        "definition": "SELECT COALESCE(CAST(MAX(timestamp_value) * 1000 AS BIGINT), 0) FROM ${_table} qr JOIN clusters c ON qr.cluster_id = c.id WHERE ('${kpi}' = 'All' OR kpi_id = '${kpi}') AND ('${cluster}' = 'All' OR c.cluster_name = '${cluster}') AND ('${cluster_type}' = 'All' OR c.cluster_type = '${cluster_type}')",
         "includeAll": false,
         "multi": false,
         "current": {
           "text": "",
           "value": ""
         },
+        "options": [],
         "refresh": 1,
         "hide": 2
       }

@@ -36,6 +36,7 @@ func ParseFormat(s string) (Format, error) {
 type KPIRecord struct {
 	ID            int64             `json:"id"`
 	KPIName       string            `json:"kpi_name"`
+	Category      string            `json:"category,omitempty"`
 	Cluster       string            `json:"cluster"`
 	Value         float64           `json:"value"`
 	Timestamp     string            `json:"timestamp"`
@@ -56,6 +57,13 @@ type ClusterRecord struct {
 type ErrorRecord struct {
 	KPIID      string `json:"kpi_id"`
 	ErrorCount int    `json:"error_count"`
+}
+
+// CategoryRecord represents a category info record for output
+type CategoryRecord struct {
+	Category  string `json:"category"`
+	TableName string `json:"table_name"`
+	KPICount  int    `json:"kpi_count"`
 }
 
 // Printer handles output formatting

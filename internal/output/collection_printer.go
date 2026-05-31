@@ -12,6 +12,7 @@ var printMutex sync.Mutex
 type QueryInfo struct {
 	QueryID      string
 	PromQuery    string
+	Category     string
 	Frequency    time.Duration
 	SampleNumber int
 	TotalSamples int
@@ -42,6 +43,9 @@ func PrintQueryResult(info QueryInfo, result QueryResult) {
 	}
 
 	fmt.Printf("  Query: %s\n", info.PromQuery)
+	if info.Category != "" {
+		fmt.Printf("  Category: %s\n", info.Category)
+	}
 	if info.QueryType == "range" {
 		fmt.Printf("  Query Type: range (step: %s, since: %s, until: %s)\n",
 			info.Step, info.Since.Format(time.RFC3339), info.Until.Format(time.RFC3339))

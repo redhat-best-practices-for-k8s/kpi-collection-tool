@@ -45,8 +45,8 @@ func (p *Printer) printKPIsTable(records []KPIRecord) error {
 }
 
 func (p *Printer) buildKPITableHeader(includeLabels bool) (header, separator string) {
-	header = "ID\tKPI_NAME\tCLUSTER\tVALUE\tTIMESTAMP"
-	separator = "---\t---\t---\t---\t---"
+	header = "ID\tKPI_NAME\tCATEGORY\tCLUSTER\tVALUE\tTIMESTAMP"
+	separator = "---\t---\t---\t---\t---\t---"
 
 	if p.showExecTime {
 		header += "\tEXECUTION_TIME"
@@ -61,7 +61,8 @@ func (p *Printer) buildKPITableHeader(includeLabels bool) (header, separator str
 
 func (p *Printer) buildKPITableRow(r KPIRecord, labels string) string {
 	value := strconv.FormatFloat(r.Value, 'f', -1, 64)
-	row := fmt.Sprintf("%d\t%s\t%s\t%s\t%s", r.ID, r.KPIName, r.Cluster, value, r.Timestamp)
+	row := fmt.Sprintf("%d\t%s\t%s\t%s\t%s\t%s",
+		r.ID, r.KPIName, categoryDisplay(r.Category), r.Cluster, value, r.Timestamp)
 
 	if p.showExecTime {
 		row += "\t" + r.ExecutionTime.Format("2006-01-02 15:04:05")
@@ -70,6 +71,13 @@ func (p *Printer) buildKPITableRow(r KPIRecord, labels string) string {
 		row += "\t" + labels
 	}
 	return row + "\n"
+}
+
+func categoryDisplay(category string) string {
+	if category == "" {
+		return "-"
+	}
+	return category
 }
 
 func (p *Printer) printPrettyLabels(labels map[string]string) {
@@ -103,6 +111,18 @@ func PrintErrorsTable(records []ErrorRecord) {
 
 	for _, e := range records {
 		_, _ = fmt.Fprintf(w, "%s\t%d\n", e.KPIID, e.ErrorCount)
+	}
+	_ = w.Flush()
+}
+
+// PrintCategoriesTable prints category records as a table to stdout
+func PrintCategoriesTable(records []CategoryRecord) {
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	_, _ = fmt.Fprintln(w, "CATEGORY\tTABLE\tKPIS")
+	_, _ = fmt.Fprintln(w, "---\t---\t---")
+
+	for _, c := range records {
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%d\n", c.Category, c.TableName, c.KPICount)
 	}
 	_ = w.Flush()
 }
