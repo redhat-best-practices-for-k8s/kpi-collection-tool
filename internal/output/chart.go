@@ -76,7 +76,7 @@ func chooseYLabelScale(minVal, maxVal float64) yLabelScale {
 // needed (divisor==0) the value is printed as-is with fixed precision.
 func formatYLabel(v float64, scale yLabelScale) string {
 	if scale.divisor == 0 {
-		return fmt.Sprintf("%.*f", yLabelFormatPrecision, v/scale.divisor)
+		return fmt.Sprintf("%.*f", yLabelFormatPrecision, v)
 	}
 
 	return fmt.Sprintf("%.*f%s", yLabelFormatPrecision, v/scale.divisor, scale.suffix)

@@ -29,8 +29,8 @@ const (
 	statusBarRows      = 1
 
 	// ANSI escape sequences for terminal control.
-	ansiClearScreen = "\033[2J"  // erase entire screen contents
-	ansiCursorHome  = "\033[H"  // move cursor to row 1, column 1
+	ansiClearScreen = "\033[2J"   // erase entire screen contents
+	ansiCursorHome  = "\033[H"    // move cursor to row 1, column 1
 	ansiCursorHide  = "\033[?25l" // make cursor invisible
 	ansiCursorShow  = "\033[?25h" // restore cursor visibility
 	// ansiCursorPos is a format string: move cursor to row %d, column 1.
@@ -175,9 +175,9 @@ func RunInteractiveChart(records []KPIRecord, kpiName string) error {
 		case keyRight:
 			vp.panRight()
 		case keyUp:
-			vp.zoomOut()
-		case keyDown:
 			vp.zoomIn()
+		case keyDown:
+			vp.zoomOut()
 		}
 	}
 }
