@@ -29,7 +29,6 @@ var kpiQueryFlags struct {
 	noTruncate   bool
 	showExecTime bool
 	outputFormat string
-	chart        bool
 	chartWidth   int
 	chartHeight  int
 	interactive  bool
@@ -81,7 +80,7 @@ The results can be displayed in table, JSON, or CSV format.`,
   kpi-collector db show kpis --name="cpu-system" -o csv > metrics.csv
 
   # Plot an ASCII chart of metric values over the last 24 hours
-  kpi-collector db show kpis --name="cpu-system" --since="24h" --chart`,
+  kpi-collector db show kpis --name="cpu-system" --since="24h" -o chart`,
 	RunE: runShowKPIs,
 }
 
@@ -147,17 +146,15 @@ func init() {
 	showKPIsCmd.Flags().BoolVar(&kpiQueryFlags.showExecTime, "show-exec-time", false,
 		"include execution time (when the metric was collected) in the output")
 	showKPIsCmd.Flags().StringVarP(&kpiQueryFlags.outputFormat, "output", "o", "table",
-		"output format: table, json, or csv")
-	showKPIsCmd.Flags().BoolVar(&kpiQueryFlags.chart, "chart", false,
-		"plot an ASCII chart of metric values over time (requires --name)")
+		"output format: table, json, csv, or chart")
 	showKPIsCmd.Flags().IntVar(&kpiQueryFlags.chartWidth, "chart-width", 0,
-		fmt.Sprintf("total chart width in columns (%d-%d, default: terminal width or %d for non-TTY; requires --chart)",
+		fmt.Sprintf("total chart width in columns (%d-%d, default: terminal width or %d for non-TTY; requires -o chart)",
 			output.MinChartWidth, output.MaxChartDimension, output.DefaultChartWidth))
 	showKPIsCmd.Flags().IntVar(&kpiQueryFlags.chartHeight, "chart-height", 0,
-		fmt.Sprintf("total chart height in rows (%d-%d, default: terminal height or %d for non-TTY; requires --chart)",
+		fmt.Sprintf("total chart height in rows (%d-%d, default: terminal height or %d for non-TTY; requires -o chart)",
 			output.MinChartHeight, output.MaxChartDimension, output.DefaultChartHeight))
 	showKPIsCmd.Flags().BoolVar(&kpiQueryFlags.interactive, "interactive", false,
-		"interactive full-screen chart with keyboard navigation (requires --chart and a TTY)")
+		"interactive full-screen chart with keyboard navigation (requires -o chart and a TTY)")
 
 	// Flags for 'show clusters'
 	showClustersCmd.Flags().StringVar(&clusterQueryFlags.clusterName, "name", "",
@@ -171,21 +168,21 @@ func runShowKPIs(cmd *cobra.Command, args []string) error {
 			"--category queries all KPIs in a category")
 	}
 
-	if kpiQueryFlags.chart && kpiQueryFlags.kpiName == "" {
-		return fmt.Errorf("--chart requires --name to be set")
-	}
-
-	if err := validateChartDimensionFlags(cmd); err != nil {
-		return err
-	}
-
-	if err := validateInteractiveFlag(cmd); err != nil {
-		return err
-	}
-
 	// Parse output format first (fail fast if invalid)
 	format, err := output.ParseFormat(kpiQueryFlags.outputFormat)
 	if err != nil {
+		return err
+	}
+
+	if format == output.FormatChart && kpiQueryFlags.kpiName == "" {
+		return fmt.Errorf("-o chart requires --name to be set")
+	}
+
+	if err := validateChartDimensionFlags(cmd, format); err != nil {
+		return err
+	}
+
+	if err := validateInteractiveFlag(cmd, format); err != nil {
 		return err
 	}
 
@@ -242,11 +239,10 @@ func runShowKPIs(cmd *cobra.Command, args []string) error {
 	// Convert to output records
 	records := convertToKPIRecords(results)
 
-	if kpiQueryFlags.interactive {
-		return output.RunInteractiveChart(records, kpiQueryFlags.kpiName)
-	}
-
-	if kpiQueryFlags.chart {
+	if format == output.FormatChart {
+		if kpiQueryFlags.interactive {
+			return output.RunInteractiveChart(records, kpiQueryFlags.kpiName)
+		}
 		output.PrintChart(records, kpiQueryFlags.kpiName, kpiQueryFlags.chartWidth, kpiQueryFlags.chartHeight)
 		return nil
 	}
@@ -258,12 +254,12 @@ func runShowKPIs(cmd *cobra.Command, args []string) error {
 	return printer.PrintKPIs(records)
 }
 
-func validateChartDimensionFlags(cmd *cobra.Command) error {
+func validateChartDimensionFlags(cmd *cobra.Command, format output.Format) error {
 	widthSet := cmd.Flags().Changed("chart-width")
 	heightSet := cmd.Flags().Changed("chart-height")
 
-	if (widthSet || heightSet) && !kpiQueryFlags.chart {
-		return fmt.Errorf("--chart-width and --chart-height require --chart to be set")
+	if (widthSet || heightSet) && format != output.FormatChart {
+		return fmt.Errorf("--chart-width and --chart-height require -o chart")
 	}
 
 	if widthSet && (kpiQueryFlags.chartWidth < output.MinChartWidth || kpiQueryFlags.chartWidth > output.MaxChartDimension) {
@@ -312,13 +308,13 @@ func validateChartDimensionsFitTerminal(widthSet, heightSet bool) error {
 	return nil
 }
 
-func validateInteractiveFlag(cmd *cobra.Command) error {
+func validateInteractiveFlag(cmd *cobra.Command, format output.Format) error {
 	if !kpiQueryFlags.interactive {
 		return nil
 	}
 
-	if !kpiQueryFlags.chart {
-		return fmt.Errorf("--interactive requires --chart to be set")
+	if format != output.FormatChart {
+		return fmt.Errorf("--interactive requires -o chart")
 	}
 
 	if !term.IsTerminal(int(os.Stdout.Fd())) || !term.IsTerminal(int(os.Stdin.Fd())) {

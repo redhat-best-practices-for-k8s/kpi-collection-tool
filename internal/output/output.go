@@ -16,6 +16,7 @@ const (
 	FormatTable Format = "table"
 	FormatJSON  Format = "json"
 	FormatCSV   Format = "csv"
+	FormatChart Format = "chart"
 )
 
 // ParseFormat converts a string to a Format, returning an error if invalid
@@ -27,8 +28,10 @@ func ParseFormat(s string) (Format, error) {
 		return FormatJSON, nil
 	case "csv":
 		return FormatCSV, nil
+	case "chart":
+		return FormatChart, nil
 	default:
-		return "", fmt.Errorf("invalid output format %q: must be table, json, or csv", s)
+		return "", fmt.Errorf("invalid output format %q: must be table, json, csv, or chart", s)
 	}
 }
 

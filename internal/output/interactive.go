@@ -217,7 +217,7 @@ func extractValuesAndTimes(records []KPIRecord) ([]float64, []time.Time) {
 
 	for i, r := range records {
 		values[i] = r.Value
-		times[i] = time.Unix(int64(r.Timestamp), 0)
+		times[i], _ = time.Parse("2006-01-02 15:04:05", r.Timestamp)
 	}
 
 	return values, times

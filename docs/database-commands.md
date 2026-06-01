@@ -118,13 +118,12 @@ Available flags:
 - `--until`: duration format like `1h`, `15m`, `12h`
 - `--limit`: maximum rows (`0` means no limit)
 - `--sort`: `asc` or `desc` by metric timestamp (default: `asc`)
-- `-o`, `--output`: output format — `table` (default), `json`, or `csv`
+- `-o`, `--output`: output format — `table` (default), `json`, `csv`, or `chart`
 - `--no-truncate`: show full label values without truncation
 - `--show-exec-time`: include execution time column in the output
-- `--chart`: plot an ASCII chart of metric values over time (requires `--name`)
-- `--chart-width`: total chart width in columns (80–250; default: terminal width or 80 for non-TTY)
-- `--chart-height`: total chart height in rows (25–250; default: terminal height or 25 for non-TTY)
-- `--interactive`: interactive full-screen chart with keyboard navigation (requires `--chart` and a TTY)
+- `--chart-width`: total chart width in columns (80–250; default: terminal width or 80 for non-TTY; requires `-o chart`)
+- `--chart-height`: total chart height in rows (25–250; default: terminal height or 25 for non-TTY; requires `-o chart`)
+- `--interactive`: interactive full-screen chart with keyboard navigation (requires `-o chart` and a TTY)
 
 Output:
 
@@ -140,14 +139,14 @@ All timestamps are displayed in UTC.
 
 ### ASCII Chart Mode
 
-The `--chart` flag renders a quick ASCII line chart of metric values over time directly in the terminal. This is a lightweight convenience feature for taking a quick glance at collected data — it is **not** meant to replace proper visualization tools like the [embedded Grafana dashboards](grafana.md).
+The `-o chart` output format renders a quick ASCII line chart of metric values over time directly in the terminal. This is a lightweight convenience feature for taking a quick glance at collected data — it is **not** meant to replace proper visualization tools like the [embedded Grafana dashboards](grafana.md).
 
 When running in a terminal (TTY), the chart automatically adapts to the current terminal width and height unless `--chart-width` or `--chart-height` are explicitly set:
 
 ```text
 $ echo "current tty dimension: height=`tput lines`, width=`tput cols`"
 current tty dimension: height=66, width=139
-$ ./kpi-collector db show kpis --name node-memory-usage --since=6h  --chart
+$ ./kpi-collector db show kpis --name node-memory-usage --since=6h -o chart
  14.144G ┤                                                                                               ╭╮
  14.133G ┤                                                                                               ││
  14.121G ┤                                                                                               ││
@@ -178,7 +177,7 @@ $ ./kpi-collector db show kpis --name node-memory-usage --since=6h  --chart
 When stdout is not a TTY (e.g. piped output or CI job logs), the chart falls back to a fixed 80x25 default:
 
 ```text
-$ ./kpi-collector db show kpis --name node-memory-usage --since=6h  --chart | cat
+$ ./kpi-collector db show kpis --name node-memory-usage --since=6h -o chart | cat
  14.112G ┤                                                  ╭╮
  14.102G ┤                                                  ││
  14.092G ┤                                                  ││         ╭╮╭╮
@@ -211,7 +210,7 @@ Data points: 66
 Interactive mode (`--interactive`) renders a full-screen chart with keyboard navigation:
 
 ```text
-$ ./kpi-collector db show kpis --name node-memory-usage --chart --interactive
+$ ./kpi-collector db show kpis --name node-memory-usage -o chart --interactive
  14.145G ┤                                                                                                                   ╭╮
  14.059G ┤                                                                                              ╭╮   ╭╮   ╭─╮╭───╮   │╰╮╭
  13.974G ┤                                                                       ╭─╮   ╭─╮╭╮    ╭╮╭─╮╭──╯│╭╮╭╯│╭──╯ ╰╯   ╰───╯ ╰╯

@@ -95,7 +95,7 @@ func PrintChart(records []KPIRecord, kpiName string, widthOverride, heightOverri
 
 	for i, r := range records {
 		values[i] = r.Value
-		times[i] = time.Unix(int64(r.Timestamp), 0)
+		times[i], _ = time.Parse("2006-01-02 15:04:05", r.Timestamp)
 	}
 
 	opts := buildChartOptions(values, times, kpiName, widthOverride, heightOverride)
