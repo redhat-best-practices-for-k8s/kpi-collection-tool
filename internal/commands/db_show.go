@@ -161,29 +161,39 @@ func init() {
 		"specific cluster name to filter by")
 }
 
-func runShowKPIs(cmd *cobra.Command, args []string) error {
+// validateShowKPIsCLIFlags validates the CLI flags for the 'show kpis' command. For
+// convenience, it returns the output format as well as any errors encountered.
+func validateShowKPIsCLIFlags(cmd *cobra.Command) (output.Format, error) {
 	if kpiQueryFlags.kpiName != "" && kpiQueryFlags.category != "" {
-		return fmt.Errorf("--name and --category cannot be used together: " +
+		return "", fmt.Errorf("--name and --category cannot be used together: " +
 			"--name looks up a specific KPI (auto-discovers its table), " +
 			"--category queries all KPIs in a category")
 	}
 
-	// Parse output format first (fail fast if invalid)
 	format, err := output.ParseFormat(kpiQueryFlags.outputFormat)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	if format == output.FormatChart && kpiQueryFlags.kpiName == "" {
-		return fmt.Errorf("-o chart requires --name to be set")
+		return "", fmt.Errorf("-o chart requires --name to be set")
 	}
 
 	if err := validateChartDimensionFlags(cmd, format); err != nil {
-		return err
+		return "", err
 	}
 
 	if err := validateInteractiveFlag(cmd, format); err != nil {
-		return err
+		return "", err
+	}
+
+	return format, nil
+}
+
+func runShowKPIs(cmd *cobra.Command, args []string) error {
+	outputFormat, err := validateShowKPIsCLIFlags(cmd)
+	if err != nil {
+		return fmt.Errorf("failed to validate CLI flags: %w", err)
 	}
 
 	db, dbImpl, err := connectToDB()
@@ -194,14 +204,14 @@ func runShowKPIs(cmd *cobra.Command, args []string) error {
 
 	if kpiQueryFlags.category != "" {
 		if err := validateCategory(db, dbImpl, kpiQueryFlags.category); err != nil {
-			return err
+			return fmt.Errorf("failed to validate category: %w", err)
 		}
 	}
 
 	// Parse time filters using a single reference time to avoid drift.
 	sinceTime, untilTime, err := parseKPIQueryTimeWindow(kpiQueryFlags.since, kpiQueryFlags.until, time.Now())
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to parse time filters: %w", err)
 	}
 
 	// Parse label filters
@@ -239,7 +249,7 @@ func runShowKPIs(cmd *cobra.Command, args []string) error {
 	// Convert to output records
 	records := convertToKPIRecords(results)
 
-	if format == output.FormatChart {
+	if outputFormat == output.FormatChart {
 		if kpiQueryFlags.interactive {
 			return output.RunInteractiveChart(records, kpiQueryFlags.kpiName)
 		}
@@ -248,7 +258,7 @@ func runShowKPIs(cmd *cobra.Command, args []string) error {
 	}
 
 	// Print using the output package
-	printer := output.NewPrinter(format).
+	printer := output.NewPrinter(outputFormat).
 		WithNoTruncate(kpiQueryFlags.noTruncate).
 		WithShowExecTime(kpiQueryFlags.showExecTime)
 	return printer.PrintKPIs(records)
