@@ -92,7 +92,7 @@ kpi-collector db show kpis --name="<kpi-name>" \
 # Time-based filtering (last 2 hours until 1 hour ago)
 kpi-collector db show kpis --name="<kpi-name>" --since="2h" --until="1h"
 
-# Limit results and sort by execution time
+# Limit results and sort by timestamp
 kpi-collector db show kpis --name="<kpi-name>" --limit=100 --sort="desc"
 
 # Combine multiple filters
@@ -117,9 +117,10 @@ Available flags:
 - `--since`: duration format like `2h`, `30m`, `24h`
 - `--until`: duration format like `1h`, `15m`, `12h`
 - `--limit`: maximum rows (`0` means no limit)
-- `--sort`: `asc` or `desc` by execution time (default: `asc`)
+- `--sort`: `asc` or `desc` by metric timestamp (default: `asc`)
 - `-o`, `--output`: output format — `table` (default), `json`, or `csv`
 - `--no-truncate`: show full label values without truncation
+- `--show-exec-time`: include execution time column in the output
 - `--chart`: plot an ASCII chart of metric values over time (requires `--name`)
 - `--chart-width`: total chart width in columns (80–250; default: terminal width or 80 for non-TTY)
 - `--chart-height`: total chart height in rows (25–250; default: terminal height or 25 for non-TTY)
@@ -128,13 +129,14 @@ Available flags:
 Output:
 
 ```text
-ID   KPI_NAME       CLUSTER          VALUE      TIMESTAMP    EXECUTION_TIME       LABELS
----  ---            ---              ---        ---          ---                  ---
-1    <kpi-name>     <cluster-name>   0.123456   1700000000   2024-11-26 10:30:00  {"<label-key>":"<label-value>"}
-2    <kpi-name>     <cluster-name>   0.234567   1700000060   2024-11-26 10:31:00  {"<label-key>":"<label-value>"}
+ID   KPI_NAME       CLUSTER          VALUE     TIMESTAMP            LABELS
+---  ---            ---              ---       ---                  ---
+1    <kpi-name>     <cluster-name>   0.1234    2024-11-26 10:30:00  {"<label-key>":"<label-value>"}
+2    <kpi-name>     <cluster-name>   0.2345    2024-11-26 10:31:00  {"<label-key>":"<label-value>"}
 
 Total results: 2
 ```
+All timestamps are displayed in UTC.
 
 ### ASCII Chart Mode
 

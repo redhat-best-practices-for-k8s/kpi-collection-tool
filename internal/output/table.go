@@ -3,6 +3,7 @@ package output
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"text/tabwriter"
 
 	"github.com/dustin/go-humanize"
@@ -12,13 +13,12 @@ func (p *Printer) printKPIsTable(records []KPIRecord) error {
 	w := tabwriter.NewWriter(p.writer, 0, 0, 2, ' ', 0)
 
 	if p.noTruncate {
-		_, _ = fmt.Fprintln(w, "ID\tKPI_NAME\tCATEGORY\tCLUSTER\tVALUE\tTIMESTAMP\tEXECUTION_TIME")
-		_, _ = fmt.Fprintln(w, "---\t---\t---\t---\t---\t---\t---")
+		header, separator := p.buildKPITableHeader(false)
+		_, _ = fmt.Fprintln(w, header)
+		_, _ = fmt.Fprintln(w, separator)
 
 		for _, r := range records {
-			_, _ = fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%.6f\t%.0f\t%s\n",
-				r.ID, r.KPIName, categoryDisplay(r.Category), r.Cluster, r.Value,
-				r.Timestamp, r.ExecutionTime.Format("2006-01-02 15:04:05"))
+			_, _ = fmt.Fprint(w, p.buildKPITableRow(r, ""))
 			_ = w.Flush()
 
 			_, _ = fmt.Fprintln(p.writer, "  Labels:")
@@ -26,23 +26,51 @@ func (p *Printer) printKPIsTable(records []KPIRecord) error {
 			_, _ = fmt.Fprintln(p.writer)
 		}
 	} else {
-		_, _ = fmt.Fprintln(w, "ID\tKPI_NAME\tCATEGORY\tCLUSTER\tVALUE\tTIMESTAMP\tEXECUTION_TIME\tLABELS")
-		_, _ = fmt.Fprintln(w, "---\t---\t---\t---\t---\t---\t---\t---")
+		header, separator := p.buildKPITableHeader(true)
+		_, _ = fmt.Fprintln(w, header)
+		_, _ = fmt.Fprintln(w, separator)
 
 		for _, r := range records {
 			labels := r.LabelsRaw
 			if len(labels) > 50 {
 				labels = labels[:47] + "..."
 			}
-			_, _ = fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%.6f\t%.0f\t%s\t%s\n",
-				r.ID, r.KPIName, categoryDisplay(r.Category), r.Cluster, r.Value,
-				r.Timestamp, r.ExecutionTime.Format("2006-01-02 15:04:05"), labels)
+			_, _ = fmt.Fprint(w, p.buildKPITableRow(r, labels))
 		}
 		_ = w.Flush()
 	}
 
 	_, _ = fmt.Fprintf(p.writer, "\nTotal results: %d\n", len(records))
 	return nil
+}
+
+func (p *Printer) buildKPITableHeader(includeLabels bool) (header, separator string) {
+	header = "ID\tKPI_NAME\tCATEGORY\tCLUSTER\tVALUE\tTIMESTAMP"
+	separator = "---\t---\t---\t---\t---\t---"
+
+	if p.showExecTime {
+		header += "\tEXECUTION_TIME"
+		separator += "\t---"
+	}
+	if includeLabels {
+		header += "\tLABELS"
+		separator += "\t---"
+	}
+	return header, separator
+}
+
+func (p *Printer) buildKPITableRow(r KPIRecord, labels string) string {
+	value := strconv.FormatFloat(r.Value, 'f', -1, 64)
+	row := fmt.Sprintf("%d\t%s\t%s\t%s\t%s\t%s",
+		r.ID, r.KPIName, categoryDisplay(r.Category), r.Cluster, value, r.Timestamp)
+
+	if p.showExecTime {
+		row += "\t" + r.ExecutionTime.Format("2006-01-02 15:04:05")
+	}
+	if labels != "" {
+		row += "\t" + labels
+	}
+	return row + "\n"
 }
 
 func categoryDisplay(category string) string {
