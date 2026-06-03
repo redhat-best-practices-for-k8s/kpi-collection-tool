@@ -1,0 +1,22 @@
+kpis:
+  - id: cpu-usage-range
+    promquery: avg(rate(node_cpu_seconds_total{mode!="idle"}[5m]))
+    query-type: range
+    range:
+      step: 1m
+      since: 10m
+
+  - id: memory-usage-range
+    promquery: 1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)
+    query-type: range
+    range:
+      step: 2m
+      since: 10m
+
+  - id: pod-count-range
+    promquery: count(kube_pod_info)
+    query-type: range
+    range:
+      step: 1m
+      since: 10m
+    category: workload

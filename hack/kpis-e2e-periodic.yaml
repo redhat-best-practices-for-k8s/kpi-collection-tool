@@ -1,0 +1,11 @@
+kpis:
+  - id: node-cpu-usage
+    promquery: avg(rate(node_cpu_seconds_total{mode!="idle"}[5m]))
+
+  - id: node-load-avg
+    promquery: avg(node_load1)
+    sample-frequency: 10s
+
+  - id: memory-available-avg
+    promquery: avg(node_memory_MemAvailable_bytes)
+    category: memory
