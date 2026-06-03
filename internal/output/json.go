@@ -15,6 +15,7 @@ func (p *Printer) printKPIsJSON(records []KPIRecord) error {
 	type kpiRecordNoExec struct {
 		ID        int64             `json:"id"`
 		KPIName   string            `json:"kpi_name"`
+		Category  string            `json:"category,omitempty"`
 		Cluster   string            `json:"cluster"`
 		Value     float64           `json:"value"`
 		Timestamp string            `json:"timestamp"`
@@ -26,6 +27,7 @@ func (p *Printer) printKPIsJSON(records []KPIRecord) error {
 		slim[i] = kpiRecordNoExec{
 			ID:        r.ID,
 			KPIName:   r.KPIName,
+			Category:  r.Category,
 			Cluster:   r.Cluster,
 			Value:     r.Value,
 			Timestamp: r.Timestamp,
