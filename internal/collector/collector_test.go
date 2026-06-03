@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"database/sql"
 	"sync/atomic"
 	"time"
 
@@ -8,6 +9,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/config"
+	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/database"
 )
 
 // Helper function to create a Duration pointer
@@ -187,31 +189,44 @@ var _ = Describe("Collector", func() {
 	})
 
 	Describe("startKPIGoroutines", func() {
-		var flags config.InputFlags
+		var (
+			flags  config.InputFlags
+			db     *sql.DB
+			dbImpl database.Database
+		)
 
 		BeforeEach(func() {
 			flags = config.InputFlags{
 				SamplingFreq: 60 * time.Second,
 				Duration:     1 * time.Second,
 			}
+
+			var err error
+			db, dbImpl, err = database.InitDatabaseWithConfig("sqlite", "")
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		AfterEach(func() {
+			if db != nil {
+				Expect(db.Close()).To(Succeed())
+			}
 		})
 
 		Context("when there are KPIs with various frequencies", func() {
 			It("should return cancel function and WaitGroup", func() {
-			kpis := config.KPIs{
-				Queries: []config.Query{
-					{ID: "kpi-1", PromQuery: "query1", SampleFrequency: durationPtr(5 * time.Second)},
-					{ID: "kpi-2", PromQuery: "query2"}, // default frequency
-				},
-			}
+				kpis := config.KPIs{
+					Queries: []config.Query{
+						{ID: "kpi-1", PromQuery: "query1", SampleFrequency: durationPtr(5 * time.Second)},
+						{ID: "kpi-2", PromQuery: "query2"},
+					},
+				}
 
 				var hadFailures atomic.Bool
-				cancel, wg := startKPIGoroutines(kpis, flags, &hadFailures)
+				cancel, wg := startKPIGoroutines(db, dbImpl, kpis, flags, &hadFailures)
 
 				Expect(cancel).NotTo(BeNil())
 				Expect(wg).NotTo(BeNil())
 
-				// Cancel and wait to clean up goroutines
 				cancel()
 				wg.Wait()
 			})
@@ -227,12 +242,11 @@ var _ = Describe("Collector", func() {
 				}
 
 				var hadFailures atomic.Bool
-				cancel, wg := startKPIGoroutines(kpis, flags, &hadFailures)
+				cancel, wg := startKPIGoroutines(db, dbImpl, kpis, flags, &hadFailures)
 
 				Expect(cancel).NotTo(BeNil())
 				Expect(wg).NotTo(BeNil())
 
-				// Cancel and wait to clean up goroutines
 				cancel()
 				wg.Wait()
 			})
@@ -243,12 +257,11 @@ var _ = Describe("Collector", func() {
 				kpis := config.KPIs{Queries: []config.Query{}}
 
 				var hadFailures atomic.Bool
-				cancel, wg := startKPIGoroutines(kpis, flags, &hadFailures)
+				cancel, wg := startKPIGoroutines(db, dbImpl, kpis, flags, &hadFailures)
 
 				Expect(cancel).NotTo(BeNil())
 				Expect(wg).NotTo(BeNil())
 
-				// Cancel and wait (should return immediately)
 				cancel()
 				wg.Wait()
 			})
