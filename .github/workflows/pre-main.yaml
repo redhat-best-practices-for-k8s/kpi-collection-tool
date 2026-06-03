@@ -71,7 +71,7 @@ jobs:
           kubectl rollout status deployment/thanos-query -n monitoring --timeout=300s
 
       - name: Wait for scrape data
-        timeout-minutes: 5
+        timeout-minutes: 10
         run: |
           kubectl port-forward -n monitoring svc/thanos-query 9090:9090 &
           sleep 3
@@ -88,6 +88,10 @@ jobs:
             echo "FAIL: no metric data after 5 minutes"
             exit 1
           fi
+
+          echo "Waiting 3 minutes for range query coverage (since: 3m)..."
+          sleep 180
+          echo "Scrape history ready"
 
       - name: Collect once (range queries, token auth)
         run: |

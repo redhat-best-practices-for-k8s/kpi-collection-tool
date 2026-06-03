@@ -5,12 +5,10 @@
 # Scenarios:
 #   once     - verify --once collection with range queries (kpis-e2e-once.yaml)
 #   periodic - verify periodic collection with frequency override (kpis-e2e-periodic.yaml)
-#   postgres - same as 'once' but expects extra db-flags for PostgreSQL
 #
 # Examples:
 #   hack/verify-e2e.sh once
 #   hack/verify-e2e.sh periodic
-#   hack/verify-e2e.sh postgres --db-type postgres --postgres-url "$POSTGRES_URL"
 
 set -euo pipefail
 
@@ -40,17 +38,6 @@ kpi_count() {
 category_count() {
   local cat="$1"
   ${BIN} db show kpis --category "$cat" -o json "${DB_FLAGS[@]}" | jq 'length'
-}
-
-check_min() {
-  local name="$1" min="$2"
-  local actual
-  actual=$(kpi_count "$name")
-  if [ "$actual" -ge "$min" ]; then
-    pass "$name: $actual rows (>= $min)"
-  else
-    fail "$name: expected >= $min rows, got $actual"
-  fi
 }
 
 check_exact() {
@@ -97,17 +84,6 @@ check_category_exists() {
   fi
 }
 
-check_category_min() {
-  local cat="$1" min="$2"
-  local actual
-  actual=$(category_count "$cat")
-  if [ "$actual" -ge "$min" ]; then
-    pass "category $cat: $actual rows (>= $min)"
-  else
-    fail "category $cat: expected >= $min rows, got $actual"
-  fi
-}
-
 check_category_exact() {
   local cat="$1" expected="$2"
   local actual
@@ -141,7 +117,12 @@ check_greater() {
   fi
 }
 
-# Expected collection counts for periodic mode (--frequency 15s --duration 45s).
+# Expected row counts.
+#
+# Once mode (--once with range queries): since=3m, step=1m → 3/1 + 1 = 4 points per KPI.
+ONCE_COUNT=4
+#
+# Periodic mode (--frequency 15s --duration 45s):
 # From collector code: calculateTotalSamples = (durationSecs / frequencySecs) + 1
 PERIODIC_GLOBAL_COUNT=4   # (45/15) + 1
 PERIODIC_OVERRIDE_COUNT=5 # (45/10) + 1
@@ -152,11 +133,12 @@ case "$SCENARIO" in
   once)
     check_cluster "e2e-test"
     check_no_errors
-    check_min "cpu-usage-range" 5
-    check_min "memory-usage-range" 3
-    check_min "pod-count-range" 5
+    check_exact "node-load-range" "$ONCE_COUNT"
+    check_exact "memory-usage-range" "$ONCE_COUNT"
+    check_exact "pod-count-range" "$ONCE_COUNT"
     check_category_exists "workload"
-    check_category_min "workload" 5
+    check_category_exact "workload" "$ONCE_COUNT"
+    check_total $(( 3 * ONCE_COUNT ))
     ;;
 
   periodic)
@@ -171,19 +153,9 @@ case "$SCENARIO" in
     check_total $(( 2 * PERIODIC_GLOBAL_COUNT + PERIODIC_OVERRIDE_COUNT ))
     ;;
 
-  postgres)
-    check_cluster "e2e-test"
-    check_no_errors
-    check_min "cpu-usage-range" 5
-    check_min "memory-usage-range" 3
-    check_min "pod-count-range" 5
-    check_category_exists "workload"
-    check_category_min "workload" 5
-    ;;
-
   *)
     echo "Unknown scenario: $SCENARIO"
-    echo "Valid scenarios: once, periodic, postgres"
+    echo "Valid scenarios: once, periodic"
     exit 1
     ;;
 esac
