@@ -58,18 +58,10 @@ func setupPromClient(prometheusURL, bearerToken string, insecureTLS bool) (promv
 	return promv1.NewAPI(client), nil
 }
 
-// RunQueries executes all Prometheus queries and stores results in database
-func RunQueries(kpisToRun config.KPIs, flags config.InputFlags, sampleNumber int, totalSamples int, frequency time.Duration) error {
-	// Initialize Database based on configuration
-	db, dbImpl, err := database.InitDatabaseWithConfig(flags.DatabaseType, flags.PostgresURL)
-	if err != nil {
-		return fmt.Errorf("failed to init database: %v", err)
-	}
-	defer func() {
-		if closeErr := db.Close(); closeErr != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to close database: %v\n", closeErr)
-		}
-	}()
+// RunQueries executes all Prometheus queries and stores results in the given database.
+// The caller is responsible for opening and closing the database connection.
+func RunQueries(db *sql.DB, dbImpl database.Database, kpisToRun config.KPIs, flags config.InputFlags,
+	sampleNumber int, totalSamples int, frequency time.Duration) error {
 
 	// Get or create cluster in DB
 	clusterID, err := dbImpl.GetOrCreateCluster(db, flags.ClusterName, flags.ClusterType)
