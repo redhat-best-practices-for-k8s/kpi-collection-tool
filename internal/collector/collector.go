@@ -6,6 +6,7 @@ package collector
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/config"
+	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/database"
 	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/output"
 	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/prometheus"
 )
@@ -28,11 +30,16 @@ const durationBuffer = 100 * time.Millisecond
 // It ignores frequency and duration settings entirely.
 // Returns an error if any queries failed.
 func RunOnce(kpis config.KPIs, flags config.InputFlags) error {
-	fmt.Printf("\nKPI Collection Started - Single run mode\n")
+	db, dbImpl, err := database.InitDatabaseWithConfig(flags.DatabaseType, flags.PostgresURL)
+	if err != nil {
+		return fmt.Errorf("failed to init database: %v", err)
+	}
+	defer closeDB(db)
 
+	fmt.Printf("\nKPI Collection Started - Single run mode\n")
 	log.Printf("Single run: executing %d KPIs", len(kpis.Queries))
 
-	err := prometheus.RunQueries(kpis, flags, 1, 1, 0)
+	err = prometheus.RunQueries(db, dbImpl, kpis, flags, 1, 1, 0)
 	if err != nil {
 		log.Printf("RunQueries failed in single-run mode: %v", err)
 	}
@@ -44,6 +51,12 @@ func RunOnce(kpis config.KPIs, flags config.InputFlags) error {
 // Run executes the KPI collection loop until duration expires or interrupted.
 // Returns an error if any query failures occurred during collection.
 func Run(kpis config.KPIs, flags config.InputFlags) error {
+	db, dbImpl, err := database.InitDatabaseWithConfig(flags.DatabaseType, flags.PostgresURL)
+	if err != nil {
+		return fmt.Errorf("failed to init database: %v", err)
+	}
+	defer closeDB(db)
+
 	var hadFailures atomic.Bool
 
 	runOnceKPIs, repeatingKPIs := splitRunOnceQueries(kpis)
@@ -53,7 +66,7 @@ func Run(kpis config.KPIs, flags config.InputFlags) error {
 		fmt.Printf("Executing %d run-once KPI(s) before starting collection loop\n", len(runOnceKPIs.Queries))
 		log.Printf("Executing %d run-once KPIs", len(runOnceKPIs.Queries))
 
-		if err := prometheus.RunQueries(runOnceKPIs, flags, 1, 1, 0); err != nil {
+		if err := prometheus.RunQueries(db, dbImpl, runOnceKPIs, flags, 1, 1, 0); err != nil {
 			log.Printf("RunQueries failed for run-once KPIs: %v", err)
 			hadFailures.Store(true)
 		}
@@ -76,7 +89,7 @@ func Run(kpis config.KPIs, flags config.InputFlags) error {
 	output.PrintStartup(flags.Duration.String(), time.Now().Add(flags.Duration).Format(time.RFC3339))
 
 	// Start repeating KPI goroutines grouped by frequency
-	cancel, wg := startKPIGoroutines(repeatingKPIs, flags, &hadFailures)
+	cancel, wg := startKPIGoroutines(db, dbImpl, repeatingKPIs, flags, &hadFailures)
 	defer cancel()
 
 	// Main goroutine only handles duration timer and interrupts
@@ -138,7 +151,9 @@ func groupKPIsByFrequency(kpis config.KPIs, defaultFreq time.Duration) map[time.
 }
 
 // startKPIGoroutines starts one goroutine per unique frequency for all KPIs
-func startKPIGoroutines(kpis config.KPIs, flags config.InputFlags, hadFailures *atomic.Bool) (context.CancelFunc, *sync.WaitGroup) {
+func startKPIGoroutines(db *sql.DB, dbImpl database.Database, kpis config.KPIs,
+	flags config.InputFlags, hadFailures *atomic.Bool) (context.CancelFunc, *sync.WaitGroup) {
+
 	ctx, cancel := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
 
@@ -150,7 +165,7 @@ func startKPIGoroutines(kpis config.KPIs, flags config.InputFlags, hadFailures *
 		wg.Add(1)
 		go func(frequency time.Duration, kpiGroup config.KPIs) {
 			defer wg.Done()
-			runKPIGroupLoop(ctx, kpiGroup, frequency, flags, hadFailures)
+			runKPIGroupLoop(ctx, db, dbImpl, kpiGroup, frequency, flags, hadFailures)
 		}(freq, kpisForFreq)
 	}
 
@@ -163,7 +178,9 @@ func shutdown(cancel context.CancelFunc, wg *sync.WaitGroup) {
 }
 
 // runKPIGroupLoop runs a group of KPIs that share the same sampling frequency
-func runKPIGroupLoop(ctx context.Context, kpis config.KPIs, frequency time.Duration, flags config.InputFlags, hadFailures *atomic.Bool) {
+func runKPIGroupLoop(ctx context.Context, db *sql.DB, dbImpl database.Database,
+	kpis config.KPIs, frequency time.Duration, flags config.InputFlags, hadFailures *atomic.Bool) {
+
 	ticker := time.NewTicker(frequency)
 	defer ticker.Stop()
 
@@ -172,13 +189,13 @@ func runKPIGroupLoop(ctx context.Context, kpis config.KPIs, frequency time.Durat
 	log.Printf("Starting goroutine for %d KPIs with frequency %s (total samples: %d)", len(kpis.Queries), frequency, totalSamples)
 	// Run immediately on start
 	sampleCount++
-	runKPIs(kpis, flags, sampleCount, totalSamples, frequency, hadFailures)
+	runKPIs(db, dbImpl, kpis, flags, sampleCount, totalSamples, frequency, hadFailures)
 
 	for {
 		select {
 		case <-ticker.C:
 			sampleCount++
-			runKPIs(kpis, flags, sampleCount, totalSamples, frequency, hadFailures)
+			runKPIs(db, dbImpl, kpis, flags, sampleCount, totalSamples, frequency, hadFailures)
 
 		case <-ctx.Done():
 			log.Printf("KPI group (frequency %s) stopped after %d samples", frequency, sampleCount)
@@ -188,14 +205,16 @@ func runKPIGroupLoop(ctx context.Context, kpis config.KPIs, frequency time.Durat
 }
 
 // runKPIs executes a group of KPIs and logs the results
-func runKPIs(kpis config.KPIs, flags config.InputFlags, sampleNumber int, totalSamples int, frequency time.Duration, hadFailures *atomic.Bool) {
+func runKPIs(db *sql.DB, dbImpl database.Database, kpis config.KPIs, flags config.InputFlags,
+	sampleNumber int, totalSamples int, frequency time.Duration, hadFailures *atomic.Bool) {
+
 	if len(kpis.Queries) == 0 {
 		return
 	}
 
 	log.Printf("Running sample %d/%d for %d KPIs with frequency %s", sampleNumber, totalSamples, len(kpis.Queries), frequency)
 
-	if err := prometheus.RunQueries(kpis, flags, sampleNumber, totalSamples, frequency); err != nil {
+	if err := prometheus.RunQueries(db, dbImpl, kpis, flags, sampleNumber, totalSamples, frequency); err != nil {
 		log.Printf("RunQueries failed for frequency %s KPIs: %v", frequency, err)
 		hadFailures.Store(true)
 	}
@@ -208,4 +227,10 @@ func calculateTotalSamples(frequency time.Duration, duration time.Duration) int 
 	frequencySecs := int(frequency.Seconds())
 	durationSecs := int(duration.Seconds())
 	return (durationSecs / frequencySecs) + 1
+}
+
+func closeDB(db *sql.DB) {
+	if err := db.Close(); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to close database: %v\n", err)
+	}
 }
