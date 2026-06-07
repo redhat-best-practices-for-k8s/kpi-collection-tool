@@ -75,23 +75,7 @@ jobs:
         run: |
           kubectl port-forward -n monitoring svc/thanos-query 9090:9090 &
           sleep 3
-
-          for i in $(seq 1 60); do
-            count=$(curl -sf 'http://localhost:9090/api/v1/query?query=up' \
-              | jq '.data.result | length' 2>/dev/null || echo 0)
-            [ "$count" -gt 0 ] && echo "Thanos has data ($count series)" && break
-            echo "  attempt $i/60: waiting for scrape data..."
-            sleep 5
-          done
-
-          if [ "$count" -eq 0 ] 2>/dev/null || [ -z "$count" ]; then
-            echo "FAIL: no metric data after 5 minutes"
-            exit 1
-          fi
-
-          echo "Waiting 3 minutes for range query coverage (since: 3m)..."
-          sleep 180
-          echo "Scrape history ready"
+          .github/scripts/wait-for-scrape-data.sh
 
       - name: Collect once (range queries, token auth)
         run: |
@@ -100,11 +84,11 @@ jobs:
             --cluster-type ran \
             --token unused \
             --thanos-url http://localhost:9090 \
-            --kpis-file hack/kpis-e2e-once.yaml \
+            --kpis-file .github/kpis/kpis-e2e-once.yaml \
             --once
 
       - name: Verify once collection
-        run: hack/verify-e2e.sh once
+        run: .github/scripts/verify-e2e.sh once
 
       - name: Clean database
         run: rm -rf kpi-collector-artifacts
@@ -116,12 +100,12 @@ jobs:
             --cluster-type ran \
             --token unused \
             --thanos-url http://localhost:9090 \
-            --kpis-file hack/kpis-e2e-periodic.yaml \
+            --kpis-file .github/kpis/kpis-e2e-periodic.yaml \
             --frequency 15s \
             --duration 45s
 
       - name: Verify periodic collection
-        run: hack/verify-e2e.sh periodic
+        run: .github/scripts/verify-e2e.sh periodic
 
       - name: Show clusters
         run: |

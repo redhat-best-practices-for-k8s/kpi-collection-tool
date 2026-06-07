@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Verification script for kpi-collector e2e tests.
-# Usage: hack/verify-e2e.sh <scenario> [db-flags...]
+# Usage: .github/scripts/verify-e2e.sh <scenario> [db-flags...]
 #
 # Scenarios:
 #   once     - verify --once collection with range queries (kpis-e2e-once.yaml)
 #   periodic - verify periodic collection with frequency override (kpis-e2e-periodic.yaml)
 #
 # Examples:
-#   hack/verify-e2e.sh once
-#   hack/verify-e2e.sh periodic
+#   .github/scripts/verify-e2e.sh once
+#   .github/scripts/verify-e2e.sh periodic
 
 set -euo pipefail
 

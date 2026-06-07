@@ -70,11 +70,11 @@ jobs:
             --token ${{ steps.ocp-auth.outputs.token }} \
             --thanos-url https://${{ steps.ocp-auth.outputs.thanos_url }} \
             --insecure-tls \
-            --kpis-file hack/kpis-e2e-once.yaml \
+            --kpis-file .github/kpis/kpis-e2e-once.yaml \
             --once
 
       - name: Verify once collection
-        run: hack/verify-e2e.sh once
+        run: .github/scripts/verify-e2e.sh once
 
       - name: Clean database
         run: rm -rf kpi-collector-artifacts
@@ -86,12 +86,12 @@ jobs:
             --cluster-type ran \
             --kubeconfig "$KUBECONFIG" \
             --insecure-tls \
-            --kpis-file hack/kpis-e2e-periodic.yaml \
+            --kpis-file .github/kpis/kpis-e2e-periodic.yaml \
             --frequency 15s \
             --duration 45s
 
       - name: Verify periodic collection
-        run: hack/verify-e2e.sh periodic
+        run: .github/scripts/verify-e2e.sh periodic
 
       - name: Upload artifacts on failure
         if: failure()
