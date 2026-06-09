@@ -50,6 +50,11 @@ func (s *SQLiteDB) InitDB() (*sql.DB, error) {
 		return nil, err
 	}
 
+	// SQLite only supports one writer at a time. A single connection ensures
+	// all pragmas (busy_timeout, WAL) stay in effect and prevents SQLITE_BUSY
+	// when goroutines share this pool.
+	db.SetMaxOpenConns(1)
+
 	if _, err = db.Exec(schema.SQLitePragmas); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("setting SQLite pragmas: %w", err)
@@ -79,7 +84,13 @@ func (s *SQLiteDB) GetOrCreateCluster(db *sql.DB, clusterName string, clusterTyp
 
 	result, err := db.Exec(schema.SQLiteInsertCluster, clusterName, clusterType)
 	if err != nil {
-		return 0, err
+		// Another goroutine may have inserted the same cluster concurrently.
+		// Re-query instead of failing.
+		retryErr := db.QueryRow(schema.SQLiteSelectClusterByName, clusterName).Scan(&clusterID)
+		if retryErr != nil {
+			return 0, fmt.Errorf("insert failed (%w) and retry select failed (%w)", err, retryErr)
+		}
+		return clusterID, nil
 	}
 	return result.LastInsertId()
 }

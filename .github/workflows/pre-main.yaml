@@ -1,0 +1,282 @@
+name: Pre-Main
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Lint
+        run: make lint
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Unit tests
+        run: make test
+
+      - name: Build binary
+        run: make build
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: kpi-collector
+          path: kpi-collector
+
+  e2e-tests:
+    name: E2E Tests (K8s)
+    needs: build
+    if: github.repository_owner == 'redhat-best-practices-for-k8s'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Download binary
+        uses: actions/download-artifact@v4
+        with:
+          name: kpi-collector
+
+      - name: Make binary executable
+        run: chmod +x ./kpi-collector
+
+      - name: Deploy K8s cluster with monitoring
+        uses: palmsoftware/quick-k8s@v0.0.65
+        with:
+          enableClusterMonitoring: 'true'
+
+      - name: Wait for monitoring stack
+        timeout-minutes: 10
+        run: |
+          kubectl rollout status statefulset/prometheus-k8s -n monitoring --timeout=300s
+          kubectl rollout status deployment/thanos-query -n monitoring --timeout=300s
+
+      - name: Wait for scrape data
+        timeout-minutes: 10
+        run: |
+          kubectl port-forward -n monitoring svc/thanos-query 9090:9090 &
+          sleep 3
+          .github/scripts/wait-for-scrape-data.sh
+
+      - name: Collect once (range queries, token auth)
+        run: |
+          ./kpi-collector run \
+            --cluster-name e2e-test \
+            --cluster-type ran \
+            --token unused \
+            --thanos-url http://localhost:9090 \
+            --kpis-file .github/kpis/kpis-e2e-once.yaml \
+            --once
+
+      - name: Verify once collection
+        run: .github/scripts/verify-e2e.sh once
+
+      - name: Clean database
+        run: rm -rf kpi-collector-artifacts
+
+      - name: Collect periodic (instant queries, token auth)
+        run: |
+          ./kpi-collector run \
+            --cluster-name e2e-test \
+            --cluster-type ran \
+            --token unused \
+            --thanos-url http://localhost:9090 \
+            --kpis-file .github/kpis/kpis-e2e-periodic.yaml \
+            --frequency 15s \
+            --duration 45s
+
+      - name: Verify periodic collection
+        run: .github/scripts/verify-e2e.sh periodic
+
+      - name: Show clusters
+        run: |
+          output=$(./kpi-collector db show clusters)
+          echo "$output"
+          echo "$output" | grep -q "e2e-test"
+          echo "$output" | grep -q "CLUSTER_NAME"
+
+      - name: Show KPIs (table format)
+        run: |
+          output=$(./kpi-collector db show kpis)
+          echo "$output"
+          echo "$output" | grep -q "KPI_NAME"
+          line_count=$(echo "$output" | wc -l)
+          [ "$line_count" -gt 1 ]
+
+      - name: Show KPIs (JSON format)
+        run: |
+          output=$(./kpi-collector db show kpis -o json)
+          echo "$output" | jq '.'
+          type=$(echo "$output" | jq -r 'type')
+          [ "$type" = "array" ]
+          length=$(echo "$output" | jq 'length')
+          [ "$length" -ge 1 ]
+
+      - name: Show KPIs (CSV format)
+        run: |
+          output=$(./kpi-collector db show kpis -o csv)
+          echo "$output"
+          echo "$output" | head -1 | grep -q "kpi_name"
+          line_count=$(echo "$output" | wc -l)
+          [ "$line_count" -gt 1 ]
+
+      - name: Filter by name
+        run: |
+          output=$(./kpi-collector db show kpis --name node-cpu-usage -o json)
+          length=$(echo "$output" | jq 'length')
+          echo "node-cpu-usage: $length rows"
+          [ "$length" -eq 4 ]
+          echo "$output" | jq -e 'all(.kpi_name == "node-cpu-usage")'
+
+      - name: Filter by category
+        run: |
+          output=$(./kpi-collector db show kpis --category memory -o json)
+          length=$(echo "$output" | jq 'length')
+          echo "category memory: $length rows"
+          [ "$length" -ge 1 ]
+          echo "$output" | jq -e 'all(.category == "memory")'
+
+      - name: Limit results
+        run: |
+          output=$(./kpi-collector db show kpis --limit 2 -o json)
+          length=$(echo "$output" | jq 'length')
+          echo "limit 2: got $length rows"
+          [ "$length" -le 2 ]
+
+      - name: Sort order
+        run: |
+          desc=$(./kpi-collector db show kpis --sort desc -o json)
+          first=$(echo "$desc" | jq -r '.[0].timestamp')
+          last=$(echo "$desc" | jq -r '.[-1].timestamp')
+          echo "desc: first=$first last=$last"
+          [[ "$first" > "$last" ]] || [ "$first" = "$last" ]
+
+          asc=$(./kpi-collector db show kpis --sort asc -o json)
+          first=$(echo "$asc" | jq -r '.[0].timestamp')
+          last=$(echo "$asc" | jq -r '.[-1].timestamp')
+          echo "asc: first=$first last=$last"
+          [[ "$first" < "$last" ]] || [ "$first" = "$last" ]
+
+      - name: Time filter (since)
+        run: |
+          output=$(./kpi-collector db show kpis --since 1h -o json)
+          length=$(echo "$output" | jq 'length')
+          echo "since 1h: $length rows"
+          [ "$length" -ge 1 ]
+
+      - name: Execution time field
+        run: |
+          output=$(./kpi-collector db show kpis --show-exec-time -o json)
+          echo "$output" | jq -e '.[0].execution_time != null'
+
+      - name: Show categories
+        run: |
+          output=$(./kpi-collector db show categories)
+          echo "$output"
+          echo "$output" | grep -q "memory"
+
+      - name: Show errors (clean run)
+        run: |
+          output=$(./kpi-collector db show errors)
+          echo "$output"
+          echo "$output" | grep -q "No errors found."
+
+      - name: Remove KPIs
+        run: |
+          ./kpi-collector db remove kpis --cluster-name e2e-test --name node-cpu-usage
+
+          removed=$(./kpi-collector db show kpis --name node-cpu-usage -o json | jq 'length')
+          echo "node-cpu-usage after remove: $removed"
+          [ "$removed" -eq 0 ]
+
+          remaining=$(./kpi-collector db show kpis --name node-load-avg -o json | jq 'length')
+          echo "node-load-avg intact: $remaining"
+          [ "$remaining" -ge 1 ]
+
+      - name: Upload artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kpi-collector-artifacts-e2e
+          path: kpi-collector-artifacts/
+
+  cli-tests:
+    name: CLI Tests
+    needs: build
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Download binary
+        uses: actions/download-artifact@v4
+        with:
+          name: kpi-collector
+
+      - name: Make binary executable
+        run: chmod +x ./kpi-collector
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install PyYAML
+        run: pip install pyyaml
+
+      - name: Generate RAN profile
+        run: |
+          ./kpi-collector kpis generate --profile ran --all --overwrite
+          [ -f ran-kpis.yaml ]
+          python3 -c "import yaml; yaml.safe_load(open('ran-kpis.yaml'))"
+          grep -q "promquery:" ran-kpis.yaml
+
+      - name: Generate Core profile
+        run: |
+          ./kpi-collector kpis generate --profile core --all --overwrite
+          [ -f core-kpis.yaml ]
+          python3 -c "import yaml; yaml.safe_load(open('core-kpis.yaml'))"
+          grep -q "promquery:" core-kpis.yaml
+
+      - name: Generate Hub profile
+        run: |
+          ./kpi-collector kpis generate --profile hub --all --overwrite
+          [ -f hub-kpis.yaml ]
+          python3 -c "import yaml; yaml.safe_load(open('hub-kpis.yaml'))"
+          grep -q "promquery:" hub-kpis.yaml
+
+      - name: Uncategorized flag
+        run: |
+          ./kpi-collector kpis generate --profile ran --all --uncategorized --overwrite
+          ! grep -q "category:" ran-kpis.yaml
+
+      - name: Overwrite protection
+        run: |
+          ./kpi-collector kpis generate --profile ran --all --overwrite
+          ./kpi-collector kpis generate --profile ran --all --overwrite
+
+      - name: Version command
+        run: |
+          output=$(./kpi-collector version)
+          echo "$output"
+          [ -n "$output" ]

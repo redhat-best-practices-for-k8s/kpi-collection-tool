@@ -1,12 +1,12 @@
 package schema
 
 // SQLitePragmas contains WAL mode and busy-timeout settings that improve
-// write throughput and concurrency. WAL allows readers and writers to proceed
-// concurrently; busy_timeout makes concurrent writers wait (up to 5 s) instead
-// of returning SQLITE_BUSY immediately.
+// write throughput and concurrency. busy_timeout must come first so that
+// concurrent connections wait instead of returning SQLITE_BUSY immediately
+// when the WAL journal-mode switch takes an exclusive lock.
 const SQLitePragmas = `
-PRAGMA journal_mode = WAL;
 PRAGMA busy_timeout = 5000;
+PRAGMA journal_mode = WAL;
 `
 
 // SQLiteTables creates the core tables required by the KPI collector.

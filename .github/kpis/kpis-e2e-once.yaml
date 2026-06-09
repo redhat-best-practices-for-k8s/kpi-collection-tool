@@ -1,0 +1,22 @@
+kpis:
+  - id: node-load-range
+    promquery: avg(node_load1)
+    query-type: range
+    range:
+      step: 1m
+      since: 3m
+
+  - id: memory-usage-range
+    promquery: avg(node_memory_MemAvailable_bytes)
+    query-type: range
+    range:
+      step: 1m
+      since: 3m
+
+  - id: pod-count-range
+    promquery: count(kube_pod_info)
+    query-type: range
+    range:
+      step: 1m
+      since: 3m
+    category: workload

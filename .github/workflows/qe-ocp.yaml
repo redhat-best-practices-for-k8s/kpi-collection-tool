@@ -1,0 +1,101 @@
+name: QE (OCP)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'
+
+permissions: read-all
+
+jobs:
+  e2e-tests:
+    if: github.repository_owner == 'redhat-best-practices-for-k8s'
+    name: E2E Tests (OCP)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      KUBECONFIG: '/home/runner/.crc/machines/crc/kubeconfig'
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Check for CRC pull secret
+        env:
+          pull_secret: ${{ secrets.CRC_PULL_SECRET }}
+        if: ${{ env.pull_secret == '' }}
+        run: |
+          echo "CRC_PULL_SECRET is not set — skipping integration test"
+          exit 1
+
+      - name: Deploy OCP cluster
+        uses: palmsoftware/quick-ocp@v0.0.32
+        with:
+          ocpPullSecret: $OCP_PULL_SECRET
+          bundleCache: true
+          enableClusterMonitoring: 'true'
+        env:
+          OCP_PULL_SECRET: ${{ secrets.CRC_PULL_SECRET }}
+
+      - name: Wait for monitoring stack
+        timeout-minutes: 30
+        run: |
+          until oc get route thanos-querier -n openshift-monitoring &>/dev/null; do
+            echo "Waiting for thanos-querier route..."
+            sleep 30
+          done
+          echo "Monitoring stack is ready"
+
+      - name: Build kpi-collector
+        run: make build
+
+      - name: Extract token and Thanos URL
+        id: ocp-auth
+        run: |
+          TOKEN=$(oc create token prometheus-k8s -n openshift-monitoring --duration=10m)
+          THANOS_URL=$(oc get route thanos-querier -n openshift-monitoring -o jsonpath='{.spec.host}')
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+          echo "thanos_url=$THANOS_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Collect once (range queries, token auth)
+        run: |
+          ./kpi-collector run \
+            --cluster-name e2e-test \
+            --cluster-type ran \
+            --token ${{ steps.ocp-auth.outputs.token }} \
+            --thanos-url https://${{ steps.ocp-auth.outputs.thanos_url }} \
+            --insecure-tls \
+            --kpis-file .github/kpis/kpis-e2e-once.yaml \
+            --once
+
+      - name: Verify once collection
+        run: .github/scripts/verify-e2e.sh once
+
+      - name: Clean database
+        run: rm -rf kpi-collector-artifacts
+
+      - name: Collect periodic (instant queries, kubeconfig auth)
+        run: |
+          ./kpi-collector run \
+            --cluster-name e2e-test \
+            --cluster-type ran \
+            --kubeconfig "$KUBECONFIG" \
+            --insecure-tls \
+            --kpis-file .github/kpis/kpis-e2e-periodic.yaml \
+            --frequency 15s \
+            --duration 45s
+
+      - name: Verify periodic collection
+        run: .github/scripts/verify-e2e.sh periodic
+
+      - name: Upload artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kpi-collector-artifacts-ocp
+          path: kpi-collector-artifacts/

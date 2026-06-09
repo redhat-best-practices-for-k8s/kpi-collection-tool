@@ -242,7 +242,14 @@ func runShowKPIs(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(results) == 0 {
-		fmt.Println("No results found.")
+		switch outputFormat {
+		case output.FormatJSON:
+			fmt.Println("[]")
+		case output.FormatCSV:
+			fmt.Println("id,kpi_name,category,cluster,value,timestamp,labels")
+		default:
+			fmt.Println("No results found.")
+		}
 		return nil
 	}
 
