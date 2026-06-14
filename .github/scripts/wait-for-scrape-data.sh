@@ -4,6 +4,10 @@
 #
 # Usage: .github/scripts/wait-for-scrape-data.sh [thanos-url]
 #   thanos-url  Thanos query endpoint (default: http://localhost:9090)
+#
+# Environment variables (optional, for authenticated endpoints):
+#   BEARER_TOKEN   - Bearer token for Authorization header
+#   INSECURE_TLS   - Set to "true" to skip TLS verification (-k)
 
 set -euo pipefail
 
@@ -12,10 +16,18 @@ MAX_ATTEMPTS=60
 POLL_INTERVAL=5
 HISTORY_WAIT=180
 
+CURL_OPTS=(-sf)
+if [ "${INSECURE_TLS:-}" = "true" ]; then
+  CURL_OPTS+=(-k)
+fi
+if [ -n "${BEARER_TOKEN:-}" ]; then
+  CURL_OPTS+=(-H "Authorization: Bearer ${BEARER_TOKEN}")
+fi
+
 echo "Waiting for scrape data at $THANOS_URL ..."
 
 for i in $(seq 1 "$MAX_ATTEMPTS"); do
-  count=$(curl -sf "${THANOS_URL}/api/v1/query?query=up" \
+  count=$(curl "${CURL_OPTS[@]}" "${THANOS_URL}/api/v1/query?query=up" \
     | jq '.data.result | length' 2>/dev/null || echo 0)
   if [ "$count" -gt 0 ]; then
     echo "Thanos has data ($count series)"

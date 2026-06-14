@@ -57,10 +57,17 @@ jobs:
       - name: Extract token and Thanos URL
         id: ocp-auth
         run: |
-          TOKEN=$(oc create token prometheus-k8s -n openshift-monitoring --duration=10m)
+          TOKEN=$(oc create token prometheus-k8s -n openshift-monitoring --duration=20m)
           THANOS_URL=$(oc get route thanos-querier -n openshift-monitoring -o jsonpath='{.spec.host}')
           echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
           echo "thanos_url=$THANOS_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for scrape data
+        timeout-minutes: 10
+        env:
+          BEARER_TOKEN: ${{ steps.ocp-auth.outputs.token }}
+          INSECURE_TLS: 'true'
+        run: .github/scripts/wait-for-scrape-data.sh "https://${{ steps.ocp-auth.outputs.thanos_url }}"
 
       - name: Collect once (range queries, token auth)
         run: |
