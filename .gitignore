@@ -7,3 +7,7 @@ grafana/datasource/datasource.yaml
 kpis.yaml
 minimal-performanceprofile.yaml
 docs/images/how-it-works.puml
+
+# Runtime artifacts
+kpi-collector-artifacts/
+*.db
