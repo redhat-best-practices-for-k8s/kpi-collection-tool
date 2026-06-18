@@ -54,50 +54,18 @@ The project uses golangci-lint v2 with configuration in `golangci.yml`. Enabled 
 ## Code Organization
 
 ```
-kpi-collection-tool/
-├── cmd/kpi-collector/        # Main application entry point
-│   └── main.go              # Calls commands.Execute()
-├── internal/                 # Private packages
-│   ├── collector/           # KPI collection orchestration
-│   ├── commands/            # CLI commands (Cobra)
-│   │   ├── root.go          # Root command
-│   │   ├── run.go           # 'run' command - collect metrics
-│   │   ├── db.go            # 'db' command - database operations
-│   │   ├── db_show.go       # 'db show' subcommands
-│   │   ├── db_remove.go     # 'db remove' subcommands
-│   │   ├── grafana.go       # 'grafana' command
-│   │   ├── grafana_start.go # 'grafana start' subcommand
-│   │   └── grafana_stop.go  # 'grafana stop' subcommand
-│   ├── config/              # Configuration types and validation
-│   │   ├── types.go         # InputFlags, Query, KPIs structs
-│   │   ├── cli_flags.go     # Flag validation
-│   │   ├── kpis_loader.go   # KPI YAML file loading
-│   │   └── query_placeholders.go  # CPU placeholder substitution
-│   ├── database/            # Database abstraction layer
-│   │   ├── interface.go     # Database interface definition
-│   │   ├── factory.go       # Database factory/initialization
-│   │   ├── sqlite.go        # SQLite implementation
-│   │   └── postgres.go      # PostgreSQL implementation
-│   ├── kubernetes/          # Kubernetes/OpenShift integration
-│   │   ├── client.go        # Kubeconfig auth, Thanos discovery
-│   │   ├── performanceprofile.go  # CPU fetching from PerformanceProfiles
-│   │   └── types.go         # K8s client interface
-│   ├── logger/              # File-based logging
-│   ├── output/              # Multi-format output (table/json/csv)
-│   │   ├── output.go        # Printer and record types
-│   │   ├── table.go         # Table formatting
-│   │   ├── json.go          # JSON formatting
-│   │   └── csv.go           # CSV formatting
-│   └── prometheus/          # Prometheus/Thanos client
-│       ├── client.go        # Query execution and storage
-│       └── types.go         # Token round tripper
-├── grafana-templates/        # Embedded Grafana dashboard templates
-│   ├── embed.go             # Go embed directives
-│   ├── sqlite-dashboard.json
-│   └── postgres-dashboard.json
-├── kpis.yaml.template       # Example KPI configuration file
-├── golangci.yml             # Linter configuration
-└── Makefile                 # Build automation
+cmd/kpi-collector/main.go   # Entry point → commands.Execute()
+internal/
+  collector/                # KPI collection orchestration (goroutines per frequency group)
+  commands/                 # CLI commands (Cobra): run, db show/remove, grafana start/stop, kpis generate
+  config/                   # InputFlags, Query, KPIs structs; YAML loading; CPU placeholder substitution
+  database/                 # Database interface + SQLite/Postgres implementations
+  kubernetes/               # Kubeconfig auth, Thanos discovery, PerformanceProfile CPU fetching
+  logger/                   # File-based logging
+  output/                   # Table/JSON/CSV formatters
+  prometheus/               # Prometheus/Thanos query client
+grafana-templates/          # Embedded dashboard JSON (sqlite + postgres variants)
+kpi-profiles/               # Embedded KPI YAML profiles (ran, core, hub, basic, quickstart)
 ```
 
 ## Key Dependencies
@@ -124,25 +92,15 @@ This project uses Go 1.26.1. Ensure your environment matches.
 ### Testing Framework
 Tests use Ginkgo/Gomega BDD framework. Test files follow the pattern `*_test.go` with corresponding `*_suite_test.go` files for test suite setup.
 
-### CLI Structure
-Commands are organized using Cobra:
-- `kpi-collector kpis generate --profile <profile>`: Generate a KPI file for a cluster profile (ran, core, hub). Use `--uncategorized` to omit category fields. Use `--uncategorized` to omit category fields
-- `kpi-collector run`: Collect KPI metrics (use `--once` to collect once and exit)
+### CLI Structure (Cobra)
+- `kpi-collector kpis generate --profile <profile> [--uncategorized]`: Generate a KPI file for a cluster profile
+- `kpi-collector run [--once]`: Collect KPI metrics
 - `kpi-collector db show clusters|kpis|categories|errors`: Query stored data
 - `kpi-collector db remove clusters|kpis|errors`: Delete data
 - `kpi-collector grafana start|stop`: Manage Grafana dashboard
 
 ### Database Interface
-New database backends should implement the `Database` interface in `internal/database/interface.go`:
-```go
-type Database interface {
-    InitDB() (*sql.DB, error)
-    GetOrCreateCluster(db *sql.DB, clusterName string, clusterType string) (int64, error)
-    IncrementQueryError(db *sql.DB, kpiID string) error
-    GetQueryErrorCount(db *sql.DB, kpiID string) (int, error)
-    StoreQueryResults(db *sql.DB, clusterID int64, queryID string, result model.Value) error
-}
-```
+New backends implement the `Database` interface in `internal/database/interface.go`.
 
 ### Configuration
 - Default artifacts directory: `./kpi-collector-artifacts/` (created in the current working directory)
@@ -202,95 +160,38 @@ Range query notes:
 
 ## Common Workflows
 
-### Collecting Metrics from a Cluster
 ```bash
-# Using kubeconfig (auto-discovers Thanos and creates token)
-kpi-collector run \
-  --cluster-name my-cluster \
-  --cluster-type ran \
-  --kubeconfig ~/.kube/config \
-  --kpis-file kpis.yaml \
-  --frequency 60 \
-  --duration 1h
+# Collect via kubeconfig (auto-discovers Thanos, creates token)
+kpi-collector run --cluster-name my-cluster --cluster-type ran \
+  --kubeconfig ~/.kube/config --kpis-file kpis.yaml --frequency 60 --duration 1h
 
-# Using manual credentials
-kpi-collector run \
-  --cluster-name my-cluster \
-  --cluster-type core \
-  --token $TOKEN \
-  --thanos-url $THANOS_URL \
-  --kpis-file kpis.yaml
+# Collect via manual credentials
+kpi-collector run --cluster-name my-cluster --cluster-type core \
+  --token $TOKEN --thanos-url $THANOS_URL --kpis-file kpis.yaml
 
-# Single run: collect all KPIs once and exit
-kpi-collector run \
-  --cluster-name my-cluster \
-  --cluster-type ran \
-  --kubeconfig ~/.kube/config \
-  --kpis-file kpis.yaml \
-  --once
-```
+# Single collection pass
+kpi-collector run --cluster-name my-cluster --cluster-type ran \
+  --kubeconfig ~/.kube/config --kpis-file kpis.yaml --once
 
-### Querying Stored Data
-```bash
-# List clusters
+# Query stored data
 kpi-collector db show clusters
-
-# Query KPIs with filters
 kpi-collector db show kpis --name "node-cpu-usage" --cluster-name "my-cluster" --limit 100
 
-# View query errors
-kpi-collector db show errors
-```
-
-### Starting Grafana Dashboard
-```bash
-# With SQLite (default)
+# Grafana
 kpi-collector grafana start --datasource=sqlite
-
-# With PostgreSQL
-kpi-collector grafana start --datasource=postgres \
-  --postgres-url "postgresql://user:pass@host:5432/kpi"
-
-# Stop Grafana
+kpi-collector grafana start --datasource=postgres --postgres-url "postgresql://user:pass@host:5432/kpi"
 kpi-collector grafana stop
-```
-
-### Building
-```bash
-# Build portable static binary (default)
-make build
-
-# Build with debug symbols (for use with dlv/gdb)
-make build-debug
-
-# Install globally
-make install
 ```
 
 ## Architecture Notes
 
 ### Collection Flow
-1. CLI parses flags and loads KPI configuration from YAML file
-2. If kubeconfig provided, discovers Thanos URL and creates service account token
-3. CPU placeholders are substituted if detected in queries
-4. KPIs are grouped by sampling frequency
-5. Goroutines are spawned per frequency group
-6. Each goroutine executes queries at its frequency using Prometheus client
-7. Results are stored in the configured database
-8. Collection continues until duration expires or interrupted
+Flags → load KPI YAML → discover Thanos (if kubeconfig) → substitute CPU placeholders →
+group KPIs by frequency → spawn goroutines per group → query Prometheus → store in DB →
+repeat until duration expires or `--once`.
 
 ### Database Schema
-The database stores:
-- **Clusters**: ID, name, type, created timestamp
-- **KPI Metrics**: Cluster ID, KPI ID, value, timestamp, execution time, labels (JSON)
-- **Query Errors**: KPI ID, error count
+Tables: clusters (id, name, type, created), kpi_metrics (cluster_id, kpi_id, value, timestamp, exec_time, labels JSON), query_errors (kpi_id, error_count). Category queries go to `kpi_<category>` tables.
 
 ### Grafana Integration
-The tool manages Grafana via Docker/Podman:
-- Generates datasource configuration for SQLite or PostgreSQL
-- Provisions pre-built dashboards from embedded templates
-- Sets the KPI dashboard as the home page on login (`GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH`)
-- Handles container lifecycle (start/stop)
-
-Dashboard templates include hidden variables for "Fit to data" (time range auto-adjustment)
-and inline statistics (sample count, average, min, max) displayed as a text panel.
+Manages Grafana via Docker/Podman. Generates datasource config, provisions embedded dashboard templates, sets home dashboard via `GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH`.
