@@ -517,13 +517,27 @@ type KPIQueryParams struct {
 }
 
 func queryKPIs(db *sql.DB, dbImpl database.Database, params KPIQueryParams) ([]KPIResult, error) {
+	var results []KPIResult
+	var err error
+
 	if params.KPIName != "" {
-		return queryByName(db, dbImpl, params)
+		results, err = queryByName(db, dbImpl, params)
+	} else if params.Category != "" {
+		results, err = queryByCategory(db, dbImpl, params)
+	} else {
+		results, err = queryAll(db, dbImpl, params)
 	}
-	if params.Category != "" {
-		return queryByCategory(db, dbImpl, params)
+	if err != nil {
+		return nil, err
 	}
-	return queryAll(db, dbImpl, params)
+
+	sortResults(results, params.Sort)
+
+	if params.Limit > 0 && len(results) > params.Limit {
+		results = results[:params.Limit]
+	}
+
+	return results, nil
 }
 
 // queryByName resolves which table holds the KPI via the registry and queries it.
@@ -556,9 +570,8 @@ func allCategoryTables(db *sql.DB, dbImpl database.Database) ([]database.Categor
 	return all, nil
 }
 
-// queryAll scans every known table (default + all categories), merges, sorts, and limits.
-// Sort and limit must happen here (not in SQL) because rows come from separate tables —
-// we can't know the global ordering or which rows survive the limit until all tables are merged.
+// queryAll scans every known table (default + all categories) and merges the results.
+// Sorting and limiting are handled by the caller (queryKPIs).
 func queryAll(db *sql.DB, dbImpl database.Database, params KPIQueryParams) ([]KPIResult, error) {
 	tables, err := allCategoryTables(db, dbImpl)
 	if err != nil {
@@ -572,12 +585,6 @@ func queryAll(db *sql.DB, dbImpl database.Database, params KPIQueryParams) ([]KP
 			return nil, err
 		}
 		results = append(results, rows...)
-	}
-
-	sortResults(results, params.Sort)
-
-	if params.Limit > 0 && len(results) > params.Limit {
-		results = results[:params.Limit]
 	}
 
 	return results, nil
@@ -654,9 +661,9 @@ func queryFromTable(db *sql.DB, dbImpl database.Database, tableName, category st
 func sortResults(results []KPIResult, order string) {
 	sort.Slice(results, func(i, j int) bool {
 		if order == "desc" {
-			return results[i].ExecutionTime.After(results[j].ExecutionTime)
+			return results[i].TimestampValue > results[j].TimestampValue
 		}
-		return results[i].ExecutionTime.Before(results[j].ExecutionTime)
+		return results[i].TimestampValue < results[j].TimestampValue
 	})
 }
 
