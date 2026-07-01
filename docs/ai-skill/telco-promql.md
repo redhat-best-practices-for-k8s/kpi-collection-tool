@@ -1,7 +1,8 @@
 # Telco PromQL Reference for kpi-collector
 
 Comprehensive PromQL queries for OpenShift Telco clusters, organized by cluster type.
-All queries are formatted as kpis.yaml entries ready to copy.
+All queries are formatted as kpis.yaml entries ready to copy. These match the built-in
+profiles available via `kpi-collector kpis generate --profile <ran|core|hub>`.
 
 ## RAN Cluster
 
@@ -11,92 +12,83 @@ compliance, PTP timing, low-level system resource usage, and SRIOV networking.
 ### CPU & Resource Isolation
 
 ```yaml
-- id: node-cpu-usage
-  promquery: avg by (instance) (rate(node_cpu_seconds_total{mode!="idle"}[5m]))
+- id: cpu-reserved-cores
+  promquery: avg by (cpu) (rate(node_cpu_seconds_total{cpu=~"{{RESERVED_CPUS}}",mode!="idle"}[5m]))
+  category: cpu
 
-- id: node-memory-usage
-  promquery: node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes
+- id: cpu-isolated-cores
+  promquery: avg by (cpu) (rate(node_cpu_seconds_total{cpu=~"{{ISOLATED_CPUS}}",mode!="idle"}[5m]))
+  category: cpu
 
-- id: cpu-reserved-usage
-  promquery: rate(node_cpu_seconds_total{cpu=~"{{RESERVED_CPUS}}", mode!="idle"}[5m])
+- id: cpu-node-total
+  promquery: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+  category: cpu
 
-- id: cpu-isolated-usage
-  promquery: rate(node_cpu_seconds_total{cpu=~"{{ISOLATED_CPUS}}", mode!="idle"}[5m])
-
-- id: cpu-reserved-by-mode
-  promquery: sum by (cpu, mode) (rate(node_cpu_seconds_total{cpu=~"{{RESERVED_CPUS}}"}[5m]))
-
-- id: cpu-isolated-idle
-  promquery: rate(node_cpu_seconds_total{cpu=~"{{ISOLATED_CPUS}}", mode="idle"}[5m])
-
-- id: system-slice-cpu
+- id: cpu-system-slice
   promquery: sort_desc(rate(container_cpu_usage_seconds_total{id=~"/system.slice/.*"}[5m]))
+  category: cpu
 
-- id: ovs-slice-cpu
+- id: cpu-ovs-slice
   promquery: sort_desc(rate(container_cpu_usage_seconds_total{id=~"/ovs.slice/.*"}[5m]))
+  category: cpu
 
-- id: irq-by-cpu
-  promquery: rate(node_cpu_seconds_total{mode="irq"}[5m])
-
-- id: softirq-by-cpu
-  promquery: rate(node_cpu_seconds_total{mode="softirq"}[5m])
-
-- id: context-switches
-  promquery: rate(node_context_switches_total[5m])
-
-- id: node-memory-hugepages-free
-  promquery: node_memory_HugePages_Free
-
-- id: node-memory-hugepages-total
-  promquery: node_memory_HugePages_Total
-  run-once: true
+- id: cpu-pods-average
+  promquery: sort_desc(avg_over_time(pod:container_cpu_usage:sum[5m]))
+  category: cpu
 ```
 
-### PTP / Timing
+### Memory & Hugepages
 
 ```yaml
+- id: memory-node-used-percentage
+  promquery: 100 * (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes))
+  category: memory
+
+- id: memory-working-set-by-pod
+  promquery: sort_desc(sum(container_memory_working_set_bytes{container!="",container!="POD"}) by (pod, namespace))
+  category: memory
+
+- id: memory-rss-by-pod
+  promquery: sort_desc(sum(container_memory_rss{container!="",container!="POD"}) by (pod, namespace))
+  category: memory
+
+- id: hugepages-1g-free
+  promquery: node_hugepages_free{hugepagesize="1048576"}
+  category: memory
+
+- id: hugepages-1g-total
+  promquery: node_hugepages_total{hugepagesize="1048576"}
+  category: memory
+
+- id: hugepages-2m-free
+  promquery: node_hugepages_free{hugepagesize="2048"}
+  category: memory
+
+- id: hugepages-2m-total
+  promquery: node_hugepages_total{hugepagesize="2048"}
+  category: memory
+```
+
+### PTP (Precision Time Protocol)
+
+Requires: ptp-operator with linuxptp daemons (ptp4l, phc2sys) running.
+
+```yaml
+- id: ptp-offset-master
+  promquery: openshift_ptp_offset_ns{iface="CLOCK_REALTIME",process="phc2sys"}
+  category: ptp
+
+- id: ptp-max-offset-master
+  promquery: openshift_ptp_max_offset_ns{iface="CLOCK_REALTIME",process="phc2sys"}
+  category: ptp
+
 - id: ptp-clock-state
   promquery: openshift_ptp_clock_state
-  run-once: true
+  category: ptp
 
-- id: ptp-offset-ns
-  promquery: abs(openshift_ptp_offset_ns)
-
-- id: ptp-max-offset
-  promquery: max_over_time(abs(openshift_ptp_offset_ns)[1h:])
-  run-once: true
-
-- id: ptp-clock-class
-  promquery: openshift_ptp_clock_class
-  run-once: true
-
-- id: ptp-delay-ns
-  promquery: openshift_ptp_delay_ns
-
-- id: ptp-offset-by-node
-  promquery: openshift_ptp_offset_ns * on(node) group_left() kube_node_info
-
-- id: ptp-frequency-adjustment
-  promquery: openshift_ptp_frequency_adjustment_ns
-
-- id: ptp-port-state
+- id: ptp-interface-role
   promquery: openshift_ptp_interface_role
-  run-once: true
-
-- id: ptp-process-restarts
-  promquery: changes(openshift_ptp_process_restart_count[1h])
-  run-once: true
-
-- id: ptp-gm-clock-class
-  promquery: openshift_ptp_clock_class{process="ts2phc"}
-
-- id: ptp-offset-range-1h
-  promquery: abs(openshift_ptp_offset_ns)
-  query-type: range
-  range:
-    step: 10s
-    since: 1h
-  run-once: true
+  category: ptp
 ```
 
 #### PTP clock state values
@@ -107,240 +99,330 @@ compliance, PTP timing, low-level system resource usage, and SRIOV networking.
 | 1 | LOCKED — synchronized to GM |
 | 2 | HOLDOVER — lost GM, using local oscillator |
 
-#### PTP clock class values
-
-| Class | Meaning |
-|-------|---------|
-| 6 | Locked to primary reference (GNSS) |
-| 7 | Previously locked, now holdover |
-| 52 | Degraded, alternative holdover |
-| 140 | Holdover, out of spec |
-| 248 | Free-running |
-
-### RAN Networking & SRIOV
+### Network
 
 ```yaml
-- id: container-rx-eth0
+- id: network-node-rx-bytes
+  promquery: sort_desc(rate(node_network_receive_bytes_total{device!~"lo|veth.*|br.*|ovs.*"}[5m]))
+  category: network
+
+- id: network-node-tx-bytes
+  promquery: sort_desc(rate(node_network_transmit_bytes_total{device!~"lo|veth.*|br.*|ovs.*"}[5m]))
+  category: network
+
+- id: network-node-rx-errors
+  promquery: sort_desc(rate(node_network_receive_errs_total{device!~"lo|veth.*|br.*|ovs.*"}[5m]))
+  category: network
+
+- id: network-node-tx-errors
+  promquery: sort_desc(rate(node_network_transmit_errs_total{device!~"lo|veth.*|br.*|ovs.*"}[5m]))
+  category: network
+
+- id: network-container-rx-bytes
   promquery: sort_desc(rate(container_network_receive_bytes_total{interface="eth0"}[5m]))
+  category: network
 
-- id: container-tx-eth0
+- id: network-container-tx-bytes
   promquery: sort_desc(rate(container_network_transmit_bytes_total{interface="eth0"}[5m]))
-
-- id: interface-bandwidth-rx
-  promquery: rate(node_network_receive_bytes_total{device!~"lo|veth.*|br.*"}[5m]) * 8
-
-- id: interface-bandwidth-tx
-  promquery: rate(node_network_transmit_bytes_total{device!~"lo|veth.*|br.*"}[5m]) * 8
-
-- id: packet-drops-rx
-  promquery: rate(node_network_receive_drop_total[5m]) > 0
-
-- id: packet-drops-tx
-  promquery: rate(node_network_transmit_drop_total[5m]) > 0
-
-- id: packet-errors-rx
-  promquery: rate(node_network_receive_errs_total[5m]) > 0
+  category: network
 ```
 
-#### SRIOV (requires sriov-network-metrics-exporter)
+### OVN-Kubernetes
+
+Requires: OVN-Kubernetes network plugin (default on OpenShift 4.x).
 
 ```yaml
-- id: sriov-vf-rx-bytes
-  promquery: rate(sriov_vf_rx_bytes[5m])
+- id: ovn-controller-cpu
+  promquery: rate(container_cpu_usage_seconds_total{container="ovn-controller"}[5m])
+  category: network
 
-- id: sriov-vf-tx-bytes
-  promquery: rate(sriov_vf_tx_bytes[5m])
-
-- id: sriov-vf-rx-packets
-  promquery: rate(sriov_vf_rx_packets[5m])
-
-- id: sriov-vf-tx-packets
-  promquery: rate(sriov_vf_tx_packets[5m])
-
-- id: sriov-vf-rx-dropped
-  promquery: rate(sriov_vf_rx_dropped[5m]) > 0
-
-- id: sriov-vf-tx-dropped
-  promquery: rate(sriov_vf_tx_dropped[5m]) > 0
+- id: ovn-controller-memory
+  promquery: container_memory_working_set_bytes{container="ovn-controller"}
+  category: network
 ```
 
-### RAN DU/CU Workloads
+### Disk I/O
 
 ```yaml
-- id: du-pod-cpu
-  promquery: sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=~".*du.*", container!=""}[5m]))
+- id: disk-io-read-bytes
+  promquery: sort_desc(rate(node_disk_read_bytes_total{device!~"dm-.*"}[5m]))
+  category: disk
 
-- id: du-pod-memory
-  promquery: sum by (pod) (container_memory_working_set_bytes{namespace=~".*du.*", container!=""})
+- id: disk-io-write-bytes
+  promquery: sort_desc(rate(node_disk_written_bytes_total{device!~"dm-.*"}[5m]))
+  category: disk
 
-- id: pod-cpu-throttling
-  promquery: sum by (pod, namespace) (rate(container_cpu_cfs_throttled_periods_total[5m])) / sum by (pod, namespace) (rate(container_cpu_cfs_periods_total[5m])) > 0
+- id: disk-usage-percentage
+  promquery: 100 - ((node_filesystem_avail_bytes{mountpoint="/",fstype!="tmpfs"} / node_filesystem_size_bytes{mountpoint="/",fstype!="tmpfs"}) * 100)
+  category: disk
+```
 
-- id: pod-restarts
-  promquery: sum by (pod, namespace) (kube_pod_container_status_restarts_total) > 0
+### Kernel & System
 
-- id: node-disk-usage-percent
-  promquery: 100 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} * 100)
+```yaml
+- id: node-context-switches
+  promquery: rate(node_context_switches_total[5m])
+  category: system
+
+- id: node-interrupts
+  promquery: rate(node_intr_total[5m])
+  category: system
+```
+
+### Pod Health
+
+```yaml
+- id: pod-restart-count
+  promquery: sort_desc(sum(kube_pod_container_status_restarts_total) by (namespace, pod))
+  category: pod-health
 ```
 
 ## Core Cluster
 
-Core clusters run 5G network functions (AMF, SMF, UPF). Focus on NF pod resource usage,
-network throughput, and service availability. Adapt namespace filters (`.*5gc.*`) to
-match the actual deployment.
+Core clusters run 5G core network functions. Focus on API server health, etcd stability,
+namespace-level resource consumption, ingress performance, and storage.
 
-### 5G Network Functions
-
-```yaml
-- id: amf-cpu
-  promquery: sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=~".*5gc.*", pod=~".*amf.*", container!=""}[5m]))
-
-- id: smf-cpu
-  promquery: sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=~".*5gc.*", pod=~".*smf.*", container!=""}[5m]))
-
-- id: upf-cpu
-  promquery: sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=~".*5gc.*", pod=~".*upf.*", container!=""}[5m]))
-
-- id: amf-memory
-  promquery: sum by (pod) (container_memory_working_set_bytes{namespace=~".*5gc.*", pod=~".*amf.*", container!=""})
-
-- id: smf-memory
-  promquery: sum by (pod) (container_memory_working_set_bytes{namespace=~".*5gc.*", pod=~".*smf.*", container!=""})
-
-- id: upf-memory
-  promquery: sum by (pod) (container_memory_working_set_bytes{namespace=~".*5gc.*", pod=~".*upf.*", container!=""})
-```
-
-### Core Node & Pod Resources
+### API Server
 
 ```yaml
-- id: node-cpu-usage
-  promquery: avg by (instance) (rate(node_cpu_seconds_total{mode!="idle"}[5m]))
-
-- id: node-memory-usage
-  promquery: node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes
-
-- id: pod-cpu-top20
-  promquery: topk(20, sum by (pod, namespace) (rate(container_cpu_usage_seconds_total{container!=""}[5m])))
-
-- id: pod-memory-top20
-  promquery: topk(20, sum by (pod, namespace) (container_memory_working_set_bytes{container!=""}))
-
-- id: pod-oom-kills
-  promquery: kube_pod_container_status_last_terminated_reason{reason="OOMKilled"}
-
-- id: pod-restarts
-  promquery: sum by (pod, namespace) (kube_pod_container_status_restarts_total) > 0
-
-- id: node-disk-usage-percent
-  promquery: 100 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} * 100)
-```
-
-### Core Networking
-
-```yaml
-- id: network-receive-bytes
-  promquery: sort_desc(rate(node_network_receive_bytes_total[5m]))
-
-- id: network-transmit-bytes
-  promquery: sort_desc(rate(node_network_transmit_bytes_total[5m]))
-
-- id: interface-packet-rate-rx
-  promquery: rate(node_network_receive_packets_total{device!~"lo|veth.*|br.*"}[5m])
-
-- id: interface-packet-rate-tx
-  promquery: rate(node_network_transmit_packets_total{device!~"lo|veth.*|br.*"}[5m])
-
-- id: interface-drop-rate
-  promquery: rate(node_network_receive_drop_total[5m]) + rate(node_network_transmit_drop_total[5m])
-
-- id: container-rx-all-interfaces
-  promquery: sort_desc(sum by (pod, interface) (rate(container_network_receive_bytes_total[5m])))
-
-- id: container-tx-all-interfaces
-  promquery: sort_desc(sum by (pod, interface) (rate(container_network_transmit_bytes_total[5m])))
-```
-
-## Hub Cluster
-
-Hub clusters manage other clusters (e.g. via ACM/RHACM). Focus on control plane health,
-etcd stability, API server performance, and overall resource headroom.
-
-### Control Plane
-
-```yaml
-- id: apiserver-request-latency-p99
-  promquery: histogram_quantile(0.99, sum by (le, verb) (rate(apiserver_request_duration_seconds_bucket{job="apiserver"}[5m])))
+- id: apiserver-request-duration-99p
+  promquery: histogram_quantile(0.99, sum(rate(apiserver_request_duration_seconds_bucket{verb!="WATCH"}[5m])) by (verb, le))
+  category: apiserver
 
 - id: apiserver-request-rate
-  promquery: sum by (code) (rate(apiserver_request_total{job="apiserver"}[5m]))
+  promquery: sum(rate(apiserver_request_total[5m])) by (verb, code)
+  category: apiserver
 
 - id: apiserver-error-rate
-  promquery: sum(rate(apiserver_request_total{job="apiserver", code=~"5.."}[5m])) / sum(rate(apiserver_request_total{job="apiserver"}[5m]))
+  promquery: sum(rate(apiserver_request_total{code=~"5.."}[5m])) by (verb)
+  category: apiserver
+```
 
+### etcd
+
+```yaml
 - id: etcd-db-size
   promquery: etcd_mvcc_db_total_size_in_bytes
+  category: etcd
+
+- id: etcd-disk-wal-fsync-duration-99p
+  promquery: histogram_quantile(0.99, sum(rate(etcd_disk_wal_fsync_duration_seconds_bucket[5m])) by (le))
+  category: etcd
 
 - id: etcd-leader-changes
-  promquery: changes(etcd_server_leader_changes_seen_total[1h])
-  run-once: true
+  promquery: increase(etcd_server_leader_changes_seen_total[1h])
+  sample-frequency: 5m
+  category: etcd
+```
 
-- id: etcd-disk-wal-fsync-p99
-  promquery: histogram_quantile(0.99, rate(etcd_disk_wal_fsync_duration_seconds_bucket[5m]))
+### CPU & Memory
 
-- id: etcd-disk-backend-commit-p99
-  promquery: histogram_quantile(0.99, rate(etcd_disk_backend_commit_duration_seconds_bucket[5m]))
+```yaml
+- id: cpu-node-total
+  promquery: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+  category: cpu
 
-- id: cluster-node-status
-  promquery: kube_node_status_condition{condition="Ready", status="true"}
-  run-once: true
+- id: cpu-usage-by-namespace
+  promquery: sort_desc(sum(rate(container_cpu_usage_seconds_total{container!="",container!="POD"}[5m])) by (namespace))
+  category: cpu
+
+- id: memory-node-used-percentage
+  promquery: 100 * (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes))
+  category: memory
+
+- id: memory-usage-by-namespace
+  promquery: sort_desc(sum(container_memory_working_set_bytes{container!="",container!="POD"}) by (namespace))
+  category: memory
+```
+
+### Network & Ingress
+
+```yaml
+- id: network-node-rx-bytes
+  promquery: sort_desc(rate(node_network_receive_bytes_total{device!~"lo|veth.*|br.*|ovs.*"}[5m]))
+  category: network
+
+- id: network-node-tx-bytes
+  promquery: sort_desc(rate(node_network_transmit_bytes_total{device!~"lo|veth.*|br.*|ovs.*"}[5m]))
+  category: network
+
+- id: ingress-request-rate
+  promquery: sum(rate(haproxy_server_http_responses_total[5m])) by (code)
+  category: network
+```
+
+### Disk & Storage
+
+```yaml
+- id: disk-usage-percentage
+  promquery: 100 - ((node_filesystem_avail_bytes{mountpoint="/",fstype!="tmpfs"} / node_filesystem_size_bytes{mountpoint="/",fstype!="tmpfs"}) * 100)
+  category: disk
+
+- id: pv-usage-percentage
+  promquery: 100 * (1 - (kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes))
+  category: disk
+
+- id: disk-io-read-bytes
+  promquery: sort_desc(rate(node_disk_read_bytes_total{device!~"dm-.*"}[5m]))
+  category: disk
+
+- id: disk-io-write-bytes
+  promquery: sort_desc(rate(node_disk_written_bytes_total{device!~"dm-.*"}[5m]))
+  category: disk
+```
+
+### System & Pod Health
+
+```yaml
+- id: node-load-1min
+  promquery: node_load1
+  category: system
+
+- id: node-load-5min
+  promquery: node_load5
+  category: system
+
+- id: pod-restart-count
+  promquery: sort_desc(sum(kube_pod_container_status_restarts_total) by (namespace, pod))
+  category: pod-health
+
+- id: pod-status-not-ready
+  promquery: count(kube_pod_status_phase{phase=~"Pending|Failed"}) by (namespace, phase)
+  category: pod-health
 
 - id: cluster-uptime
   promquery: max(time() - process_start_time_seconds{job="kubelet"})
   run-once: true
+  category: cluster
 ```
 
-### Hub Node & Pod Resources
+## Hub Cluster
+
+Hub clusters manage spoke clusters via ACM/RHACM and GitOps. Focus on control plane
+health, ACM operator resources, managed cluster count, policy compliance, and GitOps.
+
+### API Server
 
 ```yaml
-- id: node-cpu-usage
-  promquery: avg by (instance) (rate(node_cpu_seconds_total{mode!="idle"}[5m]))
+- id: apiserver-request-duration-99p
+  promquery: histogram_quantile(0.99, sum(rate(apiserver_request_duration_seconds_bucket{verb!="WATCH"}[5m])) by (verb, le))
+  category: apiserver
 
-- id: node-cpu-by-mode
-  promquery: avg by (instance, mode) (rate(node_cpu_seconds_total[5m]))
+- id: apiserver-request-rate
+  promquery: sum(rate(apiserver_request_total[5m])) by (verb, code)
+  category: apiserver
 
-- id: node-memory-available-percent
-  promquery: 100 * node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes
+- id: apiserver-error-rate
+  promquery: sum(rate(apiserver_request_total{code=~"5.."}[5m])) by (verb)
+  category: apiserver
+```
 
-- id: node-cpu-saturation
-  promquery: node_load1 / count without (cpu, mode) (node_cpu_seconds_total{mode="idle"})
+### etcd
 
-- id: kubelet-running-pods
-  promquery: sum by (instance) (kubelet_running_pods)
+```yaml
+- id: etcd-db-size
+  promquery: etcd_mvcc_db_total_size_in_bytes
+  category: etcd
 
-- id: kubelet-running-containers
-  promquery: sum by (instance) (kubelet_running_containers)
+- id: etcd-disk-wal-fsync-duration-99p
+  promquery: histogram_quantile(0.99, sum(rate(etcd_disk_wal_fsync_duration_seconds_bucket[5m])) by (le))
+  category: etcd
 
-- id: pod-cpu-top20
-  promquery: topk(20, sum by (pod, namespace) (rate(container_cpu_usage_seconds_total{container!=""}[5m])))
+- id: etcd-leader-changes
+  promquery: increase(etcd_server_leader_changes_seen_total[1h])
+  sample-frequency: 5m
+  category: etcd
+```
 
-- id: pod-memory-top20
-  promquery: topk(20, sum by (pod, namespace) (container_memory_working_set_bytes{container!=""}))
+### CPU & Memory
 
-- id: pod-restarts
-  promquery: sum by (pod, namespace) (kube_pod_container_status_restarts_total) > 0
+```yaml
+- id: cpu-node-total
+  promquery: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+  category: cpu
 
-- id: pod-not-ready
-  promquery: kube_pod_status_ready{condition="false"}
+- id: memory-node-used-percentage
+  promquery: 100 * (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes))
+  category: memory
+```
 
-- id: node-disk-usage-percent
-  promquery: 100 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} * 100)
+### ACM (Advanced Cluster Management)
 
-- id: node-disk-io-read
-  promquery: rate(node_disk_read_bytes_total[5m])
+Requires: ACM operator installed (open-cluster-management, multicluster-engine namespaces).
 
-- id: node-disk-io-write
-  promquery: rate(node_disk_written_bytes_total[5m])
+```yaml
+- id: acm-cpu-usage
+  promquery: sort_desc(sum(rate(container_cpu_usage_seconds_total{container!="",container!="POD",namespace=~"open-cluster-management.*|multicluster-engine"}[5m])) by (namespace, pod))
+  category: acm
+
+- id: acm-memory-usage
+  promquery: sort_desc(sum(container_memory_working_set_bytes{container!="",container!="POD",namespace=~"open-cluster-management.*|multicluster-engine"}) by (namespace, pod))
+  category: acm
+
+- id: acm-managed-clusters
+  promquery: count(acm_managed_cluster_info)
+  sample-frequency: 5m
+  category: acm
+
+- id: acm-policy-noncompliant
+  promquery: count(policy_governance_info{type="root",compliant="NonCompliant"})
+  sample-frequency: 5m
+  category: acm
+```
+
+### GitOps
+
+Requires: OpenShift GitOps operator installed (openshift-gitops namespace).
+
+```yaml
+- id: gitops-cpu-usage
+  promquery: sort_desc(sum(rate(container_cpu_usage_seconds_total{container!="",container!="POD",namespace=~"openshift-gitops.*"}[5m])) by (namespace, pod))
+  category: gitops
+
+- id: gitops-memory-usage
+  promquery: sort_desc(sum(container_memory_working_set_bytes{container!="",container!="POD",namespace=~"openshift-gitops.*"}) by (namespace, pod))
+  category: gitops
+```
+
+### Disk, Network & System
+
+```yaml
+- id: disk-usage-percentage
+  promquery: 100 - ((node_filesystem_avail_bytes{mountpoint="/",fstype!="tmpfs"} / node_filesystem_size_bytes{mountpoint="/",fstype!="tmpfs"}) * 100)
+  category: disk
+
+- id: pv-usage-percentage
+  promquery: 100 * (1 - (kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes))
+  category: disk
+
+- id: network-node-rx-bytes
+  promquery: sort_desc(rate(node_network_receive_bytes_total{device!~"lo|veth.*|br.*|ovs.*"}[5m]))
+  category: network
+
+- id: network-node-tx-bytes
+  promquery: sort_desc(rate(node_network_transmit_bytes_total{device!~"lo|veth.*|br.*|ovs.*"}[5m]))
+  category: network
+
+- id: node-load-1min
+  promquery: node_load1
+  category: system
+```
+
+### Pod Health & Cluster Info
+
+```yaml
+- id: pod-restart-count
+  promquery: sort_desc(sum(kube_pod_container_status_restarts_total) by (namespace, pod))
+  category: pod-health
+
+- id: pod-status-not-ready
+  promquery: count(kube_pod_status_phase{phase=~"Pending|Failed"}) by (namespace, phase)
+  category: pod-health
+
+- id: cluster-uptime
+  promquery: max(time() - process_start_time_seconds{job="kubelet"})
+  run-once: true
+  category: cluster
 ```
 
 ## Range Query Examples

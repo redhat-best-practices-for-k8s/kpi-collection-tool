@@ -1,6 +1,7 @@
 ---
 name: kpi-collector
 description: Use and configure the kpi-collector CLI for collecting Prometheus/Thanos metrics from OpenShift clusters. Generates kpis.yaml files with Telco-specific PromQL queries for RAN, Core, PTP, networking, and resource compliance. Triggered when the user mentions kpi-collector, KPI collection, kpis.yaml, Telco metrics, PromQL for OpenShift, or Grafana dashboards for cluster monitoring.
+disable-model-invocation: false
 ---
 
 # kpi-collector CLI Skill
@@ -11,16 +12,19 @@ description: Use and configure the kpi-collector CLI for collecting Prometheus/T
 |--------|---------|
 | Collect metrics (kubeconfig) | `kpi-collector run --cluster-name NAME --cluster-type ran --kubeconfig ~/.kube/config --kpis-file kpis.yaml` |
 | Collect metrics (manual auth) | `kpi-collector run --cluster-name NAME --cluster-type core --token $TOKEN --thanos-url $URL --kpis-file kpis.yaml` |
-| Collect once and exit | `kpi-collector run --cluster-name NAME --kpis-file kpis.yaml --once` |
+| Collect once and exit | `kpi-collector run --cluster-name NAME --cluster-type ran --kpis-file kpis.yaml --once` |
+| Generate KPI config file | `kpi-collector kpis generate --profile ran --all` |
 | List clusters | `kpi-collector db show clusters` |
 | Show KPI metrics | `kpi-collector db show kpis --name "cpu-system" --cluster-name "mycluster"` |
+| Show categories | `kpi-collector db show categories` |
 | Show errors | `kpi-collector db show errors` |
-| Remove KPIs | `kpi-collector db remove kpis --name "cpu-system"` |
+| Remove KPIs | `kpi-collector db remove kpis --cluster-name "mycluster" --name "cpu-system"` |
 | Remove cluster | `kpi-collector db remove clusters --name "mycluster"` |
-| Clear errors | `kpi-collector db remove errors` |
+| Clear all errors | `kpi-collector db remove errors --all` |
 | Start Grafana (SQLite) | `kpi-collector grafana start --datasource=sqlite` |
 | Start Grafana (Postgres) | `kpi-collector grafana start --datasource=postgres --postgres-url "postgresql://user:pass@host:5432/db"` |
 | Stop Grafana | `kpi-collector grafana stop` |
+| Show version | `kpi-collector version` |
 
 ## Run Command Flags
 
@@ -28,7 +32,7 @@ description: Use and configure the kpi-collector CLI for collecting Prometheus/T
 |------|----------|---------|-------------|
 | `--cluster-name` | Yes | — | Cluster identifier |
 | `--kpis-file` | Yes | — | Path to kpis.yaml |
-| `--cluster-type` | No | — | `ran`, `core`, or `hub` |
+| `--cluster-type` | Yes | — | `ran`, `core`, or `hub` |
 | `--kubeconfig` | No* | — | Auto-discovers Thanos URL and creates token |
 | `--token` | No* | — | Bearer token (manual auth) |
 | `--thanos-url` | No* | — | Thanos URL without `https://` (manual auth) |
@@ -38,24 +42,54 @@ description: Use and configure the kpi-collector CLI for collecting Prometheus/T
 | `--db-type` | No | `sqlite` | `sqlite` or `postgres` |
 | `--postgres-url` | No | — | Required when `--db-type=postgres` |
 | `--insecure-tls` | No | `false` | Skip TLS verification |
-| `--log` | No | `kpi.log` | Log file path |
+| `--yes` / `-y` | No | `false` | Skip interactive prompts (e.g. category advisory) |
 
 *Either `--kubeconfig` or both `--token` + `--thanos-url` are required.
+
+## Global Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--artifacts-dir` | `./kpi-collector-artifacts/` | Directory for database, logs, and Grafana config (available on all commands) |
+
+## Generate Command Flags
+
+`kpi-collector kpis generate` creates a KPI configuration file tailored for a cluster profile.
+
+| Flag | Required | Default | Description |
+|------|----------|---------|-------------|
+| `--profile` / `-p` | Yes | — | Cluster profile: `ran`, `core`, or `hub` |
+| `--file` / `-f` | No | `<profile>-kpis.yaml` | Output file path |
+| `--all` | No | `false` | Include all KPI categories without interactive prompts |
+| `--overwrite` | No | `false` | Overwrite the output file if it already exists |
+| `--uncategorized` | No | `false` | Omit category fields (all data stored in a single table) |
 
 ## Show KPIs Flags
 
 | Flag | Description |
 |------|-------------|
-| `--name` | Filter by KPI ID |
+| `--name` | Filter by KPI ID (mutually exclusive with `--category`) |
+| `--category` | Filter by category (e.g. `cpu`, `memory`, `network`) |
 | `--cluster-name` | Filter by cluster |
 | `--labels-filter` | Label match: `key=value,key2=value2` |
-| `--since` | Duration ago: `2h`, `30m`, `24h` |
-| `--until` | Duration ago: `1h`, `15m` |
+| `--since` | Show metrics since: Go duration (`2h`, `30m`) or RFC 3339 timestamp |
+| `--until` | Show metrics until: Go duration (`1h`, `15m`) or RFC 3339 timestamp |
 | `--limit` | Max results (0 = no limit) |
 | `--sort` | `asc` or `desc` by metric timestamp |
 | `--no-truncate` | Show full labels |
 | `--show-exec-time` | Include execution time column |
-| `-o` | Output format: `table`, `json`, `csv` |
+| `-o` | Output format: `table`, `json`, `csv`, `chart` |
+| `--chart-width` | Chart width in columns (80–250, requires `-o chart`) |
+| `--chart-height` | Chart height in rows (25–250, requires `-o chart`) |
+| `--interactive` | Full-screen interactive chart with keyboard navigation (requires `-o chart` and TTY) |
+
+## Other DB Subcommand Flags
+
+**`db show clusters`**: `--name` filters by a specific cluster name.
+
+**`db remove kpis`**: requires `--cluster-name` or `--category`. Optional `--name` to target a specific KPI.
+
+**`db remove errors`**: requires `--name` (specific KPI) or `--all` (clear all errors).
 
 ## kpis.yaml File Format
 
@@ -73,6 +107,7 @@ kpis:
 |-------|----------|---------|-------------|
 | `id` | Yes | — | Unique identifier (used in DB and output) |
 | `promquery` | Yes | — | PromQL query string |
+| `category` | No | — | Route metrics to a dedicated `kpi_<category>` table for better query performance |
 | `sample-frequency` | No | global `--frequency` | Override per-KPI (seconds or duration string like `2m`) |
 | `run-once` | No | `false` | Collect once at start, skip repeated sampling |
 | `query-type` | No | `instant` | `instant` or `range` |
@@ -105,7 +140,7 @@ Always gather details from the user before running any `kpi-collector run` comma
 Ask for:
 
 1. **Cluster name** — identifier for this cluster in the database
-2. **Cluster type** — `ran`, `core`, or `hub` (optional)
+2. **Cluster type** — `ran`, `core`, or `hub` (required)
 3. **Authentication method**:
    - **Kubeconfig** — ask if `~/.kube/config` is correct, or get a custom path.
      Remind the user their kubeconfig credentials must be valid (e.g. `oc login` first).
@@ -170,11 +205,11 @@ by cluster type with complete ready-to-use KPI sets.
    retry with `--insecure-tls`.
 
 9. **Sandbox write restriction**: The default SQLite database lives at
-   `~/.kpi-collector/kpi_metrics.db`, which is outside the workspace. IDE sandbox
-   environments block writes to paths outside the project directory. If
-   `kpi-collector run` fails with `"attempt to write a readonly database"`, tell
-   the user to run the command in their own terminal instead. Read-only commands
-   like `db show` and `db show errors` work fine in the sandbox.
+   `./kpi-collector-artifacts/kpi_metrics.db` (relative to CWD). IDE sandbox
+   environments may block writes to this directory. If `kpi-collector run` fails
+   with `"attempt to write a readonly database"`, tell the user to run the
+   command in their own terminal instead. Read-only commands like `db show` and
+   `db show errors` work fine in the sandbox.
 
 ## Workflow: End-to-End Cluster Monitoring Setup
 
