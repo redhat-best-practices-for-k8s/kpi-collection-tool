@@ -67,7 +67,7 @@ jobs:
         env:
           BEARER_TOKEN: ${{ steps.ocp-auth.outputs.token }}
           INSECURE_TLS: 'true'
-        run: .github/scripts/wait-for-scrape-data.sh "https://${{ steps.ocp-auth.outputs.thanos_url }}"
+        run: .github/scripts/wait-for-scrape-data.sh "https://${{ steps.ocp-auth.outputs.thanos_url }}" kube_pod_info
 
       - name: Collect once (range queries, token auth)
         run: |
