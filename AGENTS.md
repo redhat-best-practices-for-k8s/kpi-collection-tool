@@ -20,6 +20,7 @@ The KPI Collection Tool is a CLI application for automating metrics gathering an
 
 ```bash
 make build                      # Build statically linked binary (default, portable)
+make build-darwin-arm64         # Build static binary for macOS ARM64 (Apple Silicon)
 make build-debug                # Build static binary with debug symbols (for dlv/gdb)
 make build-dynamic-linking      # Build dynamically linked binary
 make build-dynamic-linking-debug # Build dynamic binary with debug symbols
@@ -41,7 +42,10 @@ go test ./... -v        # Alternative direct command
 ## Linting
 
 ```bash
-make lint               # Run golangci-lint (auto-installs if needed)
+make lint                       # Run golangci-lint (auto-installs if needed)
+make install-golangci-lint      # Install golangci-lint (auto-detects OS)
+make install-golangci-lint-mac  # Install golangci-lint via Homebrew (macOS)
+make install-golangci-lint-linux # Install golangci-lint via go install (Linux/CI)
 ```
 
 The project uses golangci-lint v2 with configuration in `golangci.yml`. Enabled linters include:
@@ -87,7 +91,7 @@ kpi-profiles/               # Embedded KPI YAML profiles (ran, core, hub, basic,
 ## Development Guidelines
 
 ### Go Version
-This project uses Go 1.26.1. Ensure your environment matches.
+This project uses Go 1.26. Ensure your environment matches.
 
 ### Testing Framework
 Tests use Ginkgo/Gomega BDD framework. Test files follow the pattern `*_test.go` with corresponding `*_suite_test.go` files for test suite setup.
