@@ -14,9 +14,11 @@ import (
 )
 
 var grafanaStartFlags struct {
-	datasource  string
-	postgresURL string
-	port        int
+	datasource   string
+	postgresURL  string
+	port         int
+	pluginsDir   string
+	image string
 }
 
 var grafanaStartCmd = &cobra.Command{
@@ -33,7 +35,11 @@ or use --artifacts-dir to point to the artifacts directory.`,
   # Using PostgreSQL
   kpi-collector grafana start --datasource=postgres --postgres-url "postgresql://user:pass@host:5432/dbname"
   # Custom port
-  kpi-collector grafana start --datasource=sqlite --port 3001`,
+  kpi-collector grafana start --datasource=sqlite --port 3001
+  # Offline/disconnected usage (pre-loaded image + local plugins)
+  kpi-collector grafana start --datasource=sqlite \
+    --image my-registry/grafana:11.4.0 \
+    --plugins-dir ./plugins/`,
 	RunE: runGrafanaStart,
 }
 
@@ -46,6 +52,10 @@ func init() {
 		"PostgreSQL connection string (required if datasource=postgres)")
 	grafanaStartCmd.Flags().IntVar(&grafanaStartFlags.port, "port", 3000,
 		"Grafana port (default: 3000)")
+	grafanaStartCmd.Flags().StringVar(&grafanaStartFlags.pluginsDir, "plugins-dir", "",
+		"path to a local directory containing pre-extracted Grafana plugins (skips online install)")
+	grafanaStartCmd.Flags().StringVar(&grafanaStartFlags.image, "image", "",
+		"override the default Grafana container image (default: grafana/grafana:11.4.0)")
 
 	if err := grafanaStartCmd.MarkFlagRequired("datasource"); err != nil {
 		panic(fmt.Sprintf("failed to mark datasource as required: %v", err))
@@ -59,6 +69,12 @@ func runGrafanaStart(cmd *cobra.Command, args []string) error {
 
 	if grafanaStartFlags.datasource == "postgres" && grafanaStartFlags.postgresURL == "" {
 		return fmt.Errorf("--postgres-url is required when datasource is 'postgres'")
+	}
+
+	if grafanaStartFlags.pluginsDir != "" {
+		if info, err := os.Stat(grafanaStartFlags.pluginsDir); err != nil || !info.IsDir() {
+			return fmt.Errorf("--plugins-dir %q is not a valid directory", grafanaStartFlags.pluginsDir)
+		}
 	}
 
 	fmt.Printf("Starting Grafana with %s datasource...\n", grafanaStartFlags.datasource)
@@ -221,6 +237,12 @@ func runGrafanaContainer(grafanaDir string) error {
 	}
 	fmt.Printf("Container Runtime found: %s\n", runtime)
 
+	if grafanaStartFlags.image != "" {
+		if err := verifyImageAvailable(runtime, grafanaStartFlags.image); err != nil {
+			return err
+		}
+	}
+
 	// Stop and remove existing container if it exists
 	stopCmd := exec.Command(runtime, "rm", "-f", grafanaContainerName)
 	_ = stopCmd.Run() // Ignore error if container doesn't exist
@@ -273,12 +295,26 @@ func runGrafanaContainer(grafanaDir string) error {
 
 		args = append(args,
 			"-v", fmt.Sprintf("%s:/var/lib/grafana/kpi_metrics.db:ro", absDBPath),
-			"-e", "GF_INSTALL_PLUGINS=frser-sqlite-datasource",
 		)
+
+		if grafanaStartFlags.pluginsDir != "" {
+			absPluginsDir, err := filepath.Abs(grafanaStartFlags.pluginsDir)
+			if err != nil {
+				return fmt.Errorf("failed to resolve plugins-dir path: %w", err)
+			}
+			args = append(args,
+				"-v", fmt.Sprintf("%s:/var/lib/grafana/plugins:ro", absPluginsDir),
+			)
+		} else {
+			args = append(args, "-e", "GF_INSTALL_PLUGINS=frser-sqlite-datasource")
+		}
 	}
 
-	// Add the image name
-	args = append(args, "grafana/grafana:11.4.0")
+	image := "grafana/grafana:11.4.0"
+	if grafanaStartFlags.image != "" {
+		image = grafanaStartFlags.image
+	}
+	args = append(args, image)
 
 	containerRuntimeCmd := exec.Command(runtime, args...)
 	output, err := containerRuntimeCmd.CombinedOutput()
@@ -286,6 +322,17 @@ func runGrafanaContainer(grafanaDir string) error {
 		return fmt.Errorf("%s run failed: %w\nOutput: %s", runtime, err, string(output))
 	}
 
+	return nil
+}
+
+func verifyImageAvailable(runtime, image string) error {
+	cmd := exec.Command(runtime, "image", "inspect", image)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf(
+			"image %q not found locally; pull or load it first (%s pull %s)\nOutput: %s",
+			image, runtime, image, string(output),
+		)
+	}
 	return nil
 }
 
