@@ -48,6 +48,8 @@ Flags:
 | `--datasource` | Yes | Database type: `sqlite` or `postgres` | `--datasource=postgres` |
 | `--postgres-url` | If postgres | PostgreSQL connection string | `--postgres-url="postgresql://user:pass@host:5432/db"` |
 | `--port` | No | Grafana port (default: `3000`) | `--port=3001` |
+| `--image` | No | Override the default Grafana container image | `--image=my-registry/grafana:11.4.0` |
+| `--plugins-dir` | No | Path to local directory with pre-extracted plugins (skips online install) | `--plugins-dir=./plugins` |
 
 ### `grafana stop`
 
@@ -105,6 +107,90 @@ kpi-collector grafana start --datasource=postgres \
 kpi-collector grafana start --datasource=postgres \
   --postgres-url "postgresql://user:pass@db.example.com:5432/kpi_metrics"
 ```
+
+## Disconnected / Air-Gapped Environments
+
+By default, `grafana start` requires internet access for two operations:
+
+1. **Pulling the container image** (`docker.io/grafana/grafana:11.4.0`) — fails with
+   `short-name resolution enforced but cannot prompt without a TTY` on restricted hosts.
+2. **Downloading the SQLite plugin** (`frser-sqlite-datasource`) from
+   `https://grafana.com/api/plugins/frser-sqlite-datasource` — fails with a timeout on
+   air-gapped networks.
+
+Use the `--image` and `--plugins-dir` flags to bypass these network dependencies.
+
+### Step 1: Prepare Artifacts (on a connected machine)
+
+#### Container Image
+
+```bash
+# Pull the full image reference (use docker.io prefix to avoid short-name issues)
+podman pull docker.io/grafana/grafana:11.4.0
+
+# Save to a tar file for transfer to the disconnected host
+podman save docker.io/grafana/grafana:11.4.0 -o grafana-11.4.0.tar
+```
+
+#### SQLite Datasource Plugin
+
+Download the plugin ZIP from <https://grafana.com/grafana/plugins/frser-sqlite-datasource/>
+(select the version compatible with Grafana 11.x), then extract it:
+
+```bash
+mkdir -p grafana-plugins
+unzip frser-sqlite-datasource-*.zip -d grafana-plugins/
+```
+
+The resulting directory structure should look like:
+
+```
+grafana-plugins/
+└── frser-sqlite-datasource/
+    ├── plugin.json
+    ├── module.js
+    └── ...
+```
+
+### Step 2: Transfer to the Disconnected Host
+
+Copy both artifacts to the disconnected host (via USB, scp to a jump-host, etc.):
+
+- `grafana-11.4.0.tar`
+- `grafana-plugins/` directory
+
+### Step 3: Load the Image
+
+```bash
+podman load -i grafana-11.4.0.tar
+```
+
+Verify the image is available locally:
+
+```bash
+podman image inspect docker.io/grafana/grafana:11.4.0
+```
+
+### Step 4: Run Grafana Offline
+
+```bash
+kpi-collector grafana start --datasource=sqlite \
+  --image docker.io/grafana/grafana:11.4.0 \
+  --plugins-dir ./grafana-plugins
+```
+
+When `--image` is provided, the tool verifies the image exists locally before
+launching — if it is missing you will get a clear error with a `pull` or `load` hint.
+When `--plugins-dir` is provided, the directory is mounted into the container at
+`/var/lib/grafana/plugins` and the online plugin download (`GF_INSTALL_PLUGINS`) is skipped.
+
+### Alternative Workflow
+
+If Grafana is not needed on the disconnected host itself:
+
+1. Collect data on the disconnected host with `kpi-collector run`
+2. Copy the artifacts directory (containing the SQLite database) to a connected host
+3. Run `kpi-collector grafana start --datasource=sqlite --artifacts-dir <path>` on the connected host
 
 ## Accessing Grafana
 
