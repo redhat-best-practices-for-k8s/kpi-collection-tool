@@ -26,10 +26,10 @@ import (
 // collection completes before the timer expires.
 const durationBuffer = 100 * time.Millisecond
 
-// RunOnce executes every KPI query exactly once and returns.
+// RunKPIsOnce executes every KPI query exactly once and returns.
 // It ignores frequency and duration settings entirely.
 // Returns an error if any queries failed.
-func RunOnce(kpis config.KPIs, flags config.InputFlags) error {
+func RunKPIsOnce(kpis config.KPIs, flags config.InputFlags) error {
 	db, dbImpl, err := database.InitDatabaseWithConfig(flags.DatabaseType, flags.PostgresURL)
 	if err != nil {
 		return fmt.Errorf("failed to init database: %v", err)
@@ -48,9 +48,9 @@ func RunOnce(kpis config.KPIs, flags config.InputFlags) error {
 	return err
 }
 
-// Run executes the KPI collection loop until duration expires or interrupted.
+// RunKPIs executes the KPI collection loop until duration expires or interrupted.
 // Returns an error if any query failures occurred during collection.
-func Run(kpis config.KPIs, flags config.InputFlags) error {
+func RunKPIs(kpis config.KPIs, flags config.InputFlags) error {
 	db, dbImpl, err := database.InitDatabaseWithConfig(flags.DatabaseType, flags.PostgresURL)
 	if err != nil {
 		return fmt.Errorf("failed to init database: %v", err)
