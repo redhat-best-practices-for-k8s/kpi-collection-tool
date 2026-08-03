@@ -121,19 +121,27 @@ type RangeWindow struct {
 
 // InputFlags holds all command line flag values
 type InputFlags struct {
-	BearerToken  string
-	ThanosURL    string
-	Kubeconfig   string
-	ClusterName  string
-	ClusterType  string
-	InsecureTLS  bool
-	SamplingFreq time.Duration
-	Duration     time.Duration
-	DatabaseType string // "sqlite" or "postgres"
-	PostgresURL  string // PostgreSQL connection string
-	KPIsFile     string
-	SingleRun    bool // collect metrics once and exit
-	SkipPrompts  bool // skip interactive prompts (--yes/-y)
+	BearerToken    string
+	ThanosURL      string
+	Kubeconfig     string
+	ClusterName    string
+	ClusterType    string
+	InsecureTLS    bool
+	SamplingFreq   time.Duration
+	Duration       time.Duration
+	DatabaseType   string // "sqlite" or "postgres"
+	PostgresURL    string // PostgreSQL connection string
+	PromKPIsConfig string // path to Prom KPI config file (--prom-kpis-config / --kpis-file)
+	OslatConfig    string // path to oslat task config file (not yet implemented)
+	PerNodeConfig  string // path to per-node task config file (not yet implemented)
+	RecoveryConfig string // path to recovery task config file (not yet implemented)
+	SingleRun      bool   // collect metrics once and exit
+	SkipPrompts    bool   // skip interactive prompts (--yes/-y)
+}
+
+// HasAnyTaskConfig returns true if at least one task config flag is set.
+func (f InputFlags) HasAnyTaskConfig() bool {
+	return f.PromKPIsConfig != "" || f.OslatConfig != "" || f.PerNodeConfig != "" || f.RecoveryConfig != ""
 }
 
 // Query represents a single KPI query configuration
