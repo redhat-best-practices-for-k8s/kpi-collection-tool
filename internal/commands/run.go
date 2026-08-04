@@ -39,24 +39,24 @@ All artifacts (database, logs, output) are stored in ./kpi-collector-artifacts/ 
 Use --artifacts-dir to override.`,
 	Example: `  # Using kubeconfig (auto-discovery of Thanos URL and token)
   kpi-collector run --cluster-name prod --cluster-type ran \
-    --kubeconfig ~/.kube/config --kpis-file kpis.yaml
+    --kubeconfig ~/.kube/config --prom-kpis-config kpis.yaml
 
   # Using manual credentials
   kpi-collector run --cluster-name prod --cluster-type core \
-    --token $TOKEN --thanos-url thanos.example.com --kpis-file kpis.yaml
+    --token $TOKEN --thanos-url thanos.example.com --prom-kpis-config kpis.yaml
 
   # Collect all KPIs once and exit
   kpi-collector run --cluster-name prod --cluster-type ran \
-    --kubeconfig ~/.kube/config --kpis-file kpis.yaml --once
+    --kubeconfig ~/.kube/config --prom-kpis-config kpis.yaml --once
 
   # Custom sampling: every 30s for 2 hours
   kpi-collector run --cluster-name prod --cluster-type ran \
-    --kubeconfig ~/.kube/config --kpis-file kpis.yaml \
+    --kubeconfig ~/.kube/config --prom-kpis-config kpis.yaml \
     --frequency 30s --duration 2h
 
   # With PostgreSQL backend
   kpi-collector run --cluster-name prod --cluster-type hub \
-    --kubeconfig ~/.kube/config --kpis-file kpis.yaml \
+    --kubeconfig ~/.kube/config --prom-kpis-config kpis.yaml \
     --db-type postgres --postgres-url "postgresql://user:pass@localhost:5432/kpi"`,
 	RunE: runTasks,
 }
@@ -90,8 +90,21 @@ func init() {
 	runCmd.Flags().StringVar(&flags.PostgresURL, "postgres-url", "",
 		"PostgreSQL connection string (required if db-type=postgres)")
 
-	runCmd.Flags().StringVar(&flags.KPIsFile, "kpis-file", "",
-		"path to KPIs configuration file (required)")
+	// Task config flags
+	runCmd.Flags().StringVar(&flags.PromKPIsConfig, "prom-kpis-config", "",
+		"path to Prometheus KPI configuration file")
+	runCmd.Flags().StringVar(&flags.PromKPIsConfig, "kpis-file", "",
+		"[deprecated: use --prom-kpis-config] path to Prometheus KPI configuration file")
+	runCmd.Flags().StringVar(&flags.OslatConfig, "oslat-config", "",
+		"path to oslat task configuration file (not yet implemented)")
+	runCmd.Flags().StringVar(&flags.PerNodeConfig, "per-node-config", "",
+		"path to per-node task configuration file (not yet implemented)")
+	runCmd.Flags().StringVar(&flags.RecoveryConfig, "recovery-config", "",
+		"path to recovery task configuration file (not yet implemented)")
+
+	if err := runCmd.Flags().MarkDeprecated("kpis-file", "use --prom-kpis-config instead"); err != nil {
+		panic(fmt.Sprintf("failed to mark kpis-file as deprecated: %v", err))
+	}
 
 	// Single-run mode
 	runCmd.Flags().BoolVar(&flags.SingleRun, "once", false,
@@ -104,9 +117,6 @@ func init() {
 	// Mark required flags
 	if err := runCmd.MarkFlagRequired("cluster-name"); err != nil {
 		panic(fmt.Sprintf("failed to mark cluster-name as required: %v", err))
-	}
-	if err := runCmd.MarkFlagRequired("kpis-file"); err != nil {
-		panic(fmt.Sprintf("failed to mark kpis-file as required: %v", err))
 	}
 
 	// --once is mutually exclusive with --frequency and --duration
@@ -147,11 +157,11 @@ func runTasks(cmd *cobra.Command, args []string) error {
 	log.Println("KPI Collector initialized")
 
 	// Load KPI queries
-	kpis, err := config.LoadKPIs(flags.KPIsFile)
+	kpis, err := config.LoadKPIs(flags.PromKPIsConfig)
 	if err != nil {
 		return fmt.Errorf("failed to load KPI queries: %w", err)
 	}
-	log.Printf("Loaded KPIs from %s", flags.KPIsFile)
+	log.Printf("Loaded KPIs from %s", flags.PromKPIsConfig)
 
 	// Validate KPI configurations (syntax, duplicates, etc.)
 	if validationErrors := config.ValidateKPIs(kpis); len(validationErrors) > 0 {

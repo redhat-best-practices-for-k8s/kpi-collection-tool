@@ -16,7 +16,7 @@ const (
 	validSamplingFreq = 60 * time.Second
 	validDuration     = 45 * time.Minute
 	validDatabaseType = "sqlite"
-	validKPIsFile     = "/path/to/kpis.yaml"
+	validPromKPIsConfig = "/path/to/kpis.yaml"
 
 	errClusterNameRequiredMsg = "cluster name is required: use --cluster-name flag"
 	errClusterTypeRequiredMsg = "cluster-type is required: must be 'ran', 'core', or 'hub'"
@@ -26,7 +26,7 @@ const (
 	errDurationMsg            = "duration must be greater than 0"
 	errInvalidDBTypeMsg       = "invalid db-type: must be 'sqlite' or 'postgres'"
 	errPostgresURLRequiredMsg = "postgres-url is required when db-type=postgres"
-	errKPIsFileMsg            = "kpis-file must be specified"
+	errNoTaskConfigMsg = "at least one task config flag is required (--prom-kpis-config, --oslat-config, --per-node-config, or --recovery-config)"
 )
 
 var _ = Describe("validateFlags test", func() {
@@ -53,7 +53,7 @@ var _ = Describe("validateFlags test", func() {
 				SamplingFreq: validSamplingFreq,
 				Duration:     validDuration,
 				DatabaseType: validDatabaseType,
-				KPIsFile:     validKPIsFile,
+				PromKPIsConfig: validPromKPIsConfig,
 			},
 			"", // no error expected
 		),
@@ -65,7 +65,7 @@ var _ = Describe("validateFlags test", func() {
 				SamplingFreq: validSamplingFreq,
 				Duration:     validDuration,
 				DatabaseType: validDatabaseType,
-				KPIsFile:     validKPIsFile,
+				PromKPIsConfig: validPromKPIsConfig,
 			},
 			"",
 		),
@@ -87,7 +87,7 @@ var _ = Describe("validateFlags test", func() {
 				SamplingFreq: validSamplingFreq,
 				Duration:     validDuration,
 				DatabaseType: validDatabaseType,
-				KPIsFile:     validKPIsFile,
+				PromKPIsConfig: validPromKPIsConfig,
 			},
 			errClusterTypeRequiredMsg,
 		),
@@ -100,7 +100,7 @@ var _ = Describe("validateFlags test", func() {
 				SamplingFreq: validSamplingFreq,
 				Duration:     validDuration,
 				DatabaseType: validDatabaseType,
-				KPIsFile:     validKPIsFile,
+				PromKPIsConfig: validPromKPIsConfig,
 			},
 			errInvalidClusterTypeMsg,
 		),
@@ -166,7 +166,7 @@ var _ = Describe("validateFlags test", func() {
 				SamplingFreq: 0,
 				Duration:     validDuration,
 				DatabaseType: validDatabaseType,
-				KPIsFile:     validKPIsFile,
+				PromKPIsConfig: validPromKPIsConfig,
 			},
 			errSamplingFreqMsg,
 		),
@@ -179,7 +179,7 @@ var _ = Describe("validateFlags test", func() {
 				SamplingFreq: -10,
 				Duration:     validDuration,
 				DatabaseType: validDatabaseType,
-				KPIsFile:     validKPIsFile,
+				PromKPIsConfig: validPromKPIsConfig,
 			},
 			errSamplingFreqMsg,
 		),
@@ -193,7 +193,7 @@ var _ = Describe("validateFlags test", func() {
 				SamplingFreq: validSamplingFreq,
 				Duration:     0,
 				DatabaseType: validDatabaseType,
-				KPIsFile:     validKPIsFile,
+				PromKPIsConfig: validPromKPIsConfig,
 			},
 			errDurationMsg,
 		),
@@ -206,7 +206,7 @@ var _ = Describe("validateFlags test", func() {
 				SamplingFreq: validSamplingFreq,
 				Duration:     -10 * time.Minute,
 				DatabaseType: validDatabaseType,
-				KPIsFile:     validKPIsFile,
+				PromKPIsConfig: validPromKPIsConfig,
 			},
 			errDurationMsg,
 		),
@@ -220,7 +220,7 @@ var _ = Describe("validateFlags test", func() {
 				SamplingFreq: validSamplingFreq,
 				Duration:     validDuration,
 				DatabaseType: "mysql",
-				KPIsFile:     validKPIsFile,
+				PromKPIsConfig: validPromKPIsConfig,
 			},
 			errInvalidDBTypeMsg,
 		),
@@ -233,7 +233,7 @@ var _ = Describe("validateFlags test", func() {
 				SamplingFreq: validSamplingFreq,
 				Duration:     validDuration,
 				DatabaseType: "",
-				KPIsFile:     validKPIsFile,
+				PromKPIsConfig: validPromKPIsConfig,
 			},
 			errInvalidDBTypeMsg,
 		),
@@ -248,7 +248,7 @@ var _ = Describe("validateFlags test", func() {
 				Duration:     validDuration,
 				DatabaseType: "postgres",
 				PostgresURL:  "",
-				KPIsFile:     validKPIsFile,
+				PromKPIsConfig: validPromKPIsConfig,
 			},
 			errPostgresURLRequiredMsg,
 		),
@@ -263,7 +263,7 @@ var _ = Describe("validateFlags test", func() {
 				Duration:     validDuration,
 				DatabaseType: "postgres",
 				PostgresURL:  "postgresql://user:pass@localhost:5432/dbname",
-				KPIsFile:     validKPIsFile,
+				PromKPIsConfig: validPromKPIsConfig,
 			},
 			"",
 		),
@@ -278,12 +278,12 @@ var _ = Describe("validateFlags test", func() {
 				SamplingFreq: validSamplingFreq,
 				Duration:     validDuration,
 				DatabaseType: validDatabaseType,
-				KPIsFile:     validKPIsFile,
+				PromKPIsConfig: validPromKPIsConfig,
 			},
 			"",
 		),
-		// Error cases - missing KPIs file
-		Entry("empty kpis-file",
+		// Error cases - no task config flag set
+		Entry("no task config flags",
 			InputFlags{
 				ClusterName:  validClusterName,
 				ClusterType:  validClusterType,
@@ -292,9 +292,9 @@ var _ = Describe("validateFlags test", func() {
 				SamplingFreq: validSamplingFreq,
 				Duration:     validDuration,
 				DatabaseType: validDatabaseType,
-				KPIsFile:     "",
+				PromKPIsConfig: "",
 			},
-			errKPIsFileMsg,
+			errNoTaskConfigMsg,
 		),
 	)
 })
