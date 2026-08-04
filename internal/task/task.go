@@ -43,11 +43,32 @@ func (t *PromKPITask) Run(ctx context.Context) error {
 	return collector.RunKPIs(t.kpis, t.flags)
 }
 
-// ResolveFromFlags builds the task list for this run.
-// Today only --kpis-file is supported (one Prom KPI task).
+// ResolveFromFlags builds the task list from whichever config flags are set.
 func ResolveFromFlags(flags config.InputFlags, kpis config.KPIs) ([]Task, error) {
-	if flags.KPIsFile == "" {
-		return nil, fmt.Errorf("no tasks configured: --kpis-file is required")
+	var tasks []Task
+
+	if flags.PromKPIsConfig != "" {
+		tasks = append(tasks, NewPromKPITask(kpis, flags))
 	}
-	return []Task{NewPromKPITask(kpis, flags)}, nil
+
+	// TODO: implement OslatTask and wire here
+	if flags.OslatConfig != "" {
+		return nil, fmt.Errorf("--oslat-config: task type not yet supported")
+	}
+
+	// TODO: implement PerNodeTask and wire here
+	if flags.PerNodeConfig != "" {
+		return nil, fmt.Errorf("--per-node-config: task type not yet supported")
+	}
+
+	// TODO: implement RecoveryTask and wire here
+	if flags.RecoveryConfig != "" {
+		return nil, fmt.Errorf("--recovery-config: task type not yet supported")
+	}
+
+	if len(tasks) == 0 {
+		return nil, fmt.Errorf("no tasks configured: at least one task config flag is required (e.g. --prom-kpis-config)")
+	}
+
+	return tasks, nil
 }

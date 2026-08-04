@@ -9,8 +9,8 @@ import (
 )
 
 var _ = Describe("ResolveFromFlags", func() {
-	It("returns one prom-kpis task when --kpis-file is set", func() {
-		flags := config.InputFlags{KPIsFile: "kpis.yaml"}
+	It("returns one prom-kpis task when --prom-kpis-config is set", func() {
+		flags := config.InputFlags{PromKPIsConfig: "kpis.yaml"}
 		kpis := config.KPIs{Queries: []config.Query{{ID: "cpu", PromQuery: "up"}}}
 
 		tasks, err := task.ResolveFromFlags(flags, kpis)
@@ -19,13 +19,56 @@ var _ = Describe("ResolveFromFlags", func() {
 		Expect(tasks[0].Name()).To(Equal("prom-kpis"))
 	})
 
-	It("returns an error when no --kpis-file is set", func() {
+	It("returns an error when no task config flags are set", func() {
 		flags := config.InputFlags{}
 		kpis := config.KPIs{}
 
 		tasks, err := task.ResolveFromFlags(flags, kpis)
 		Expect(err).To(HaveOccurred())
 		Expect(tasks).To(BeNil())
-		Expect(err.Error()).To(ContainSubstring("--kpis-file"))
+		Expect(err.Error()).To(ContainSubstring("no tasks configured"))
+	})
+
+	It("returns not-yet-supported error for --oslat-config", func() {
+		flags := config.InputFlags{OslatConfig: "oslat.yaml"}
+		kpis := config.KPIs{}
+
+		tasks, err := task.ResolveFromFlags(flags, kpis)
+		Expect(err).To(HaveOccurred())
+		Expect(tasks).To(BeNil())
+		Expect(err.Error()).To(ContainSubstring("not yet supported"))
+	})
+
+	It("returns not-yet-supported error for --per-node-config", func() {
+		flags := config.InputFlags{PerNodeConfig: "per-node.yaml"}
+		kpis := config.KPIs{}
+
+		tasks, err := task.ResolveFromFlags(flags, kpis)
+		Expect(err).To(HaveOccurred())
+		Expect(tasks).To(BeNil())
+		Expect(err.Error()).To(ContainSubstring("not yet supported"))
+	})
+
+	It("returns not-yet-supported error for --recovery-config", func() {
+		flags := config.InputFlags{RecoveryConfig: "recovery.yaml"}
+		kpis := config.KPIs{}
+
+		tasks, err := task.ResolveFromFlags(flags, kpis)
+		Expect(err).To(HaveOccurred())
+		Expect(tasks).To(BeNil())
+		Expect(err.Error()).To(ContainSubstring("not yet supported"))
+	})
+
+	It("returns not-yet-supported error even when prom is also set", func() {
+		flags := config.InputFlags{
+			PromKPIsConfig: "kpis.yaml",
+			OslatConfig:    "oslat.yaml",
+		}
+		kpis := config.KPIs{}
+
+		tasks, err := task.ResolveFromFlags(flags, kpis)
+		Expect(err).To(HaveOccurred())
+		Expect(tasks).To(BeNil())
+		Expect(err.Error()).To(ContainSubstring("not yet supported"))
 	})
 })
