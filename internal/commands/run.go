@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/collector"
 	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/config"
 	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/database"
 	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/kubernetes"
 	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/logger"
+	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/task"
 
 	"github.com/spf13/cobra"
 )
@@ -58,7 +58,7 @@ Use --artifacts-dir to override.`,
   kpi-collector run --cluster-name prod --cluster-type hub \
     --kubeconfig ~/.kube/config --kpis-file kpis.yaml \
     --db-type postgres --postgres-url "postgresql://user:pass@localhost:5432/kpi"`,
-	RunE: runCollect,
+	RunE: runTasks,
 }
 
 func init() {
@@ -115,7 +115,7 @@ func init() {
 
 }
 
-func runCollect(cmd *cobra.Command, args []string) error {
+func runTasks(cmd *cobra.Command, args []string) error {
 	fmt.Println("KPI Collector starting...")
 
 	// Validate all flags (including cluster type)
@@ -202,12 +202,18 @@ func runCollect(cmd *cobra.Command, args []string) error {
 			tokenDuration)
 	}
 
-	// Run collection
-	var collectionErr error
-	if flags.SingleRun {
-		collectionErr = collector.RunOnce(kpis, flags)
-	} else {
-		collectionErr = collector.Run(kpis, flags)
+	tasks, err := task.ResolveFromFlags(flags, kpis)
+	if err != nil {
+		return err
+	}
+
+	var taskErr error
+	for _, t := range tasks {
+		log.Printf("Running task: %s", t.Name())
+		if err := t.Run(cmd.Context()); err != nil {
+			taskErr = err
+			break
+		}
 	}
 
 	absOutputDir, err := filepath.Abs(database.OutputDir)
@@ -216,8 +222,8 @@ func runCollect(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Artifacts stored in: %s\n", absOutputDir)
-	if collectionErr != nil {
-		return fmt.Errorf("collection completed with errors: %w", collectionErr)
+	if taskErr != nil {
+		return fmt.Errorf("collection completed with errors: %w", taskErr)
 	}
 
 	return nil
