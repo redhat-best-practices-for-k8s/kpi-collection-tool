@@ -43,20 +43,12 @@ func (t *PromKPITask) Run(ctx context.Context) error {
 	return collector.RunKPIs(t.kpis, t.flags)
 }
 
-<<<<<<< HEAD
 // ResolveFromFlags builds the task list from whichever config flags are set.
 func ResolveFromFlags(flags config.InputFlags, kpis config.KPIs) ([]Task, error) {
 	var tasks []Task
 
 	if flags.PromKPIsConfig != "" {
 		tasks = append(tasks, NewPromKPITask(kpis, flags))
-=======
-// ResolveFromFlags builds the task list for this run.
-// Today only --prom-kpis-config is supported (one Prom KPI task).
-func ResolveFromFlags(flags config.InputFlags, kpis config.KPIs) ([]Task, error) {
-	if flags.PromKPIsConfig == "" {
-		return nil, fmt.Errorf("no tasks configured: --prom-kpis-config is required")
->>>>>>> upstream/main
 	}
 
 	// TODO: implement OslatTask and wire here
