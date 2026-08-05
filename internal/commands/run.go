@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/config"
@@ -110,6 +111,10 @@ func init() {
 	runCmd.Flags().BoolVar(&flags.SingleRun, "once", false,
 		"collect all KPI metrics once and exit (ignores --frequency and --duration)")
 
+	// Multi-task execution mode
+	runCmd.Flags().BoolVar(&flags.Parallel, "parallel", false,
+		"run tasks concurrently instead of sequentially")
+
 	// Skip interactive prompts
 	runCmd.Flags().BoolVarP(&flags.SkipPrompts, "yes", "y", false,
 		"skip interactive prompts (e.g. category advisory)")
@@ -189,7 +194,7 @@ func runTasks(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	failedTasks := runAllTasks(cmd, tasks)
+	failedTasks := runAllTasks(cmd, tasks, flags.Parallel)
 
 	absOutputDir, err := filepath.Abs(database.OutputDir)
 	if err != nil {
@@ -243,20 +248,36 @@ func setupPromKPIs(flags config.InputFlags) (config.KPIs, error) {
 	return kpis, nil
 }
 
-// runAllTasks executes tasks sequentially with continue-on-failure.
+// runAllTasks executes tasks with continue-on-failure.
+// When parallel is true, tasks run concurrently; otherwise sequentially.
 // Returns the names of any tasks that failed.
-func runAllTasks(cmd *cobra.Command, tasks []task.Task) []string {
+func runAllTasks(cmd *cobra.Command, tasks []task.Task, parallel bool) []string {
+	var mu sync.Mutex
 	var failedTasks []string
+	var wg sync.WaitGroup
 
-	for _, t := range tasks {
+	run := func(t task.Task) {
+		defer wg.Done()
 		log.Printf("Running task: %s", t.Name())
 		if err := t.Run(cmd.Context()); err != nil {
 			log.Printf("Task %s failed: %v", t.Name(), err)
 			fmt.Fprintf(os.Stderr, "Task %s failed: %v\n", t.Name(), err)
+			mu.Lock()
 			failedTasks = append(failedTasks, t.Name())
+			mu.Unlock()
 		}
 	}
 
+	for _, t := range tasks {
+		wg.Add(1)
+		if parallel {
+			go run(t)
+		} else {
+			run(t)
+		}
+	}
+
+	wg.Wait()
 	return failedTasks
 }
 
