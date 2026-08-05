@@ -44,10 +44,10 @@ func (t *PromKPITask) Run(ctx context.Context) error {
 }
 
 // ResolveFromFlags builds the task list for this run.
-// Today only --kpis-file is supported (one Prom KPI task).
+// Today only --prom-kpis-config is supported (one Prom KPI task).
 func ResolveFromFlags(flags config.InputFlags, kpis config.KPIs) ([]Task, error) {
-	if flags.KPIsFile == "" {
-		return nil, fmt.Errorf("no tasks configured: --kpis-file is required")
+	if flags.PromKPIsConfig == "" {
+		return nil, fmt.Errorf("no tasks configured: --prom-kpis-config is required")
 	}
 	return []Task{NewPromKPITask(kpis, flags)}, nil
 }

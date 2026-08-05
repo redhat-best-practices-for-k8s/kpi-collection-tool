@@ -9,8 +9,8 @@ import (
 )
 
 var _ = Describe("ResolveFromFlags", func() {
-	It("returns one prom-kpis task when --kpis-file is set", func() {
-		flags := config.InputFlags{KPIsFile: "kpis.yaml"}
+	It("returns one prom-kpis task when --prom-kpis-config is set", func() {
+		flags := config.InputFlags{PromKPIsConfig: "kpis.yaml"}
 		kpis := config.KPIs{Queries: []config.Query{{ID: "cpu", PromQuery: "up"}}}
 
 		tasks, err := task.ResolveFromFlags(flags, kpis)
@@ -19,13 +19,13 @@ var _ = Describe("ResolveFromFlags", func() {
 		Expect(tasks[0].Name()).To(Equal("prom-kpis"))
 	})
 
-	It("returns an error when no --kpis-file is set", func() {
+	It("returns an error when no --prom-kpis-config is set", func() {
 		flags := config.InputFlags{}
 		kpis := config.KPIs{}
 
 		tasks, err := task.ResolveFromFlags(flags, kpis)
 		Expect(err).To(HaveOccurred())
 		Expect(tasks).To(BeNil())
-		Expect(err.Error()).To(ContainSubstring("--kpis-file"))
+		Expect(err.Error()).To(ContainSubstring("--prom-kpis-config"))
 	})
 })
