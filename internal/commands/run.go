@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/config"
@@ -110,6 +111,10 @@ func init() {
 	runCmd.Flags().BoolVar(&flags.SingleRun, "once", false,
 		"collect all KPI metrics once and exit (ignores --frequency and --duration)")
 
+	// Multi-task execution mode
+	runCmd.Flags().BoolVar(&flags.Parallel, "parallel", false,
+		"run tasks concurrently instead of sequentially")
+
 	// Skip interactive prompts
 	runCmd.Flags().BoolVarP(&flags.SkipPrompts, "yes", "y", false,
 		"skip interactive prompts (e.g. category advisory)")
@@ -156,42 +161,13 @@ func runTasks(cmd *cobra.Command, args []string) error {
 
 	log.Println("KPI Collector initialized")
 
-	// Load KPI queries
-	kpis, err := config.LoadKPIs(flags.PromKPIsConfig)
-	if err != nil {
-		return fmt.Errorf("failed to load KPI queries: %w", err)
-	}
-	log.Printf("Loaded KPIs from %s", flags.PromKPIsConfig)
-
-	// Validate KPI configurations (syntax, duplicates, etc.)
-	if validationErrors := config.ValidateKPIs(kpis); len(validationErrors) > 0 {
-		fmt.Println("KPI validation errors:")
-		for _, e := range validationErrors {
-			fmt.Printf("  ✗ %v\n", e)
-		}
-		return fmt.Errorf("found %d KPI validation error(s)", len(validationErrors))
-	}
-	fmt.Printf("✓ Validated %d KPI(s)\n", len(kpis.Queries))
-
-	if !flags.SkipPrompts {
-		if abort := promptIfManyUncategorized(kpis); abort {
-			return fmt.Errorf("aborted by user")
-		}
-	}
-
-	kpis, err = substituteCPUsIfNeeded(kpis, flags)
-	if err != nil {
-		return err
-	}
-
-	if !flags.SingleRun {
-		warnFrequencyExceedsDuration(kpis, flags)
-	}
-
-	// Validate range query frequency/range mismatches (only relevant for periodic collection)
-	if !flags.SingleRun {
-		if err := validateRangeFrequency(kpis, flags); err != nil {
-			return err
+	// Prom-specific setup: only when --prom-kpis-config is set
+	var kpis config.KPIs
+	if flags.PromKPIsConfig != "" {
+		var setupErr error
+		kpis, setupErr = setupPromKPIs(flags)
+		if setupErr != nil {
+			return setupErr
 		}
 	}
 
@@ -201,9 +177,10 @@ func runTasks(cmd *cobra.Command, args []string) error {
 
 		tokenDuration := tokenDurationForCollection(flags.SingleRun, flags.Duration)
 
-		flags.ThanosURL, flags.BearerToken, err = kubernetes.SetupKubeconfigAuth(flags.Kubeconfig, tokenDuration)
-		if err != nil {
-			return fmt.Errorf("failed to setup kubeconfig auth: %w", err)
+		var authErr error
+		flags.ThanosURL, flags.BearerToken, authErr = kubernetes.SetupKubeconfigAuth(flags.Kubeconfig, tokenDuration)
+		if authErr != nil {
+			return fmt.Errorf("failed to setup kubeconfig auth: %w", authErr)
 		}
 		fmt.Printf("Discovered Thanos URL: %s\n", flags.ThanosURL)
 		fmt.Printf("Created service account token (sa=%s, ns=%s, expiry=%s)\n",
@@ -217,26 +194,91 @@ func runTasks(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	var taskErr error
-	for _, t := range tasks {
-		log.Printf("Running task: %s", t.Name())
-		if err := t.Run(cmd.Context()); err != nil {
-			taskErr = err
-			break
-		}
-	}
+	failedTasks := runAllTasks(cmd, tasks, flags.Parallel)
 
 	absOutputDir, err := filepath.Abs(database.OutputDir)
 	if err != nil {
 		absOutputDir = database.OutputDir
 	}
-
 	fmt.Printf("Artifacts stored in: %s\n", absOutputDir)
-	if taskErr != nil {
-		return fmt.Errorf("collection completed with errors: %w", taskErr)
+
+	if len(failedTasks) > 0 {
+		return fmt.Errorf("tasks failed: %s", strings.Join(failedTasks, ", "))
 	}
 
 	return nil
+}
+
+// setupPromKPIs loads, validates, and prepares Prom KPI queries.
+func setupPromKPIs(flags config.InputFlags) (config.KPIs, error) {
+	kpis, err := config.LoadKPIs(flags.PromKPIsConfig)
+	if err != nil {
+		return config.KPIs{}, fmt.Errorf("failed to load KPI queries: %w", err)
+	}
+	log.Printf("Loaded KPIs from %s", flags.PromKPIsConfig)
+
+	if validationErrors := config.ValidateKPIs(kpis); len(validationErrors) > 0 {
+		fmt.Println("KPI validation errors:")
+		for _, e := range validationErrors {
+			fmt.Printf("  ✗ %v\n", e)
+		}
+		return config.KPIs{}, fmt.Errorf("found %d KPI validation error(s)", len(validationErrors))
+	}
+	fmt.Printf("✓ Validated %d KPI(s)\n", len(kpis.Queries))
+
+	if !flags.SkipPrompts {
+		if abort := promptIfManyUncategorized(kpis); abort {
+			return config.KPIs{}, fmt.Errorf("aborted by user")
+		}
+	}
+
+	kpis, err = substituteCPUsIfNeeded(kpis, flags)
+	if err != nil {
+		return config.KPIs{}, err
+	}
+
+	if !flags.SingleRun {
+		warnFrequencyExceedsDuration(kpis, flags)
+
+		if err := validateRangeFrequency(kpis, flags); err != nil {
+			return config.KPIs{}, err
+		}
+	}
+
+	return kpis, nil
+}
+
+// runAllTasks executes tasks with continue-on-failure.
+// When parallel is true, tasks run concurrently; otherwise sequentially.
+// Returns the names of any tasks that failed.
+func runAllTasks(cmd *cobra.Command, tasks []task.Task, parallel bool) []string {
+	var mu sync.Mutex
+	var failedTasks []string
+	var wg sync.WaitGroup
+
+	run := func(t task.Task) {
+		defer wg.Done()
+		log.Printf("Running task: %s", t.Name())
+		if err := t.Run(cmd.Context()); err != nil {
+			log.Printf("Task %s failed: %v", t.Name(), err)
+			fmt.Fprintf(os.Stderr, "Task %s failed: %v\n", t.Name(), err)
+			mu.Lock()
+			failedTasks = append(failedTasks, t.Name())
+			mu.Unlock()
+		}
+	}
+
+	for _, t := range tasks {
+		wg.Add(1)
+		if parallel {
+			go run(t)
+		} else {
+			run(t)
+		}
+	}
+
+	wg.Wait()
+	return failedTasks
 }
 
 func databaseLocation(flags config.InputFlags) string {
