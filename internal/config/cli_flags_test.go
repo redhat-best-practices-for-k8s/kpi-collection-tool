@@ -26,7 +26,7 @@ const (
 	errDurationMsg            = "duration must be greater than 0"
 	errInvalidDBTypeMsg       = "invalid db-type: must be 'sqlite' or 'postgres'"
 	errPostgresURLRequiredMsg = "postgres-url is required when db-type=postgres"
-	errNoTaskConfigMsg = "at least one task config flag is required (--prom-kpis-config, --oslat-config, --per-node-config, or --recovery-config)"
+	errNoTaskConfigMsg = "at least one task config flag or --bundle is required"
 )
 
 var _ = Describe("validateFlags test", func() {
