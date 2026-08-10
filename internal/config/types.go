@@ -161,10 +161,20 @@ func (q *Query) IsRunOnce() bool {
 	return q.RunOnce != nil && *q.RunOnce
 }
 
+// PromConfig holds optional execution settings that can be specified
+// in the KPI YAML file instead of (or in addition to) CLI flags.
+type PromConfig struct {
+	Frequency *Duration `yaml:"frequency,omitempty"`
+	Duration  *Duration `yaml:"duration,omitempty"`
+	Once      *bool     `yaml:"once,omitempty"`
+}
+
 // KPIs represents the structure of the KPI configuration file containing
 // the list of KPI queries to be executed against Prometheus/Thanos
 type KPIs struct {
-	Queries []Query `yaml:"kpis"`
+	Type    string      `yaml:"type,omitempty"`
+	Config  *PromConfig `yaml:"config,omitempty"`
+	Queries []Query     `yaml:"kpis"`
 }
 
 // GetEffectiveFrequency returns the sample frequency for this query,

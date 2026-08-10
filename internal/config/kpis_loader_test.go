@@ -1094,3 +1094,78 @@ var _ = Describe("KPIs Loader", func() {
 		})
 	})
 })
+
+var _ = Describe("KPIs YAML with type and config", func() {
+	var tmpDir string
+
+	BeforeEach(func() {
+		var err error
+		tmpDir, err = os.MkdirTemp("", "kpis-config-test-*")
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		err := os.RemoveAll(tmpDir)
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("loads YAML with type and config block", func() {
+		yaml := `type: prom-kpis
+config:
+  frequency: 30s
+  duration: 2h
+  once: true
+kpis:
+  - id: test
+    promquery: up
+`
+		path := filepath.Join(tmpDir, "kpis.yaml")
+		Expect(os.WriteFile(path, []byte(yaml), 0644)).To(Succeed())
+
+		kpis, err := LoadKPIs(path)
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(kpis.Type).To(Equal("prom-kpis"))
+		Expect(kpis.Config).NotTo(BeNil())
+		Expect(kpis.Config.Frequency.Duration).To(Equal(30 * time.Second))
+		Expect(kpis.Config.Duration.Duration).To(Equal(2 * time.Hour))
+		Expect(*kpis.Config.Once).To(BeTrue())
+		Expect(kpis.Queries).To(HaveLen(1))
+	})
+
+	It("loads YAML without type or config (backward compatible)", func() {
+		yaml := `kpis:
+  - id: test
+    promquery: up
+`
+		path := filepath.Join(tmpDir, "kpis.yaml")
+		Expect(os.WriteFile(path, []byte(yaml), 0644)).To(Succeed())
+
+		kpis, err := LoadKPIs(path)
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(kpis.Type).To(BeEmpty())
+		Expect(kpis.Config).To(BeNil())
+		Expect(kpis.Queries).To(HaveLen(1))
+	})
+
+	It("loads YAML with partial config", func() {
+		yaml := `config:
+  once: true
+kpis:
+  - id: test
+    promquery: up
+`
+		path := filepath.Join(tmpDir, "kpis.yaml")
+		Expect(os.WriteFile(path, []byte(yaml), 0644)).To(Succeed())
+
+		kpis, err := LoadKPIs(path)
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(kpis.Config).NotTo(BeNil())
+		Expect(kpis.Config.Frequency).To(BeNil())
+		Expect(kpis.Config.Duration).To(BeNil())
+		Expect(*kpis.Config.Once).To(BeTrue())
+	})
+})
+

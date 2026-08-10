@@ -165,7 +165,7 @@ func runTasks(cmd *cobra.Command, args []string) error {
 	var kpis config.KPIs
 	if flags.PromKPIsConfig != "" {
 		var setupErr error
-		kpis, setupErr = setupPromKPIs(flags)
+		kpis, setupErr = setupPromKPIs(cmd, &flags)
 		if setupErr != nil {
 			return setupErr
 		}
@@ -210,12 +210,27 @@ func runTasks(cmd *cobra.Command, args []string) error {
 }
 
 // setupPromKPIs loads, validates, and prepares Prom KPI queries.
-func setupPromKPIs(flags config.InputFlags) (config.KPIs, error) {
+// It also merges any YAML-level config into the flags (YAML values
+// are only applied when the corresponding CLI flag was not explicitly set).
+func setupPromKPIs(cmd *cobra.Command, flags *config.InputFlags) (config.KPIs, error) {
 	kpis, err := config.LoadKPIs(flags.PromKPIsConfig)
 	if err != nil {
 		return config.KPIs{}, fmt.Errorf("failed to load KPI queries: %w", err)
 	}
 	log.Printf("Loaded KPIs from %s", flags.PromKPIsConfig)
+
+	// Merge YAML config into flags (explicit CLI > YAML > default)
+	if cfg := kpis.Config; cfg != nil {
+		if cfg.Frequency != nil && !cmd.Flags().Changed("frequency") {
+			flags.SamplingFreq = cfg.Frequency.Duration
+		}
+		if cfg.Duration != nil && !cmd.Flags().Changed("duration") {
+			flags.Duration = cfg.Duration.Duration
+		}
+		if cfg.Once != nil && !cmd.Flags().Changed("once") {
+			flags.SingleRun = *cfg.Once
+		}
+	}
 
 	if validationErrors := config.ValidateKPIs(kpis); len(validationErrors) > 0 {
 		fmt.Println("KPI validation errors:")
@@ -232,15 +247,15 @@ func setupPromKPIs(flags config.InputFlags) (config.KPIs, error) {
 		}
 	}
 
-	kpis, err = substituteCPUsIfNeeded(kpis, flags)
+	kpis, err = substituteCPUsIfNeeded(kpis, *flags)
 	if err != nil {
 		return config.KPIs{}, err
 	}
 
 	if !flags.SingleRun {
-		warnFrequencyExceedsDuration(kpis, flags)
+		warnFrequencyExceedsDuration(kpis, *flags)
 
-		if err := validateRangeFrequency(kpis, flags); err != nil {
+		if err := validateRangeFrequency(kpis, *flags); err != nil {
 			return config.KPIs{}, err
 		}
 	}
