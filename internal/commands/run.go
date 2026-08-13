@@ -219,18 +219,7 @@ func setupPromKPIs(cmd *cobra.Command, flags *config.InputFlags) (config.KPIs, e
 	}
 	log.Printf("Loaded KPIs from %s", flags.PromKPIsConfig)
 
-	// Merge YAML config into flags (explicit CLI > YAML > default)
-	if cfg := kpis.Config; cfg != nil {
-		if cfg.Frequency != nil && !cmd.Flags().Changed("frequency") {
-			flags.SamplingFreq = cfg.Frequency.Duration
-		}
-		if cfg.Duration != nil && !cmd.Flags().Changed("duration") {
-			flags.Duration = cfg.Duration.Duration
-		}
-		if cfg.Once != nil && !cmd.Flags().Changed("once") {
-			flags.SingleRun = *cfg.Once
-		}
-	}
+	mergeYAMLConfigIntoFlags(kpis.Config, cmd.Flags().Changed, flags)
 
 	if validationErrors := config.ValidateKPIs(kpis); len(validationErrors) > 0 {
 		fmt.Println("KPI validation errors:")
@@ -261,6 +250,25 @@ func setupPromKPIs(cmd *cobra.Command, flags *config.InputFlags) (config.KPIs, e
 	}
 
 	return kpis, nil
+}
+
+// mergeYAMLConfigIntoFlags applies YAML-level frequency/duration/once settings
+// onto flags, but only for values the user did not explicitly pass on the CLI.
+// This enforces the precedence contract: explicit CLI flag > YAML config > default.
+// flagChanged reports whether a given CLI flag was explicitly set (e.g. cmd.Flags().Changed).
+func mergeYAMLConfigIntoFlags(cfg *config.PromConfig, flagChanged func(name string) bool, flags *config.InputFlags) {
+	if cfg == nil {
+		return
+	}
+	if cfg.Frequency != nil && !flagChanged("frequency") {
+		flags.SamplingFreq = cfg.Frequency.Duration
+	}
+	if cfg.Duration != nil && !flagChanged("duration") {
+		flags.Duration = cfg.Duration.Duration
+	}
+	if cfg.Once != nil && !flagChanged("once") {
+		flags.SingleRun = *cfg.Once
+	}
 }
 
 // runAllTasks executes tasks with continue-on-failure.
