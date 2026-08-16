@@ -58,7 +58,11 @@ Use --artifacts-dir to override.`,
   # With PostgreSQL backend
   kpi-collector run --cluster-name prod --cluster-type hub \
     --kubeconfig ~/.kube/config --prom-kpis-config kpis.yaml \
-    --db-type postgres --postgres-url "postgresql://user:pass@localhost:5432/kpi"`,
+    --db-type postgres --postgres-url "postgresql://user:pass@localhost:5432/kpi"
+
+  # Run a bundle (directory with bundle.yaml + task files)
+  kpi-collector run --cluster-name prod --cluster-type ran \
+    --kubeconfig ~/.kube/config --bundle nokia-ran-bundle/`,
 	RunE: runTasks,
 }
 
@@ -111,6 +115,10 @@ func init() {
 	runCmd.Flags().BoolVar(&flags.SingleRun, "once", false,
 		"collect all KPI metrics once and exit (ignores --frequency and --duration)")
 
+	// Bundle mode
+	runCmd.Flags().StringVar(&flags.BundleConfig, "bundle", "",
+		"path to bundle file or directory containing bundle.yaml and task files")
+
 	// Multi-task execution mode
 	runCmd.Flags().BoolVar(&flags.Parallel, "parallel", false,
 		"run tasks concurrently instead of sequentially")
@@ -127,6 +135,12 @@ func init() {
 	// --once is mutually exclusive with --frequency and --duration
 	runCmd.MarkFlagsMutuallyExclusive("once", "frequency")
 	runCmd.MarkFlagsMutuallyExclusive("once", "duration")
+
+	// --bundle is mutually exclusive with typed config flags
+	runCmd.MarkFlagsMutuallyExclusive("bundle", "prom-kpis-config")
+	runCmd.MarkFlagsMutuallyExclusive("bundle", "oslat-config")
+	runCmd.MarkFlagsMutuallyExclusive("bundle", "per-node-config")
+	runCmd.MarkFlagsMutuallyExclusive("bundle", "recovery-config")
 
 }
 
@@ -189,12 +203,40 @@ func runTasks(cmd *cobra.Command, args []string) error {
 			tokenDuration)
 	}
 
-	tasks, err := task.ResolveFromFlags(flags, kpis)
+	// Resolve tasks: either from a bundle or from individual flags
+	var tasks []task.Task
+	var bundleSpec *task.BundleSpec
+
+	if flags.BundleConfig != "" {
+		var spec task.BundleSpec
+		spec, err = task.LoadBundle(flags.BundleConfig)
+		if err != nil {
+			return fmt.Errorf("failed to load bundle: %w", err)
+		}
+		bundleSpec = &spec
+		log.Printf("Loaded bundle from %s (%d task(s), mode=%s, on-failure=%s)",
+			flags.BundleConfig, len(spec.Tasks), spec.Mode, spec.OnFailure)
+
+		tasks, err = task.ResolveBundleTasks(spec, flags, kpis)
+	} else {
+		tasks, err = task.ResolveFromFlags(flags, kpis)
+	}
 	if err != nil {
 		return err
 	}
 
-	failedTasks := runAllTasks(cmd, tasks, flags.Parallel)
+	parallel := flags.Parallel
+	failFast := false
+	if bundleSpec != nil {
+		if bundleSpec.Mode == task.ModeParallel {
+			parallel = true
+		}
+		if bundleSpec.OnFailure == task.OnFailureFailFast {
+			failFast = true
+		}
+	}
+
+	failedTasks := runAllTasks(cmd, tasks, parallel, failFast)
 
 	absOutputDir, err := filepath.Abs(database.OutputDir)
 	if err != nil {
@@ -248,10 +290,10 @@ func setupPromKPIs(flags config.InputFlags) (config.KPIs, error) {
 	return kpis, nil
 }
 
-// runAllTasks executes tasks with continue-on-failure.
-// When parallel is true, tasks run concurrently; otherwise sequentially.
-// Returns the names of any tasks that failed.
-func runAllTasks(cmd *cobra.Command, tasks []task.Task, parallel bool) []string {
+// runAllTasks executes tasks and returns the names of any that failed.
+// parallel: run concurrently instead of sequentially.
+// failFast: stop on first failure (sequential only; ignored when parallel).
+func runAllTasks(cmd *cobra.Command, tasks []task.Task, parallel, failFast bool) []string {
 	var mu sync.Mutex
 	var failedTasks []string
 	var wg sync.WaitGroup
@@ -274,6 +316,9 @@ func runAllTasks(cmd *cobra.Command, tasks []task.Task, parallel bool) []string 
 			go run(t)
 		} else {
 			run(t)
+			if failFast && len(failedTasks) > 0 {
+				break
+			}
 		}
 	}
 
