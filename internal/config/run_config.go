@@ -10,7 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Orchestration policy values for OrchestrationSection.Mode and OrchestrationSection.OnFailure.
+// Orchestration policy values for OrchestrationConfig.Mode and OrchestrationConfig.OnFailure.
 const (
 	ModeSequential = "sequential"
 	ModeParallel   = "parallel"
@@ -20,7 +20,7 @@ const (
 )
 
 // TaskConfig names used as YAML keys in a RunConfig file and, wherever
-// task type identifiers are needed (e.g. OrchestrationSection.Order, task.Task.Name()).
+// task type identifiers are needed (e.g. OrchestrationConfig.Order, task.Task.Name()).
 const (
 	TaskConfigPrometheus      = "prometheus"
 	TaskConfigOslat           = "oslat"
@@ -34,10 +34,10 @@ var knownTaskConfigs = []string{TaskConfigPrometheus, TaskConfigOslat, TaskConfi
 
 const runConfigFileName = "tasks.yaml"
 
-// OrchestrationSection carries orchestration policy for a RunConfig: how the
+// OrchestrationConfig carries orchestration policy for a RunConfig: how the
 // present task configs are scheduled (sequential/parallel), how failures
 // are handled, and an optional override of the default execution order.
-type OrchestrationSection struct {
+type OrchestrationConfig struct {
 	Mode      string   `yaml:"mode,omitempty"`
 	OnFailure string   `yaml:"on-failure,omitempty"`
 	Order     []string `yaml:"order,omitempty"`
@@ -59,7 +59,7 @@ type PrometheusTaskConfig struct {
 // schema is designed, replace its field here with a typed task config
 // struct, following PrometheusTaskConfig as the pattern.
 type RunConfig struct {
-	Orchestration   OrchestrationSection   `yaml:"orchestration,omitempty"`
+	Orchestration   OrchestrationConfig    `yaml:"orchestration,omitempty"`
 	Prometheus      *PrometheusTaskConfig  `yaml:"prometheus,omitempty"`
 	Oslat           map[string]interface{} `yaml:"oslat,omitempty"`
 	PerNodeData     map[string]interface{} `yaml:"per-node-data,omitempty"`
@@ -173,20 +173,16 @@ func validatePrometheusTaskConfig(p *PrometheusTaskConfig) error {
 // validateOrchestration applies mode/on-failure defaults, validates their
 // values, and (if set) validates orchestration.order against the task
 // configs actually present.
-func validateOrchestration(orchestration *OrchestrationSection, present []string) error {
-	switch orchestration.Mode {
-	case "":
+func validateOrchestration(orchestration *OrchestrationConfig, present []string) error {
+	if orchestration.Mode == "" {
 		orchestration.Mode = ModeSequential
-	case ModeSequential, ModeParallel:
-	default:
+	} else if orchestration.Mode != ModeSequential && orchestration.Mode != ModeParallel {
 		return fmt.Errorf("orchestration.mode %q is invalid: must be %q or %q", orchestration.Mode, ModeSequential, ModeParallel)
 	}
 
-	switch orchestration.OnFailure {
-	case "":
+	if orchestration.OnFailure == "" {
 		orchestration.OnFailure = OnFailureContinue
-	case OnFailureContinue, OnFailureFailFast:
-	default:
+	} else if orchestration.OnFailure != OnFailureContinue && orchestration.OnFailure != OnFailureFailFast {
 		return fmt.Errorf("orchestration.on-failure %q is invalid: must be %q or %q",
 			orchestration.OnFailure, OnFailureContinue, OnFailureFailFast)
 	}
