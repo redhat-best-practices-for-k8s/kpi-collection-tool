@@ -8,7 +8,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("RunConfig Loader", func() {
+var _ = Describe("TasksSpec Loader", func() {
 	var tmpDir string
 
 	BeforeEach(func() {
@@ -27,7 +27,7 @@ var _ = Describe("RunConfig Loader", func() {
 		return path
 	}
 
-	Describe("LoadRunConfig", func() {
+	Describe("LoadTasksSpec", func() {
 		Context("prometheus task config", func() {
 			It("loads a prometheus task config with inline kpis", func() {
 				path := writeFile("tasks.yaml", `
@@ -36,7 +36,7 @@ prometheus:
     - id: node-cpu
       promquery: node_cpu_seconds_total
 `)
-				cfg, err := LoadRunConfig(path)
+				cfg, err := LoadTasksSpec(path)
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(cfg.Prometheus).NotTo(BeNil())
@@ -50,7 +50,7 @@ prometheus:
 prometheus:
   configFile: prom-kpis.yaml
 `)
-				cfg, err := LoadRunConfig(path)
+				cfg, err := LoadTasksSpec(path)
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(cfg.Prometheus).NotTo(BeNil())
@@ -66,7 +66,7 @@ prometheus:
     - id: node-cpu
       promquery: node_cpu_seconds_total
 `)
-				_, err := LoadRunConfig(path)
+				_, err := LoadTasksSpec(path)
 
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("mutually exclusive"))
@@ -76,7 +76,7 @@ prometheus:
 				path := writeFile("tasks.yaml", `
 prometheus: {}
 `)
-				_, err := LoadRunConfig(path)
+				_, err := LoadTasksSpec(path)
 
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("one of configFile or kpis must be set"))
@@ -95,7 +95,7 @@ per-node-data:
   anything: goes
 app-recovery-time: {}
 `)
-				cfg, err := LoadRunConfig(path)
+				cfg, err := LoadTasksSpec(path)
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(cfg.PresentTaskConfigs()).To(Equal([]string{
@@ -110,14 +110,14 @@ app-recovery-time: {}
 orchestration:
   mode: sequential
 `)
-				_, err := LoadRunConfig(path)
+				_, err := LoadTasksSpec(path)
 
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("no task configs defined"))
 			})
 
 			It("returns an error for a missing file", func() {
-				_, err := LoadRunConfig(filepath.Join(tmpDir, "nonexistent.yaml"))
+				_, err := LoadTasksSpec(filepath.Join(tmpDir, "nonexistent.yaml"))
 
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("cannot access tasks path"))
@@ -128,7 +128,7 @@ orchestration:
 prometheus:
   kpis: [invalid
 `)
-				_, err := LoadRunConfig(path)
+				_, err := LoadTasksSpec(path)
 
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("failed to decode tasks file"))
@@ -141,7 +141,7 @@ prometheus:
     - id: node-cpu
       promquery: node_cpu_seconds_total
 `)
-				cfg, err := LoadRunConfig(tmpDir)
+				cfg, err := LoadTasksSpec(tmpDir)
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(cfg.Prometheus).NotTo(BeNil())
@@ -154,7 +154,7 @@ prometheus:
 prometheus:
   configFile: prom-kpis.yaml
 `)
-				cfg, err := LoadRunConfig(path)
+				cfg, err := LoadTasksSpec(path)
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(cfg.ResolvePath(cfg.Prometheus.ConfigFile)).To(Equal(filepath.Join(tmpDir, "prom-kpis.yaml")))
@@ -165,7 +165,7 @@ prometheus:
 prometheus:
   configFile: /abs/prom-kpis.yaml
 `)
-				cfg, err := LoadRunConfig(path)
+				cfg, err := LoadTasksSpec(path)
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(cfg.ResolvePath(cfg.Prometheus.ConfigFile)).To(Equal("/abs/prom-kpis.yaml"))
@@ -180,11 +180,12 @@ prometheus:
     - id: node-cpu
       promquery: node_cpu_seconds_total
 `)
-				cfg, err := LoadRunConfig(path)
+				cfg, err := LoadTasksSpec(path)
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(cfg.Orchestration.Mode).To(Equal(ModeSequential))
 				Expect(cfg.Orchestration.OnFailure).To(Equal(OnFailureContinue))
+				Expect(cfg.Orchestration.Order).To(Equal([]string{TaskConfigPrometheus}))
 			})
 
 			It("accepts explicit parallel mode and fail-fast on-failure", func() {
@@ -197,7 +198,7 @@ prometheus:
     - id: node-cpu
       promquery: node_cpu_seconds_total
 `)
-				cfg, err := LoadRunConfig(path)
+				cfg, err := LoadTasksSpec(path)
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(cfg.Orchestration.Mode).To(Equal(ModeParallel))
@@ -213,7 +214,7 @@ prometheus:
     - id: node-cpu
       promquery: node_cpu_seconds_total
 `)
-				_, err := LoadRunConfig(path)
+				_, err := LoadTasksSpec(path)
 
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("orchestration.mode"))
@@ -228,7 +229,7 @@ prometheus:
     - id: node-cpu
       promquery: node_cpu_seconds_total
 `)
-				_, err := LoadRunConfig(path)
+				_, err := LoadTasksSpec(path)
 
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("orchestration.on-failure"))
@@ -246,7 +247,7 @@ prometheus:
       promquery: node_cpu_seconds_total
 oslat: {}
 `)
-				cfg, err := LoadRunConfig(path)
+				cfg, err := LoadTasksSpec(path)
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(cfg.Orchestration.Order).To(Equal([]string{TaskConfigOslat, TaskConfigPrometheus}))
@@ -261,7 +262,7 @@ prometheus:
     - id: node-cpu
       promquery: node_cpu_seconds_total
 `)
-				_, err := LoadRunConfig(path)
+				_, err := LoadTasksSpec(path)
 
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("not a known task config"))
@@ -277,7 +278,7 @@ prometheus:
       promquery: node_cpu_seconds_total
 oslat: {}
 `)
-				_, err := LoadRunConfig(path)
+				_, err := LoadTasksSpec(path)
 
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("missing task config(s)"))
@@ -292,7 +293,7 @@ prometheus:
     - id: node-cpu
       promquery: node_cpu_seconds_total
 `)
-				_, err := LoadRunConfig(path)
+				_, err := LoadTasksSpec(path)
 
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("no corresponding task config"))
@@ -307,7 +308,7 @@ prometheus:
     - id: node-cpu
       promquery: node_cpu_seconds_total
 `)
-				_, err := LoadRunConfig(path)
+				_, err := LoadTasksSpec(path)
 
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("listed more than once"))
@@ -315,14 +316,14 @@ prometheus:
 		})
 	})
 
-	Describe("RunConfig.PresentTaskConfigs", func() {
+	Describe("TasksSpec.PresentTaskConfigs", func() {
 		It("returns an empty slice when no task configs are set", func() {
-			cfg := RunConfig{}
+			cfg := TasksSpec{}
 			Expect(cfg.PresentTaskConfigs()).To(BeEmpty())
 		})
 
 		It("returns task configs in the fixed knownTaskConfigs order regardless of struct field order", func() {
-			cfg := RunConfig{
+			cfg := TasksSpec{
 				AppRecoveryTime: map[string]interface{}{},
 				Prometheus:      &PrometheusTaskConfig{Kpis: []Query{{ID: "x", PromQuery: "up"}}},
 			}

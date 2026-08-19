@@ -19,7 +19,7 @@ const (
 	OnFailureFailFast = "fail-fast"
 )
 
-// TaskConfig names used as YAML keys in a RunConfig file and, wherever
+// TaskConfig names used as YAML keys in a tasks.yaml file and, wherever
 // task type identifiers are needed (e.g. OrchestrationConfig.Order, task.Task.Name()).
 const (
 	TaskConfigPrometheus      = "prometheus"
@@ -28,13 +28,13 @@ const (
 	TaskConfigAppRecoveryTime = "app-recovery-time"
 )
 
-// knownTaskConfigs lists every task config key a RunConfig file may contain,
+// knownTaskConfigs lists every task config key a tasks.yaml file may contain,
 // in the order tasks run by default when orchestration.order is not set.
 var knownTaskConfigs = []string{TaskConfigPrometheus, TaskConfigOslat, TaskConfigPerNodeData, TaskConfigAppRecoveryTime}
 
-const runConfigFileName = "tasks.yaml"
+const tasksFileName = "tasks.yaml"
 
-// OrchestrationConfig carries orchestration policy for a RunConfig: how the
+// OrchestrationConfig carries orchestration policy for a TasksSpec: how the
 // present task configs are scheduled (sequential/parallel), how failures
 // are handled, and an optional override of the default execution order.
 type OrchestrationConfig struct {
@@ -50,7 +50,7 @@ type PrometheusTaskConfig struct {
 	Kpis       []Query `yaml:"kpis,omitempty"`
 }
 
-// RunConfig is the root of a --tasks YAML file: one optional task config per
+// TasksSpec is the root of a --tasks YAML file: one optional task config per
 // task type, plus orchestration policy in Orchestration.
 //
 // Oslat, PerNodeData, and AppRecoveryTime are intentionally untyped
@@ -58,7 +58,7 @@ type PrometheusTaskConfig struct {
 // only whether the task config is present matters today. Once a task's
 // schema is designed, replace its field here with a typed task config
 // struct, following PrometheusTaskConfig as the pattern.
-type RunConfig struct {
+type TasksSpec struct {
 	Orchestration   OrchestrationConfig    `yaml:"orchestration,omitempty"`
 	Prometheus      *PrometheusTaskConfig  `yaml:"prometheus,omitempty"`
 	Oslat           map[string]interface{} `yaml:"oslat,omitempty"`
@@ -72,7 +72,7 @@ type RunConfig struct {
 
 // ResolvePath resolves a task config's configFile path relative to the
 // directory containing the tasks file, leaving absolute paths unchanged.
-func (c RunConfig) ResolvePath(path string) string {
+func (c TasksSpec) ResolvePath(path string) string {
 	if path == "" || filepath.IsAbs(path) {
 		return path
 	}
@@ -80,8 +80,8 @@ func (c RunConfig) ResolvePath(path string) string {
 }
 
 // PresentTaskConfigs returns the task config keys that are set in this
-// RunConfig, in the fixed order defined by knownTaskConfigs.
-func (c RunConfig) PresentTaskConfigs() []string {
+// TasksSpec, in the fixed order defined by knownTaskConfigs.
+func (c TasksSpec) PresentTaskConfigs() []string {
 	var present []string
 	if c.Prometheus != nil {
 		present = append(present, TaskConfigPrometheus)
@@ -98,43 +98,43 @@ func (c RunConfig) PresentTaskConfigs() []string {
 	return present
 }
 
-// LoadRunConfig reads a --tasks file and parses it into a RunConfig.
+// LoadTasksSpec reads a --tasks file and parses it into a TasksSpec.
 // path may point directly at a YAML file, or at a directory containing a
 // conventionally named "tasks.yaml".
-func LoadRunConfig(path string) (RunConfig, error) {
+func LoadTasksSpec(path string) (TasksSpec, error) {
 	info, err := os.Stat(path)
 	if err != nil {
-		return RunConfig{}, fmt.Errorf("cannot access tasks path %q: %w", path, err)
+		return TasksSpec{}, fmt.Errorf("cannot access tasks path %q: %w", path, err)
 	}
 
 	configPath := path
 	if info.IsDir() {
-		configPath = filepath.Join(path, runConfigFileName)
+		configPath = filepath.Join(path, tasksFileName)
 	}
 
 	data, err := os.ReadFile(configPath) //#nosec G304 -- path is user-provided CLI input
 	if err != nil {
-		return RunConfig{}, fmt.Errorf("failed to open tasks file %q: %w", configPath, err)
+		return TasksSpec{}, fmt.Errorf("failed to open tasks file %q: %w", configPath, err)
 	}
 
-	var cfg RunConfig
+	var cfg TasksSpec
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return RunConfig{}, fmt.Errorf("failed to decode tasks file %q: %w", configPath, err)
+		return TasksSpec{}, fmt.Errorf("failed to decode tasks file %q: %w", configPath, err)
 	}
 	cfg.baseDir = filepath.Dir(configPath)
 
-	if err := ValidateRunConfig(&cfg); err != nil {
-		return RunConfig{}, err
+	if err := ValidateTasksSpec(&cfg); err != nil {
+		return TasksSpec{}, err
 	}
 
 	return cfg, nil
 }
 
-// ValidateRunConfig checks a parsed RunConfig for structural correctness:
+// ValidateTasksSpec checks a parsed TasksSpec for structural correctness:
 // at least one task config, valid orchestration policy, and (for the task
 // configs whose schema is implemented today) valid content. It also fills
-// in Orchestration's default mode/on-failure when left unset.
-func ValidateRunConfig(cfg *RunConfig) error {
+// in Orchestration's default mode/on-failure/order when left unset.
+func ValidateTasksSpec(cfg *TasksSpec) error {
 	present := cfg.PresentTaskConfigs()
 	if len(present) == 0 {
 		return fmt.Errorf("tasks file has no task configs defined (expected at least one of: %s)",
@@ -170,9 +170,10 @@ func validatePrometheusTaskConfig(p *PrometheusTaskConfig) error {
 	return nil
 }
 
-// validateOrchestration applies mode/on-failure defaults, validates their
-// values, and (if set) validates orchestration.order against the task
-// configs actually present.
+// validateOrchestration applies mode/on-failure/order defaults, validates
+// their values, and (if the user set order) checks it against the task
+// configs actually present. When order is omitted, it is filled with the
+// default task-config order (present).
 func validateOrchestration(orchestration *OrchestrationConfig, present []string) error {
 	if orchestration.Mode == "" {
 		orchestration.Mode = ModeSequential
@@ -188,6 +189,7 @@ func validateOrchestration(orchestration *OrchestrationConfig, present []string)
 	}
 
 	if len(orchestration.Order) == 0 {
+		orchestration.Order = present
 		return nil
 	}
 

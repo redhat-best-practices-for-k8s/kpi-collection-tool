@@ -135,7 +135,6 @@ type InputFlags struct {
 	OslatConfig    string // path to oslat task config file (not yet implemented)
 	PerNodeConfig  string // path to per-node task config file (not yet implemented)
 	RecoveryConfig string // path to recovery task config file (not yet implemented)
-	BundleConfig   string // path to bundle file or directory (--bundle)
 	SingleRun      bool   // collect metrics once and exit
 	Parallel       bool   // run tasks concurrently instead of sequentially
 	SkipPrompts    bool   // skip interactive prompts (--yes/-y)
