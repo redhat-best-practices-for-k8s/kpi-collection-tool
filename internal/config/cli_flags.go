@@ -29,8 +29,12 @@ func ValidateFlags(flags InputFlags) error {
 		return fmt.Errorf("invalid flag combination: either provide --token and --thanos-url, or provide --kubeconfig")
 	}
 
+	if flags.TasksConfig != "" && flags.PromKPIsConfig != "" {
+		return fmt.Errorf("--tasks and --prom-kpis-config are mutually exclusive")
+	}
+
 	if !flags.HasAnyTaskConfig() {
-		return fmt.Errorf("at least one task config flag is required")
+		return fmt.Errorf("either --tasks or --prom-kpis-config is required")
 	}
 
 	if flags.SamplingFreq <= 0 {
