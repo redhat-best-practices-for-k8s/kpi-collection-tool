@@ -58,11 +58,7 @@ Use --artifacts-dir to override.`,
   # With PostgreSQL backend
   kpi-collector run --cluster-name prod --cluster-type hub \
     --kubeconfig ~/.kube/config --prom-kpis-config kpis.yaml \
-    --db-type postgres --postgres-url "postgresql://user:pass@localhost:5432/kpi"
-
-  # Run a bundle (directory with bundle.yaml + task files)
-  kpi-collector run --cluster-name prod --cluster-type ran \
-    --kubeconfig ~/.kube/config --bundle nokia-ran-bundle/`,
+    --db-type postgres --postgres-url "postgresql://user:pass@localhost:5432/kpi"`,
 	RunE: runTasks,
 }
 
@@ -115,10 +111,6 @@ func init() {
 	runCmd.Flags().BoolVar(&flags.SingleRun, "once", false,
 		"collect all KPI metrics once and exit (ignores --frequency and --duration)")
 
-	// Bundle mode
-	runCmd.Flags().StringVar(&flags.BundleConfig, "bundle", "",
-		"path to bundle file or directory containing bundle.yaml and task files")
-
 	// Multi-task execution mode
 	runCmd.Flags().BoolVar(&flags.Parallel, "parallel", false,
 		"run tasks concurrently instead of sequentially")
@@ -135,13 +127,6 @@ func init() {
 	// --once is mutually exclusive with --frequency and --duration
 	runCmd.MarkFlagsMutuallyExclusive("once", "frequency")
 	runCmd.MarkFlagsMutuallyExclusive("once", "duration")
-
-	// --bundle is mutually exclusive with typed config flags
-	runCmd.MarkFlagsMutuallyExclusive("bundle", "prom-kpis-config")
-	runCmd.MarkFlagsMutuallyExclusive("bundle", "oslat-config")
-	runCmd.MarkFlagsMutuallyExclusive("bundle", "per-node-config")
-	runCmd.MarkFlagsMutuallyExclusive("bundle", "recovery-config")
-
 }
 
 func runTasks(cmd *cobra.Command, args []string) error {
@@ -203,40 +188,12 @@ func runTasks(cmd *cobra.Command, args []string) error {
 			tokenDuration)
 	}
 
-	// Resolve tasks: either from a bundle or from individual flags
-	var tasks []task.Task
-	var bundleSpec *task.BundleSpec
-
-	if flags.BundleConfig != "" {
-		var spec task.BundleSpec
-		spec, err = task.LoadBundle(flags.BundleConfig)
-		if err != nil {
-			return fmt.Errorf("failed to load bundle: %w", err)
-		}
-		bundleSpec = &spec
-		log.Printf("Loaded bundle from %s (%d task(s), mode=%s, on-failure=%s)",
-			flags.BundleConfig, len(spec.Tasks), spec.Mode, spec.OnFailure)
-
-		tasks, err = task.ResolveBundleTasks(spec, flags, kpis)
-	} else {
-		tasks, err = task.ResolveFromFlags(flags, kpis)
-	}
+	tasks, err := task.ResolveFromFlags(flags, kpis)
 	if err != nil {
 		return err
 	}
 
-	parallel := flags.Parallel
-	failFast := false
-	if bundleSpec != nil {
-		if bundleSpec.Mode == task.ModeParallel {
-			parallel = true
-		}
-		if bundleSpec.OnFailure == task.OnFailureFailFast {
-			failFast = true
-		}
-	}
-
-	failedTasks := runAllTasks(cmd, tasks, parallel, failFast)
+	failedTasks := runAllTasks(cmd, tasks, flags.Parallel, false)
 
 	absOutputDir, err := filepath.Abs(database.OutputDir)
 	if err != nil {

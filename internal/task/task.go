@@ -28,9 +28,11 @@ func NewPromKPITask(kpis config.KPIs, flags config.InputFlags) *PromKPITask {
 	return &PromKPITask{kpis: kpis, flags: flags}
 }
 
-// Name returns the task identifier.
+// Name returns the task identifier, matching the TasksSpec task-config key
+// (config.TaskConfigPrometheus) so logs and errors stay consistent with
+// the YAML the user wrote.
 func (t *PromKPITask) Name() string {
-	return "prom-kpis"
+	return config.TaskConfigPrometheus
 }
 
 // Run executes Prom KPI collection (once or periodic based on flags).
