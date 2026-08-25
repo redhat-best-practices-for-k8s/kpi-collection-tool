@@ -11,6 +11,31 @@ import (
 var _ = Describe("TasksSpec Loader", func() {
 	var tmpDir string
 
+	const validOslatSection = `
+  image: quay.io/container-perf-tools/oslat:latest
+  runtime: 12h
+  cpu: "16"
+  memory: 2Gi
+  replicas: 1
+  timeout: 12h30m`
+
+	const validPerNodeSection = `
+  workloadNamespaces:
+    - nokia-workload
+  duration: 30m
+  interval: 5s
+  nodes: all
+  sshUser: core
+  sshPort: 22
+  remoteWorkDir: /home/core`
+
+	const validRecoverySection = `
+  workloadNamespaces:
+    - nokia-workload
+  duration: 30m
+  interval: 1m
+  startWhen: node-unreachable`
+
 	BeforeEach(func() {
 		var err error
 		tmpDir, err = os.MkdirTemp("", "run-config-test-*")
@@ -83,24 +108,24 @@ prometheus: {}
 			})
 		})
 
-		Context("placeholder task configs (oslat / per-node-data / app-recovery-time)", func() {
-			It("accepts them as present regardless of content", func() {
+		Context("all task configs together", func() {
+			It("loads all four task configs in default order", func() {
 				path := writeFile("tasks.yaml", `
 prometheus:
   kpis:
     - id: node-cpu
       promquery: node_cpu_seconds_total
-oslat: {}
-per-node-data:
-  anything: goes
-app-recovery-time: {}
+per-node-data:` + validPerNodeSection + `
+oslat:` + validOslatSection + `
+app-recovery-time:` + validRecoverySection + `
 `)
 				cfg, err := LoadTasksSpec(path)
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(cfg.PresentTaskConfigs()).To(Equal([]string{
-					TaskConfigPrometheus, TaskConfigOslat, TaskConfigPerNodeData, TaskConfigAppRecoveryTime,
+					TaskConfigPrometheus, TaskConfigPerNodeData, TaskConfigOslat, TaskConfigAppRecoveryTime,
 				}))
+				Expect(cfg.Orchestration.Order).To(Equal(cfg.PresentTaskConfigs()))
 			})
 		})
 
@@ -245,7 +270,7 @@ prometheus:
   kpis:
     - id: node-cpu
       promquery: node_cpu_seconds_total
-oslat: {}
+oslat:` + validOslatSection + `
 `)
 				cfg, err := LoadTasksSpec(path)
 
@@ -276,7 +301,7 @@ prometheus:
   kpis:
     - id: node-cpu
       promquery: node_cpu_seconds_total
-oslat: {}
+oslat:` + validOslatSection + `
 `)
 				_, err := LoadTasksSpec(path)
 
@@ -324,7 +349,7 @@ prometheus:
 
 		It("returns task configs in the fixed knownTaskConfigs order regardless of struct field order", func() {
 			cfg := TasksSpec{
-				AppRecoveryTime: map[string]interface{}{},
+				AppRecoveryTime: &AppRecoveryTimeTaskConfig{WorkloadNamespaces: []string{"nokia-workload"}},
 				Prometheus:      &PrometheusTaskConfig{Kpis: []Query{{ID: "x", PromQuery: "up"}}},
 			}
 			Expect(cfg.PresentTaskConfigs()).To(Equal([]string{TaskConfigPrometheus, TaskConfigAppRecoveryTime}))
