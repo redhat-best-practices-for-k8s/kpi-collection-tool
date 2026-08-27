@@ -38,36 +38,46 @@ func ResolveFromTasksSpec(spec config.TasksSpec, flags config.InputFlags) ([]Tas
 }
 
 func buildPrometheusTask(spec config.TasksSpec, flags config.InputFlags) (Task, error) {
-	if spec.Prometheus == nil {
-		return nil, fmt.Errorf("%s: task config is missing", config.TaskConfigPrometheus)
+	kpis, err := LoadPrometheusKPIs(spec)
+	if err != nil {
+		return nil, err
 	}
-
-	kpis := config.KPIs{Queries: spec.Prometheus.Kpis}
-	if spec.Prometheus.ConfigFile != "" {
-		var err error
-		kpis, err = config.LoadKPIs(spec.ResolvePath(spec.Prometheus.ConfigFile))
-		if err != nil {
-			return nil, fmt.Errorf("%s: %w", config.TaskConfigPrometheus, err)
-		}
-	}
-
 	return NewPromKPITask(kpis, flags), nil
 }
 
-// Replace the stub bodies when each task's YAML schema is designed.
+// LoadPrometheusKPIs reads prometheus queries from inline kpis or configFile.
+func LoadPrometheusKPIs(spec config.TasksSpec) (config.KPIs, error) {
+	if spec.Prometheus == nil {
+		return config.KPIs{}, fmt.Errorf("%s: task config is missing", config.TaskConfigPrometheus)
+	}
 
-func buildOslatTask(spec config.TasksSpec, flags config.InputFlags) (Task, error) {
-	return notYetSupported(config.TaskConfigOslat, spec, flags)
+	if spec.Prometheus.ConfigFile != "" {
+		kpis, err := config.LoadKPIs(spec.ResolvePath(spec.Prometheus.ConfigFile))
+		if err != nil {
+			return config.KPIs{}, fmt.Errorf("%s: %w", config.TaskConfigPrometheus, err)
+		}
+		return kpis, nil
+	}
+
+	return config.KPIs{Queries: spec.Prometheus.Kpis}, nil
 }
 
-func buildPerNodeDataTask(spec config.TasksSpec, flags config.InputFlags) (Task, error) {
-	return notYetSupported(config.TaskConfigPerNodeData, spec, flags)
+// FromPromKPIsFlag builds the single prometheus task used by --prom-kpis-config.
+func FromPromKPIsFlag(flags config.InputFlags, kpis config.KPIs) ([]Task, error) {
+	if flags.PromKPIsConfig == "" {
+		return nil, fmt.Errorf("no tasks configured: --prom-kpis-config is required")
+	}
+	return []Task{NewPromKPITask(kpis, flags)}, nil
 }
 
-func buildAppRecoveryTimeTask(spec config.TasksSpec, flags config.InputFlags) (Task, error) {
-	return notYetSupported(config.TaskConfigAppRecoveryTime, spec, flags)
+func buildOslatTask(_ config.TasksSpec, _ config.InputFlags) (Task, error) {
+	return nil, errNotYetSupported(config.TaskConfigOslat)
 }
 
-func notYetSupported(name string, _ config.TasksSpec, _ config.InputFlags) (Task, error) {
-	return nil, fmt.Errorf("%s: task type not yet supported", name)
+func buildPerNodeDataTask(_ config.TasksSpec, _ config.InputFlags) (Task, error) {
+	return nil, errNotYetSupported(config.TaskConfigPerNodeData)
+}
+
+func buildAppRecoveryTimeTask(_ config.TasksSpec, _ config.InputFlags) (Task, error) {
+	return nil, errNotYetSupported(config.TaskConfigAppRecoveryTime)
 }

@@ -8,25 +8,27 @@ import (
 )
 
 const (
-	validClusterName  = "test-cluster"
-	validClusterType  = "ran"
-	validBearerToken  = "test-token"
-	validThanosURL    = "https://thanos.example.com"
-	validKubeconfig   = "/path/to/kubeconfig"
-	validSamplingFreq = 60 * time.Second
-	validDuration     = 45 * time.Minute
-	validDatabaseType = "sqlite"
+	validClusterName    = "test-cluster"
+	validClusterType    = "ran"
+	validBearerToken    = "test-token"
+	validThanosURL      = "https://thanos.example.com"
+	validKubeconfig     = "/path/to/kubeconfig"
+	validSamplingFreq   = 60 * time.Second
+	validDuration       = 45 * time.Minute
+	validDatabaseType   = "sqlite"
 	validPromKPIsConfig = "/path/to/kpis.yaml"
 
-	errClusterNameRequiredMsg = "cluster name is required: use --cluster-name flag"
-	errClusterTypeRequiredMsg = "cluster-type is required: must be 'ran', 'core', or 'hub'"
-	errInvalidClusterTypeMsg  = "invalid cluster-type 'invalid': must be 'ran', 'core', or 'hub'"
-	errInvalidFlagComboMsg    = "invalid flag combination: either provide --token and --thanos-url, or provide --kubeconfig"
-	errSamplingFreqMsg        = "sampling frequency must be greater than 0"
-	errDurationMsg            = "duration must be greater than 0"
-	errInvalidDBTypeMsg       = "invalid db-type: must be 'sqlite' or 'postgres'"
-	errPostgresURLRequiredMsg = "postgres-url is required when db-type=postgres"
-	errNoTaskConfigMsg = "at least one task config flag is required"
+	errClusterNameRequiredMsg           = "cluster name is required: use --cluster-name flag"
+	errClusterTypeRequiredMsg           = "cluster-type is required: must be 'ran', 'core', or 'hub'"
+	errInvalidClusterTypeMsg            = "invalid cluster-type 'invalid': must be 'ran', 'core', or 'hub'"
+	errInvalidFlagComboMsg              = "invalid flag combination: either provide --token and --thanos-url, or provide --kubeconfig"
+	errSamplingFreqMsg                  = "sampling frequency must be greater than 0"
+	errDurationMsg                      = "duration must be greater than 0"
+	errInvalidDBTypeMsg                 = "invalid db-type: must be 'sqlite' or 'postgres'"
+	errPostgresURLRequiredMsg           = "postgres-url is required when db-type=postgres"
+	errNoTaskConfigMsg                  = "either --tasks or --prom-kpis-config is required"
+	errTasksAndPromMutuallyExclusiveMsg = "--tasks and --prom-kpis-config are mutually exclusive"
+	validTasksConfig                    = "/path/to/tasks.yaml"
 )
 
 var _ = Describe("validateFlags test", func() {
@@ -46,25 +48,25 @@ var _ = Describe("validateFlags test", func() {
 		// Valid cases
 		Entry("valid token and thanos-url",
 			InputFlags{
-				ClusterName:  validClusterName,
-				ClusterType:  validClusterType,
-				BearerToken:  validBearerToken,
-				ThanosURL:    validThanosURL,
-				SamplingFreq: validSamplingFreq,
-				Duration:     validDuration,
-				DatabaseType: validDatabaseType,
+				ClusterName:    validClusterName,
+				ClusterType:    validClusterType,
+				BearerToken:    validBearerToken,
+				ThanosURL:      validThanosURL,
+				SamplingFreq:   validSamplingFreq,
+				Duration:       validDuration,
+				DatabaseType:   validDatabaseType,
 				PromKPIsConfig: validPromKPIsConfig,
 			},
 			"", // no error expected
 		),
 		Entry("valid kubeconfig",
 			InputFlags{
-				ClusterName:  validClusterName,
-				ClusterType:  validClusterType,
-				Kubeconfig:   validKubeconfig,
-				SamplingFreq: validSamplingFreq,
-				Duration:     validDuration,
-				DatabaseType: validDatabaseType,
+				ClusterName:    validClusterName,
+				ClusterType:    validClusterType,
+				Kubeconfig:     validKubeconfig,
+				SamplingFreq:   validSamplingFreq,
+				Duration:       validDuration,
+				DatabaseType:   validDatabaseType,
 				PromKPIsConfig: validPromKPIsConfig,
 			},
 			"",
@@ -81,25 +83,25 @@ var _ = Describe("validateFlags test", func() {
 		// Error cases - missing or invalid cluster type
 		Entry("missing cluster type",
 			InputFlags{
-				ClusterName:  validClusterName,
-				BearerToken:  validBearerToken,
-				ThanosURL:    validThanosURL,
-				SamplingFreq: validSamplingFreq,
-				Duration:     validDuration,
-				DatabaseType: validDatabaseType,
+				ClusterName:    validClusterName,
+				BearerToken:    validBearerToken,
+				ThanosURL:      validThanosURL,
+				SamplingFreq:   validSamplingFreq,
+				Duration:       validDuration,
+				DatabaseType:   validDatabaseType,
 				PromKPIsConfig: validPromKPIsConfig,
 			},
 			errClusterTypeRequiredMsg,
 		),
 		Entry("invalid cluster type",
 			InputFlags{
-				ClusterName:  validClusterName,
-				ClusterType:  "invalid",
-				BearerToken:  validBearerToken,
-				ThanosURL:    validThanosURL,
-				SamplingFreq: validSamplingFreq,
-				Duration:     validDuration,
-				DatabaseType: validDatabaseType,
+				ClusterName:    validClusterName,
+				ClusterType:    "invalid",
+				BearerToken:    validBearerToken,
+				ThanosURL:      validThanosURL,
+				SamplingFreq:   validSamplingFreq,
+				Duration:       validDuration,
+				DatabaseType:   validDatabaseType,
 				PromKPIsConfig: validPromKPIsConfig,
 			},
 			errInvalidClusterTypeMsg,
@@ -159,26 +161,26 @@ var _ = Describe("validateFlags test", func() {
 		// Error cases - invalid sampling frequency
 		Entry("zero sampling frequency",
 			InputFlags{
-				ClusterName:  validClusterName,
-				ClusterType:  validClusterType,
-				BearerToken:  validBearerToken,
-				ThanosURL:    validThanosURL,
-				SamplingFreq: 0,
-				Duration:     validDuration,
-				DatabaseType: validDatabaseType,
+				ClusterName:    validClusterName,
+				ClusterType:    validClusterType,
+				BearerToken:    validBearerToken,
+				ThanosURL:      validThanosURL,
+				SamplingFreq:   0,
+				Duration:       validDuration,
+				DatabaseType:   validDatabaseType,
 				PromKPIsConfig: validPromKPIsConfig,
 			},
 			errSamplingFreqMsg,
 		),
 		Entry("negative sampling frequency",
 			InputFlags{
-				ClusterName:  validClusterName,
-				ClusterType:  validClusterType,
-				BearerToken:  validBearerToken,
-				ThanosURL:    validThanosURL,
-				SamplingFreq: -10,
-				Duration:     validDuration,
-				DatabaseType: validDatabaseType,
+				ClusterName:    validClusterName,
+				ClusterType:    validClusterType,
+				BearerToken:    validBearerToken,
+				ThanosURL:      validThanosURL,
+				SamplingFreq:   -10,
+				Duration:       validDuration,
+				DatabaseType:   validDatabaseType,
 				PromKPIsConfig: validPromKPIsConfig,
 			},
 			errSamplingFreqMsg,
@@ -186,26 +188,26 @@ var _ = Describe("validateFlags test", func() {
 		// Error cases - invalid duration
 		Entry("zero duration",
 			InputFlags{
-				ClusterName:  validClusterName,
-				ClusterType:  validClusterType,
-				BearerToken:  validBearerToken,
-				ThanosURL:    validThanosURL,
-				SamplingFreq: validSamplingFreq,
-				Duration:     0,
-				DatabaseType: validDatabaseType,
+				ClusterName:    validClusterName,
+				ClusterType:    validClusterType,
+				BearerToken:    validBearerToken,
+				ThanosURL:      validThanosURL,
+				SamplingFreq:   validSamplingFreq,
+				Duration:       0,
+				DatabaseType:   validDatabaseType,
 				PromKPIsConfig: validPromKPIsConfig,
 			},
 			errDurationMsg,
 		),
 		Entry("negative duration",
 			InputFlags{
-				ClusterName:  validClusterName,
-				ClusterType:  validClusterType,
-				BearerToken:  validBearerToken,
-				ThanosURL:    validThanosURL,
-				SamplingFreq: validSamplingFreq,
-				Duration:     -10 * time.Minute,
-				DatabaseType: validDatabaseType,
+				ClusterName:    validClusterName,
+				ClusterType:    validClusterType,
+				BearerToken:    validBearerToken,
+				ThanosURL:      validThanosURL,
+				SamplingFreq:   validSamplingFreq,
+				Duration:       -10 * time.Minute,
+				DatabaseType:   validDatabaseType,
 				PromKPIsConfig: validPromKPIsConfig,
 			},
 			errDurationMsg,
@@ -213,26 +215,26 @@ var _ = Describe("validateFlags test", func() {
 		// Error cases - invalid database type
 		Entry("invalid database type",
 			InputFlags{
-				ClusterName:  validClusterName,
-				ClusterType:  validClusterType,
-				BearerToken:  validBearerToken,
-				ThanosURL:    validThanosURL,
-				SamplingFreq: validSamplingFreq,
-				Duration:     validDuration,
-				DatabaseType: "mysql",
+				ClusterName:    validClusterName,
+				ClusterType:    validClusterType,
+				BearerToken:    validBearerToken,
+				ThanosURL:      validThanosURL,
+				SamplingFreq:   validSamplingFreq,
+				Duration:       validDuration,
+				DatabaseType:   "mysql",
 				PromKPIsConfig: validPromKPIsConfig,
 			},
 			errInvalidDBTypeMsg,
 		),
 		Entry("empty database type",
 			InputFlags{
-				ClusterName:  validClusterName,
-				ClusterType:  validClusterType,
-				BearerToken:  validBearerToken,
-				ThanosURL:    validThanosURL,
-				SamplingFreq: validSamplingFreq,
-				Duration:     validDuration,
-				DatabaseType: "",
+				ClusterName:    validClusterName,
+				ClusterType:    validClusterType,
+				BearerToken:    validBearerToken,
+				ThanosURL:      validThanosURL,
+				SamplingFreq:   validSamplingFreq,
+				Duration:       validDuration,
+				DatabaseType:   "",
 				PromKPIsConfig: validPromKPIsConfig,
 			},
 			errInvalidDBTypeMsg,
@@ -240,14 +242,14 @@ var _ = Describe("validateFlags test", func() {
 		// Error cases - postgres without URL
 		Entry("postgres database type without postgres-url",
 			InputFlags{
-				ClusterName:  validClusterName,
-				ClusterType:  validClusterType,
-				BearerToken:  validBearerToken,
-				ThanosURL:    validThanosURL,
-				SamplingFreq: validSamplingFreq,
-				Duration:     validDuration,
-				DatabaseType: "postgres",
-				PostgresURL:  "",
+				ClusterName:    validClusterName,
+				ClusterType:    validClusterType,
+				BearerToken:    validBearerToken,
+				ThanosURL:      validThanosURL,
+				SamplingFreq:   validSamplingFreq,
+				Duration:       validDuration,
+				DatabaseType:   "postgres",
+				PostgresURL:    "",
 				PromKPIsConfig: validPromKPIsConfig,
 			},
 			errPostgresURLRequiredMsg,
@@ -255,14 +257,14 @@ var _ = Describe("validateFlags test", func() {
 		// Valid case - postgres with URL
 		Entry("valid postgres with postgres-url",
 			InputFlags{
-				ClusterName:  validClusterName,
-				ClusterType:  validClusterType,
-				BearerToken:  validBearerToken,
-				ThanosURL:    validThanosURL,
-				SamplingFreq: validSamplingFreq,
-				Duration:     validDuration,
-				DatabaseType: "postgres",
-				PostgresURL:  "postgresql://user:pass@localhost:5432/dbname",
+				ClusterName:    validClusterName,
+				ClusterType:    validClusterType,
+				BearerToken:    validBearerToken,
+				ThanosURL:      validThanosURL,
+				SamplingFreq:   validSamplingFreq,
+				Duration:       validDuration,
+				DatabaseType:   "postgres",
+				PostgresURL:    "postgresql://user:pass@localhost:5432/dbname",
 				PromKPIsConfig: validPromKPIsConfig,
 			},
 			"",
@@ -270,20 +272,33 @@ var _ = Describe("validateFlags test", func() {
 		// Valid case - single-run mode
 		Entry("valid single-run mode",
 			InputFlags{
-				ClusterName:  validClusterName,
-				ClusterType:  validClusterType,
-				BearerToken:  validBearerToken,
-				ThanosURL:    validThanosURL,
-				SingleRun:    true,
-				SamplingFreq: validSamplingFreq,
-				Duration:     validDuration,
-				DatabaseType: validDatabaseType,
+				ClusterName:    validClusterName,
+				ClusterType:    validClusterType,
+				BearerToken:    validBearerToken,
+				ThanosURL:      validThanosURL,
+				SingleRun:      true,
+				SamplingFreq:   validSamplingFreq,
+				Duration:       validDuration,
+				DatabaseType:   validDatabaseType,
 				PromKPIsConfig: validPromKPIsConfig,
 			},
 			"",
 		),
 		// Error cases - no task config flag set
 		Entry("no task config flags",
+			InputFlags{
+				ClusterName:    validClusterName,
+				ClusterType:    validClusterType,
+				BearerToken:    validBearerToken,
+				ThanosURL:      validThanosURL,
+				SamplingFreq:   validSamplingFreq,
+				Duration:       validDuration,
+				DatabaseType:   validDatabaseType,
+				PromKPIsConfig: "",
+			},
+			errNoTaskConfigMsg,
+		),
+		Entry("valid --tasks without --prom-kpis-config",
 			InputFlags{
 				ClusterName:  validClusterName,
 				ClusterType:  validClusterType,
@@ -292,9 +307,37 @@ var _ = Describe("validateFlags test", func() {
 				SamplingFreq: validSamplingFreq,
 				Duration:     validDuration,
 				DatabaseType: validDatabaseType,
-				PromKPIsConfig: "",
+				TasksConfig:  validTasksConfig,
 			},
-			errNoTaskConfigMsg,
+			"",
+		),
+		Entry("--tasks and --prom-kpis-config together",
+			InputFlags{
+				ClusterName:    validClusterName,
+				ClusterType:    validClusterType,
+				BearerToken:    validBearerToken,
+				ThanosURL:      validThanosURL,
+				SamplingFreq:   validSamplingFreq,
+				Duration:       validDuration,
+				DatabaseType:   validDatabaseType,
+				PromKPIsConfig: validPromKPIsConfig,
+				TasksConfig:    validTasksConfig,
+			},
+			errTasksAndPromMutuallyExclusiveMsg,
+		),
+		Entry("--tasks with --parallel",
+			InputFlags{
+				ClusterName:  validClusterName,
+				ClusterType:  validClusterType,
+				BearerToken:  validBearerToken,
+				ThanosURL:    validThanosURL,
+				SamplingFreq: validSamplingFreq,
+				Duration:     validDuration,
+				DatabaseType: validDatabaseType,
+				TasksConfig:  validTasksConfig,
+				Parallel:     true,
+			},
+			"",
 		),
 	)
 })

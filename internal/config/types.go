@@ -132,9 +132,7 @@ type InputFlags struct {
 	DatabaseType   string // "sqlite" or "postgres"
 	PostgresURL    string // PostgreSQL connection string
 	PromKPIsConfig string // path to Prom KPI config file (--prom-kpis-config / --kpis-file)
-	OslatConfig    string // path to oslat task config file (not yet implemented)
-	PerNodeConfig  string // path to per-node task config file (not yet implemented)
-	RecoveryConfig string // path to recovery task config file (not yet implemented)
+	TasksConfig    string // path to --tasks YAML file or directory containing tasks.yaml
 	SingleRun      bool   // collect metrics once and exit
 	Parallel       bool   // run tasks concurrently instead of sequentially
 	SkipPrompts    bool   // skip interactive prompts (--yes/-y)
@@ -142,7 +140,7 @@ type InputFlags struct {
 
 // HasAnyTaskConfig returns true if at least one task config flag is set.
 func (f InputFlags) HasAnyTaskConfig() bool {
-	return f.PromKPIsConfig != "" || f.OslatConfig != "" || f.PerNodeConfig != "" || f.RecoveryConfig != ""
+	return f.PromKPIsConfig != "" || f.TasksConfig != ""
 }
 
 // Query represents a single KPI query configuration

@@ -38,7 +38,11 @@ For more usage options, see https://github.com/redhat-best-practices-for-k8s/kpi
 
 All artifacts (database, logs, output) are stored in ./kpi-collector-artifacts/ by default.
 Use --artifacts-dir to override.`,
-	Example: `  # Using kubeconfig (auto-discovery of Thanos URL and token)
+	Example: `  # Using a tasks file (prometheus section; other task types not yet supported)
+  kpi-collector run --cluster-name prod --cluster-type ran \
+    --kubeconfig ~/.kube/config --tasks tasks.yaml
+
+  # Using kubeconfig (auto-discovery of Thanos URL and token)
   kpi-collector run --cluster-name prod --cluster-type ran \
     --kubeconfig ~/.kube/config --prom-kpis-config kpis.yaml
 
@@ -92,16 +96,12 @@ func init() {
 		"PostgreSQL connection string (required if db-type=postgres)")
 
 	// Task config flags
+	runCmd.Flags().StringVar(&flags.TasksConfig, "tasks", "",
+		"path to tasks YAML file, or a directory containing tasks.yaml")
 	runCmd.Flags().StringVar(&flags.PromKPIsConfig, "prom-kpis-config", "",
 		"path to Prometheus KPI configuration file")
 	runCmd.Flags().StringVar(&flags.PromKPIsConfig, "kpis-file", "",
 		"[deprecated: use --prom-kpis-config] path to Prometheus KPI configuration file")
-	runCmd.Flags().StringVar(&flags.OslatConfig, "oslat-config", "",
-		"path to oslat task configuration file (not yet implemented)")
-	runCmd.Flags().StringVar(&flags.PerNodeConfig, "per-node-config", "",
-		"path to per-node task configuration file (not yet implemented)")
-	runCmd.Flags().StringVar(&flags.RecoveryConfig, "recovery-config", "",
-		"path to recovery task configuration file (not yet implemented)")
 
 	if err := runCmd.Flags().MarkDeprecated("kpis-file", "use --prom-kpis-config instead"); err != nil {
 		panic(fmt.Sprintf("failed to mark kpis-file as deprecated: %v", err))
@@ -111,9 +111,8 @@ func init() {
 	runCmd.Flags().BoolVar(&flags.SingleRun, "once", false,
 		"collect all KPI metrics once and exit (ignores --frequency and --duration)")
 
-	// Multi-task execution mode
 	runCmd.Flags().BoolVar(&flags.Parallel, "parallel", false,
-		"run tasks concurrently instead of sequentially")
+		"run tasks concurrently instead of sequentially (also settable via orchestration.mode in a tasks file)")
 
 	// Skip interactive prompts
 	runCmd.Flags().BoolVarP(&flags.SkipPrompts, "yes", "y", false,
@@ -127,6 +126,8 @@ func init() {
 	// --once is mutually exclusive with --frequency and --duration
 	runCmd.MarkFlagsMutuallyExclusive("once", "frequency")
 	runCmd.MarkFlagsMutuallyExclusive("once", "duration")
+	runCmd.MarkFlagsMutuallyExclusive("tasks", "prom-kpis-config")
+	runCmd.MarkFlagsMutuallyExclusive("tasks", "kpis-file")
 }
 
 func runTasks(cmd *cobra.Command, args []string) error {
@@ -160,40 +161,22 @@ func runTasks(cmd *cobra.Command, args []string) error {
 
 	log.Println("KPI Collector initialized")
 
-	// Prom-specific setup: only when --prom-kpis-config is set
-	var kpis config.KPIs
-	if flags.PromKPIsConfig != "" {
-		var setupErr error
-		kpis, setupErr = setupPromKPIs(flags)
-		if setupErr != nil {
-			return setupErr
-		}
+	if err := setupKubeconfigAuthIfNeeded(&flags); err != nil {
+		return err
 	}
 
-	// If kubeconfig is provided, discover Thanos URL and token
-	if flags.Kubeconfig != "" {
-		log.Printf("Using kubeconfig authentication: %s", flags.Kubeconfig)
-
-		tokenDuration := tokenDurationForCollection(flags.SingleRun, flags.Duration)
-
-		var authErr error
-		flags.ThanosURL, flags.BearerToken, authErr = kubernetes.SetupKubeconfigAuth(flags.Kubeconfig, tokenDuration)
-		if authErr != nil {
-			return fmt.Errorf("failed to setup kubeconfig auth: %w", authErr)
-		}
-		fmt.Printf("Discovered Thanos URL: %s\n", flags.ThanosURL)
-		fmt.Printf("Created service account token (sa=%s, ns=%s, expiry=%s)\n",
-			kubernetes.TokenServiceAccountName,
-			kubernetes.MonitoringNamespace,
-			tokenDuration)
+	var tasks []task.Task
+	var parallel, failFast bool
+	if flags.TasksConfig != "" {
+		tasks, parallel, failFast, err = resolveTasksFromSpec(flags)
+	} else {
+		tasks, parallel, failFast, err = resolvePromKPIFromFlags(flags)
 	}
-
-	tasks, err := task.ResolveFromFlags(flags, kpis)
 	if err != nil {
 		return err
 	}
 
-	failedTasks := runAllTasks(cmd, tasks, flags.Parallel, false)
+	failedTasks := runAllTasks(cmd, tasks, parallel, failFast)
 
 	absOutputDir, err := filepath.Abs(database.OutputDir)
 	if err != nil {
@@ -208,6 +191,86 @@ func runTasks(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// setupKubeconfigAuthIfNeeded discovers Thanos and a token before tasks are
+// resolved, so PromKPITask is constructed with those credentials.
+func setupKubeconfigAuthIfNeeded(flags *config.InputFlags) error {
+	if flags.Kubeconfig == "" {
+		return nil
+	}
+
+	log.Printf("Using kubeconfig authentication: %s", flags.Kubeconfig)
+
+	tokenDuration := tokenDurationForCollection(flags.SingleRun, flags.Duration)
+
+	thanosURL, token, err := kubernetes.SetupKubeconfigAuth(flags.Kubeconfig, tokenDuration)
+	if err != nil {
+		return fmt.Errorf("failed to setup kubeconfig auth: %w", err)
+	}
+
+	flags.ThanosURL = thanosURL
+	flags.BearerToken = token
+	fmt.Printf("Discovered Thanos URL: %s\n", flags.ThanosURL)
+	fmt.Printf("Created service account token (sa=%s, ns=%s, expiry=%s)\n",
+		kubernetes.TokenServiceAccountName,
+		kubernetes.MonitoringNamespace,
+		tokenDuration)
+
+	return nil
+}
+
+func resolveTasksFromSpec(flags config.InputFlags) ([]task.Task, bool, bool, error) {
+	spec, err := config.LoadTasksSpec(flags.TasksConfig)
+	if err != nil {
+		return nil, false, false, err
+	}
+	log.Printf("Loaded tasks from %s (mode=%s, on-failure=%s)",
+		flags.TasksConfig, spec.Orchestration.Mode, spec.Orchestration.OnFailure)
+
+	if spec.Prometheus != nil {
+		kpis, err := task.LoadPrometheusKPIs(spec)
+		if err != nil {
+			return nil, false, false, err
+		}
+		kpis, err = prepareLoadedKPIs(kpis, flags)
+		if err != nil {
+			return nil, false, false, err
+		}
+		spec.Prometheus.Kpis = kpis.Queries
+		spec.Prometheus.ConfigFile = ""
+	}
+
+	tasks, err := task.ResolveFromTasksSpec(spec, flags)
+	if err != nil {
+		return nil, false, false, err
+	}
+
+	parallel, failFast := orchestrationFromSpec(spec, flags)
+	return tasks, parallel, failFast, nil
+}
+
+// resolvePromKPIFromFlags is the legacy --prom-kpis-config / --kpis-file path:
+// it always produces a single prometheus task. Other task types are only
+// selected via --tasks.
+func resolvePromKPIFromFlags(flags config.InputFlags) ([]task.Task, bool, bool, error) {
+	kpis, err := setupPromKPIs(flags)
+	if err != nil {
+		return nil, false, false, err
+	}
+
+	tasks, err := task.FromPromKPIsFlag(flags, kpis)
+	if err != nil {
+		return nil, false, false, err
+	}
+	return tasks, flags.Parallel, false, nil
+}
+
+// orchestrationFromSpec uses the tasks file, then ORs in CLI --parallel.
+// Fail-fast comes from orchestration.on-failure (there is no CLI flag).
+func orchestrationFromSpec(spec config.TasksSpec, flags config.InputFlags) (parallel, failFast bool) {
+	return flags.Parallel || spec.Orchestration.Mode == config.ModeParallel,
+		spec.Orchestration.OnFailure == config.OnFailureFailFast
+}
+
 // setupPromKPIs loads, validates, and prepares Prom KPI queries.
 func setupPromKPIs(flags config.InputFlags) (config.KPIs, error) {
 	kpis, err := config.LoadKPIs(flags.PromKPIsConfig)
@@ -216,6 +279,10 @@ func setupPromKPIs(flags config.InputFlags) (config.KPIs, error) {
 	}
 	log.Printf("Loaded KPIs from %s", flags.PromKPIsConfig)
 
+	return prepareLoadedKPIs(kpis, flags)
+}
+
+func prepareLoadedKPIs(kpis config.KPIs, flags config.InputFlags) (config.KPIs, error) {
 	if validationErrors := config.ValidateKPIs(kpis); len(validationErrors) > 0 {
 		fmt.Println("KPI validation errors:")
 		for _, e := range validationErrors {
@@ -231,7 +298,7 @@ func setupPromKPIs(flags config.InputFlags) (config.KPIs, error) {
 		}
 	}
 
-	kpis, err = substituteCPUsIfNeeded(kpis, flags)
+	kpis, err := substituteCPUsIfNeeded(kpis, flags)
 	if err != nil {
 		return config.KPIs{}, err
 	}
