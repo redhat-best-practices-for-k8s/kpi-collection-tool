@@ -30,7 +30,7 @@ const (
 
 // knownTaskConfigs lists every task config key a tasks.yaml file may contain,
 // in the order tasks run by default when orchestration.order is not set.
-var knownTaskConfigs = []string{TaskConfigPrometheus, TaskConfigOslat, TaskConfigPerNodeData, TaskConfigAppRecoveryTime}
+var knownTaskConfigs = []string{TaskConfigPrometheus, TaskConfigPerNodeData, TaskConfigOslat, TaskConfigAppRecoveryTime}
 
 const tasksFileName = "tasks.yaml"
 
@@ -52,18 +52,12 @@ type PrometheusTaskConfig struct {
 
 // TasksSpec is the root of a --tasks YAML file: one optional task config per
 // task type, plus orchestration policy in Orchestration.
-//
-// Oslat, PerNodeData, and AppRecoveryTime are intentionally untyped
-// (map[string]interface{}) because those task types aren't implemented yet —
-// only whether the task config is present matters today. Once a task's
-// schema is designed, replace its field here with a typed task config
-// struct, following PrometheusTaskConfig as the pattern.
 type TasksSpec struct {
-	Orchestration   OrchestrationConfig    `yaml:"orchestration,omitempty"`
-	Prometheus      *PrometheusTaskConfig  `yaml:"prometheus,omitempty"`
-	Oslat           map[string]interface{} `yaml:"oslat,omitempty"`
-	PerNodeData     map[string]interface{} `yaml:"per-node-data,omitempty"`
-	AppRecoveryTime map[string]interface{} `yaml:"app-recovery-time,omitempty"`
+	Orchestration   OrchestrationConfig        `yaml:"orchestration,omitempty"`
+	Prometheus      *PrometheusTaskConfig      `yaml:"prometheus,omitempty"`
+	Oslat           *OslatTaskConfig           `yaml:"oslat,omitempty"`
+	PerNodeData     *PerNodeDataTaskConfig     `yaml:"per-node-data,omitempty"`
+	AppRecoveryTime *AppRecoveryTimeTaskConfig `yaml:"app-recovery-time,omitempty"`
 
 	// baseDir is the directory containing the tasks file, used to resolve
 	// relative configFile paths within task configs.
@@ -86,11 +80,11 @@ func (c TasksSpec) PresentTaskConfigs() []string {
 	if c.Prometheus != nil {
 		present = append(present, TaskConfigPrometheus)
 	}
-	if c.Oslat != nil {
-		present = append(present, TaskConfigOslat)
-	}
 	if c.PerNodeData != nil {
 		present = append(present, TaskConfigPerNodeData)
+	}
+	if c.Oslat != nil {
+		present = append(present, TaskConfigOslat)
 	}
 	if c.AppRecoveryTime != nil {
 		present = append(present, TaskConfigAppRecoveryTime)
@@ -142,6 +136,15 @@ func ValidateTasksSpec(cfg *TasksSpec) error {
 	}
 
 	if err := validatePrometheusTaskConfig(cfg.Prometheus); err != nil {
+		return err
+	}
+	if err := resolveAndValidateOslat(cfg); err != nil {
+		return err
+	}
+	if err := resolveAndValidatePerNodeData(cfg); err != nil {
+		return err
+	}
+	if err := resolveAndValidateAppRecoveryTime(cfg); err != nil {
 		return err
 	}
 

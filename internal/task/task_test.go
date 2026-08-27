@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -11,6 +12,38 @@ import (
 	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/config"
 	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/task"
 )
+
+func validOslatConfig() *config.OslatTaskConfig {
+	return &config.OslatTaskConfig{
+		Image:    "quay.io/example/oslat:latest",
+		Runtime:  config.Duration{Duration: 12 * time.Hour},
+		CPU:      "16",
+		Memory:   "2Gi",
+		Replicas: 1,
+		Timeout:  config.Duration{Duration: 12*time.Hour + 30*time.Minute},
+	}
+}
+
+func validPerNodeConfig() *config.PerNodeDataTaskConfig {
+	return &config.PerNodeDataTaskConfig{
+		WorkloadNamespaces: []string{"workload"},
+		Duration:           config.Duration{Duration: 30 * time.Minute},
+		Interval:           config.Duration{Duration: 5 * time.Second},
+		Nodes:              config.NodesAll,
+		SSHUser:            "core",
+		SSHPort:            22,
+		RemoteWorkDir:      "/home/core",
+	}
+}
+
+func validRecoveryConfig() *config.AppRecoveryTimeTaskConfig {
+	return &config.AppRecoveryTimeTaskConfig{
+		WorkloadNamespaces: []string{"workload"},
+		Duration:           config.Duration{Duration: 30 * time.Minute},
+		Interval:           config.Duration{Duration: time.Minute},
+		StartWhen:          config.StartWhenNodeUnreachable,
+	}
+}
 
 var _ = Describe("PromKPITask", func() {
 	It("uses the prometheus task-config name", func() {
@@ -130,7 +163,7 @@ prometheus:
 
 	It("returns not-yet-supported for oslat", func() {
 		cfg := config.TasksSpec{
-			Oslat: map[string]interface{}{},
+			Oslat: validOslatConfig(),
 		}
 
 		tasks, err := task.ResolveFromTasksSpec(cfg, flags)
@@ -142,7 +175,7 @@ prometheus:
 
 	It("returns not-yet-supported for per-node-data", func() {
 		cfg := config.TasksSpec{
-			PerNodeData: map[string]interface{}{},
+			PerNodeData: validPerNodeConfig(),
 		}
 
 		tasks, err := task.ResolveFromTasksSpec(cfg, flags)
@@ -154,7 +187,7 @@ prometheus:
 
 	It("returns not-yet-supported for app-recovery-time", func() {
 		cfg := config.TasksSpec{
-			AppRecoveryTime: map[string]interface{}{},
+			AppRecoveryTime: validRecoveryConfig(),
 		}
 
 		tasks, err := task.ResolveFromTasksSpec(cfg, flags)
@@ -166,8 +199,8 @@ prometheus:
 
 	It("uses default order so the first unsupported task is the one that fails", func() {
 		cfg := config.TasksSpec{
-			Oslat:           map[string]interface{}{},
-			AppRecoveryTime: map[string]interface{}{},
+			Oslat:           validOslatConfig(),
+			AppRecoveryTime: validRecoveryConfig(),
 		}
 
 		_, err := task.ResolveFromTasksSpec(cfg, flags)
@@ -180,8 +213,8 @@ prometheus:
 			Orchestration: config.OrchestrationConfig{
 				Order: []string{config.TaskConfigAppRecoveryTime, config.TaskConfigOslat},
 			},
-			Oslat:           map[string]interface{}{},
-			AppRecoveryTime: map[string]interface{}{},
+			Oslat:           validOslatConfig(),
+			AppRecoveryTime: validRecoveryConfig(),
 		}
 
 		_, err := task.ResolveFromTasksSpec(cfg, flags)
