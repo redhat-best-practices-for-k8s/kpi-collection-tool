@@ -9,7 +9,7 @@ const (
 )
 
 // PerNodeDataTaskConfig configures the per-node data collection task.
-// Exactly one of ConfigFile or inline fields must be set.
+// Exactly one of configFile or inline fields must be set.
 type PerNodeDataTaskConfig struct {
 	ConfigFile         string   `yaml:"configFile,omitempty"`
 	Duration           Duration `yaml:"duration,omitempty"`
@@ -27,15 +27,37 @@ type PerNodeDataTaskConfig struct {
 	CollectDescribe    *bool    `yaml:"collectDescribe,omitempty"`
 }
 
+func (c *PerNodeDataTaskConfig) hasInlineFields() bool {
+	return c.Duration.Duration != 0 ||
+		c.Interval.Duration != 0 ||
+		c.Nodes != "" ||
+		len(c.NodeNames) > 0 ||
+		c.SSHUser != "" ||
+		c.SSHPort != 0 ||
+		c.SSHKey != "" ||
+		c.RemoteWorkDir != "" ||
+		c.Isolcpus != "" ||
+		len(c.WorkloadNamespaces) > 0 ||
+		c.CollectTop != nil ||
+		c.CollectProc != nil ||
+		c.CollectDescribe != nil
+}
+
 func resolveAndValidatePerNodeData(spec *TasksSpec) error {
 	if spec.PerNodeData == nil {
 		return nil
 	}
-	resolved, err := resolveTaskConfig(spec, TaskConfigPerNodeData, spec.PerNodeData.ConfigFile, spec.PerNodeData, loadPerNodeDataConfigFile)
-	if err != nil {
+	cfg := spec.PerNodeData
+	if err := validateConfigFileXorInline(TaskConfigPerNodeData, cfg.ConfigFile != "", cfg.hasInlineFields()); err != nil {
 		return err
 	}
-	spec.PerNodeData = resolved
+	if cfg.ConfigFile != "" {
+		loaded, err := loadPerNodeDataConfigFile(spec.ResolvePath(cfg.ConfigFile))
+		if err != nil {
+			return fmt.Errorf("%s: %w", TaskConfigPerNodeData, err)
+		}
+		spec.PerNodeData = loaded
+	}
 	return validatePerNodeDataInline(spec.PerNodeData)
 }
 

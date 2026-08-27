@@ -3,7 +3,7 @@ package config
 import "fmt"
 
 // OslatTaskConfig configures the oslat latency task.
-// Exactly one of ConfigFile or inline fields must be set.
+// Exactly one of configFile or inline fields must be set.
 type OslatTaskConfig struct {
 	ConfigFile       string            `yaml:"configFile,omitempty"`
 	Image            string            `yaml:"image,omitempty"`
@@ -22,15 +22,38 @@ type OslatTaskConfig struct {
 	Timeout          Duration          `yaml:"timeout,omitempty"`
 }
 
+func (c *OslatTaskConfig) hasInlineFields() bool {
+	return c.Image != "" ||
+		c.ImagePullPolicy != "" ||
+		c.ImagePullSecret != "" ||
+		c.Namespace != "" ||
+		c.PodName != "" ||
+		c.Runtime.Duration != 0 ||
+		c.InitialDelay.Duration != 0 ||
+		c.Delay.Duration != 0 ||
+		c.RuntimeClassName != "" ||
+		len(c.NodeSelector) > 0 ||
+		c.CPU != "" ||
+		c.Memory != "" ||
+		c.Replicas != 0 ||
+		c.Timeout.Duration != 0
+}
+
 func resolveAndValidateOslat(spec *TasksSpec) error {
 	if spec.Oslat == nil {
 		return nil
 	}
-	resolved, err := resolveTaskConfig(spec, TaskConfigOslat, spec.Oslat.ConfigFile, spec.Oslat, loadOslatConfigFile)
-	if err != nil {
+	cfg := spec.Oslat
+	if err := validateConfigFileXorInline(TaskConfigOslat, cfg.ConfigFile != "", cfg.hasInlineFields()); err != nil {
 		return err
 	}
-	spec.Oslat = resolved
+	if cfg.ConfigFile != "" {
+		loaded, err := loadOslatConfigFile(spec.ResolvePath(cfg.ConfigFile))
+		if err != nil {
+			return fmt.Errorf("%s: %w", TaskConfigOslat, err)
+		}
+		spec.Oslat = loaded
+	}
 	return validateOslatInline(spec.Oslat)
 }
 

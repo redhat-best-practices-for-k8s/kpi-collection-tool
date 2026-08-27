@@ -8,7 +8,7 @@ const (
 )
 
 // AppRecoveryTimeTaskConfig configures the application recovery-time task.
-// Exactly one of ConfigFile or inline fields must be set.
+// Exactly one of configFile or inline fields must be set.
 type AppRecoveryTimeTaskConfig struct {
 	ConfigFile         string   `yaml:"configFile,omitempty"`
 	WorkloadNamespaces []string `yaml:"workloadNamespaces,omitempty"`
@@ -19,15 +19,30 @@ type AppRecoveryTimeTaskConfig struct {
 	Reboot             *bool    `yaml:"reboot,omitempty"`
 }
 
+func (c *AppRecoveryTimeTaskConfig) hasInlineFields() bool {
+	return len(c.WorkloadNamespaces) > 0 ||
+		c.Duration.Duration != 0 ||
+		c.Interval.Duration != 0 ||
+		c.StartWhen != "" ||
+		len(c.NodeNames) > 0 ||
+		c.Reboot != nil
+}
+
 func resolveAndValidateAppRecoveryTime(spec *TasksSpec) error {
 	if spec.AppRecoveryTime == nil {
 		return nil
 	}
-	resolved, err := resolveTaskConfig(spec, TaskConfigAppRecoveryTime, spec.AppRecoveryTime.ConfigFile, spec.AppRecoveryTime, loadAppRecoveryTimeConfigFile)
-	if err != nil {
+	cfg := spec.AppRecoveryTime
+	if err := validateConfigFileXorInline(TaskConfigAppRecoveryTime, cfg.ConfigFile != "", cfg.hasInlineFields()); err != nil {
 		return err
 	}
-	spec.AppRecoveryTime = resolved
+	if cfg.ConfigFile != "" {
+		loaded, err := loadAppRecoveryTimeConfigFile(spec.ResolvePath(cfg.ConfigFile))
+		if err != nil {
+			return fmt.Errorf("%s: %w", TaskConfigAppRecoveryTime, err)
+		}
+		spec.AppRecoveryTime = loaded
+	}
 	return validateAppRecoveryTimeInline(spec.AppRecoveryTime)
 }
 
