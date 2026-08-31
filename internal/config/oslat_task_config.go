@@ -1,42 +1,38 @@
 package config
 
-import "fmt"
+import (
+	"fmt"
 
-// OslatTaskConfig configures the oslat latency task.
-// Exactly one of configFile or inline fields must be set.
+	"gopkg.in/yaml.v3"
+	corev1 "k8s.io/api/core/v1"
+	k8syaml "sigs.k8s.io/yaml"
+)
+
+// Pod is a corev1.Pod that unmarshals from YAML using Kubernetes JSON tags
+// (metadata, spec, …). yaml.v3 alone would look for Go field names.
+type Pod struct {
+	corev1.Pod `json:",inline"`
+}
+
+// UnmarshalYAML decodes a YAML mapping into a Kubernetes Pod.
+func (p *Pod) UnmarshalYAML(value *yaml.Node) error {
+	b, err := yaml.Marshal(value)
+	if err != nil {
+		return err
+	}
+	return k8syaml.Unmarshal(b, &p.Pod)
+}
+
+// OslatTaskConfig configures the oslat task.
+// Exactly one of configFile or inline fields (timeout / pod) must be set.
 type OslatTaskConfig struct {
-	ConfigFile       string            `yaml:"configFile,omitempty"`
-	Image            string            `yaml:"image,omitempty"`
-	ImagePullPolicy  string            `yaml:"imagePullPolicy,omitempty"`
-	ImagePullSecret  string            `yaml:"imagePullSecret,omitempty"`
-	Namespace        string            `yaml:"namespace,omitempty"`
-	PodName          string            `yaml:"podName,omitempty"`
-	Runtime          Duration          `yaml:"runtime,omitempty"`
-	InitialDelay     Duration          `yaml:"initialDelay,omitempty"`
-	Delay            Duration          `yaml:"delay,omitempty"`
-	RuntimeClassName string            `yaml:"runtimeClassName,omitempty"`
-	NodeSelector     map[string]string `yaml:"nodeSelector,omitempty"`
-	CPU              string            `yaml:"cpu,omitempty"`
-	Memory           string            `yaml:"memory,omitempty"`
-	Replicas         int               `yaml:"replicas,omitempty"`
-	Timeout          Duration          `yaml:"timeout,omitempty"`
+	ConfigFile string   `yaml:"configFile,omitempty"`
+	Timeout    Duration `yaml:"timeout,omitempty"`
+	Pod        *Pod     `yaml:"pod,omitempty"`
 }
 
 func (c *OslatTaskConfig) hasInlineFields() bool {
-	return c.Image != "" ||
-		c.ImagePullPolicy != "" ||
-		c.ImagePullSecret != "" ||
-		c.Namespace != "" ||
-		c.PodName != "" ||
-		c.Runtime.Duration != 0 ||
-		c.InitialDelay.Duration != 0 ||
-		c.Delay.Duration != 0 ||
-		c.RuntimeClassName != "" ||
-		len(c.NodeSelector) > 0 ||
-		c.CPU != "" ||
-		c.Memory != "" ||
-		c.Replicas != 0 ||
-		c.Timeout.Duration != 0
+	return c.Timeout.Duration != 0 || c.Pod != nil
 }
 
 func resolveAndValidateOslat(spec *TasksSpec) error {
@@ -74,26 +70,22 @@ func loadOslatConfigFile(path string) (*OslatTaskConfig, error) {
 }
 
 func validateOslatInline(cfg *OslatTaskConfig) error {
-	if cfg.Image == "" {
-		return fmt.Errorf("%s: image is required", TaskConfigOslat)
-	}
-	if cfg.Runtime.Duration <= 0 {
-		return fmt.Errorf("%s: runtime must be greater than 0", TaskConfigOslat)
-	}
-	if cfg.CPU == "" {
-		return fmt.Errorf("%s: cpu is required", TaskConfigOslat)
-	}
-	if cfg.Memory == "" {
-		return fmt.Errorf("%s: memory is required", TaskConfigOslat)
-	}
-	if cfg.Replicas < 1 {
-		return fmt.Errorf("%s: replicas must be at least 1", TaskConfigOslat)
-	}
 	if cfg.Timeout.Duration <= 0 {
 		return fmt.Errorf("%s: timeout must be greater than 0", TaskConfigOslat)
 	}
-	if cfg.Timeout.Duration <= cfg.Runtime.Duration {
-		return fmt.Errorf("%s: timeout must be greater than runtime", TaskConfigOslat)
+	if cfg.Pod == nil {
+		return fmt.Errorf("%s: pod is required", TaskConfigOslat)
+	}
+	if cfg.Pod.Name == "" {
+		return fmt.Errorf("%s: pod.metadata.name is required", TaskConfigOslat)
+	}
+	if len(cfg.Pod.Spec.Containers) == 0 {
+		return fmt.Errorf("%s: pod.spec.containers must have at least one container", TaskConfigOslat)
+	}
+	for i, c := range cfg.Pod.Spec.Containers {
+		if c.Image == "" {
+			return fmt.Errorf("%s: pod.spec.containers[%d].image is required", TaskConfigOslat, i)
+		}
 	}
 	return nil
 }

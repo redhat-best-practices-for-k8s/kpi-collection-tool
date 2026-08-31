@@ -37,7 +37,7 @@ type performanceProfileList struct {
 // FetchCPUsFromPerformanceProfiles fetches all PerformanceProfiles from the cluster and returns
 // aggregated reserved and isolated CPU IDs in Prometheus regex format (e.g., "0|1|32|33")
 func FetchCPUsFromPerformanceProfiles(kubeconfigPath string) (reservedCPUs, isolatedCPUs string, err error) {
-	clientset, err := setupKubernetesClient(kubeconfigPath)
+	clientset, err := ClientsetFromKubeconfig(kubeconfigPath)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to setup Kubernetes client: %v", err)
 	}

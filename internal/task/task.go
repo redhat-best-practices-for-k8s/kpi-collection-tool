@@ -43,23 +43,6 @@ func (t *PromKPITask) Run(ctx context.Context) error {
 	return collector.RunKPIs(t.kpis, t.flags)
 }
 
-// OslatTask is a stub for the oslat task (--tasks oslat section).
-type OslatTask struct {
-	flags config.InputFlags
-}
-
-// NewOslatTask creates an oslat stub. Fill in Run when the schema is implemented.
-func NewOslatTask(flags config.InputFlags) *OslatTask {
-	return &OslatTask{flags: flags}
-}
-
-func (t *OslatTask) Name() string { return config.TaskConfigOslat }
-
-func (t *OslatTask) Run(ctx context.Context) error {
-	_ = ctx
-	return errNotYetSupported(t.Name())
-}
-
 // PerNodeDataTask is a stub for the per-node-data task.
 type PerNodeDataTask struct {
 	flags config.InputFlags
