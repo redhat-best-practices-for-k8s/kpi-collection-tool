@@ -16,16 +16,16 @@ import (
 )
 
 const (
-	THANOS_ROUTE_API_PATH    = "/apis/route.openshift.io/v1/namespaces/openshift-monitoring/routes/thanos-querier"
-	MonitoringNamespace      = "openshift-monitoring"
-	TokenServiceAccountName  = "prometheus-k8s"
+	THANOS_ROUTE_API_PATH   = "/apis/route.openshift.io/v1/namespaces/openshift-monitoring/routes/thanos-querier"
+	MonitoringNamespace     = "openshift-monitoring"
+	TokenServiceAccountName = "prometheus-k8s"
 )
 
 // SetupKubeconfigAuth sets up authentication using kubeconfig file,
 // discovers the Thanos URL, and creates a service account token
 // whose lifetime matches tokenDuration.
 func SetupKubeconfigAuth(kubeconfig string, tokenDuration time.Duration) (string, string, error) {
-	clientset, err := setupKubernetesClient(kubeconfig)
+	clientset, err := ClientsetFromKubeconfig(kubeconfig)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to setup Kubernetes client: %v", err)
 	}
@@ -45,8 +45,8 @@ func SetupKubeconfigAuth(kubeconfig string, tokenDuration time.Duration) (string
 	return thanosURL, bearerToken, nil
 }
 
-// setupKubernetesClient creates a Kubernetes clientset from kubeconfig
-func setupKubernetesClient(kubeconfigPath string) (*kubernetes.Clientset, error) {
+// ClientsetFromKubeconfig builds a clientset from a kubeconfig file path.
+func ClientsetFromKubeconfig(kubeconfigPath string) (*kubernetes.Clientset, error) {
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load kubeconfig: %v", err)
@@ -103,4 +103,3 @@ func createServiceAccountToken(client K8sClient, expiration time.Duration) (stri
 
 	return result.Status.Token, nil
 }
-

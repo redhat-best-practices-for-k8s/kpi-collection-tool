@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/config"
+	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/database"
 )
 
 type taskBuilder func(config.TasksSpec, config.InputFlags) (Task, error)
@@ -70,8 +71,14 @@ func FromPromKPIsFlag(flags config.InputFlags, kpis config.KPIs) ([]Task, error)
 	return []Task{NewPromKPITask(kpis, flags)}, nil
 }
 
-func buildOslatTask(_ config.TasksSpec, _ config.InputFlags) (Task, error) {
-	return nil, errNotYetSupported(config.TaskConfigOslat)
+func buildOslatTask(spec config.TasksSpec, flags config.InputFlags) (Task, error) {
+	if flags.Kubeconfig == "" {
+		return nil, fmt.Errorf("%s: --kubeconfig is required", config.TaskConfigOslat)
+	}
+	if spec.Oslat == nil {
+		return nil, fmt.Errorf("%s: task config is missing", config.TaskConfigOslat)
+	}
+	return NewOslatTask(*spec.Oslat, flags.Kubeconfig, database.OutputDir), nil
 }
 
 func buildPerNodeDataTask(_ config.TasksSpec, _ config.InputFlags) (Task, error) {

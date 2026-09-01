@@ -12,12 +12,14 @@ var _ = Describe("TasksSpec Loader", func() {
 	var tmpDir string
 
 	const validOslatSection = `
-  image: quay.io/container-perf-tools/oslat:latest
-  runtime: 12h
-  cpu: "16"
-  memory: 2Gi
-  replicas: 1
-  timeout: 12h30m`
+  timeout: 12h30m
+  pod:
+    metadata:
+      name: oslat
+    spec:
+      containers:
+        - name: oslat
+          image: example.registry/oslat:latest`
 
 	const validPerNodeSection = `
   workloadNamespaces:
@@ -115,9 +117,9 @@ prometheus:
   kpis:
     - id: node-cpu
       promquery: node_cpu_seconds_total
-per-node-data:` + validPerNodeSection + `
-oslat:` + validOslatSection + `
-app-recovery-time:` + validRecoverySection + `
+per-node-data:`+validPerNodeSection+`
+oslat:`+validOslatSection+`
+app-recovery-time:`+validRecoverySection+`
 `)
 				cfg, err := LoadTasksSpec(path)
 
@@ -270,7 +272,7 @@ prometheus:
   kpis:
     - id: node-cpu
       promquery: node_cpu_seconds_total
-oslat:` + validOslatSection + `
+oslat:`+validOslatSection+`
 `)
 				cfg, err := LoadTasksSpec(path)
 
@@ -301,7 +303,7 @@ prometheus:
   kpis:
     - id: node-cpu
       promquery: node_cpu_seconds_total
-oslat:` + validOslatSection + `
+oslat:`+validOslatSection+`
 `)
 				_, err := LoadTasksSpec(path)
 

@@ -37,7 +37,7 @@ func (m *mockK8sClient) CreateServiceAccountToken(ctx context.Context, namespace
 }
 
 var _ = Describe("Kubernetes Client", func() {
-	Describe("setupKubernetesClient", func() {
+	Describe("ClientsetFromKubeconfig", func() {
 		var (
 			tmpDir         string
 			kubeconfigPath string
@@ -67,7 +67,7 @@ var _ = Describe("Kubernetes Client", func() {
 			nonExistentPath := filepath.Join(tmpDir, "nonexistent-kubeconfig")
 
 			By("We try to setup a Kubernetes client with invalid kubeconfig path")
-			clientset, err := setupKubernetesClient(nonExistentPath)
+			clientset, err := ClientsetFromKubeconfig(nonExistentPath)
 
 			// We should get an error
 			Expect(err).To(HaveOccurred())
@@ -82,7 +82,7 @@ var _ = Describe("Kubernetes Client", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("We try to setup a Kubernetes client with this invalid config")
-			clientset, err := setupKubernetesClient(kubeconfigPath)
+			clientset, err := ClientsetFromKubeconfig(kubeconfigPath)
 
 			// We should get an error
 			Expect(err).To(HaveOccurred())
@@ -117,7 +117,7 @@ users:
 			Expect(err).NotTo(HaveOccurred())
 
 			By("We setup a Kubernetes client with this valid config")
-			clientset, err := setupKubernetesClient(kubeconfigPath)
+			clientset, err := ClientsetFromKubeconfig(kubeconfigPath)
 
 			// We should not get an error
 			Expect(err).NotTo(HaveOccurred())

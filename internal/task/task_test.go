@@ -8,6 +8,8 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/config"
 	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/task"
@@ -15,12 +17,16 @@ import (
 
 func validOslatConfig() *config.OslatTaskConfig {
 	return &config.OslatTaskConfig{
-		Image:    "quay.io/example/oslat:latest",
-		Runtime:  config.Duration{Duration: 12 * time.Hour},
-		CPU:      "16",
-		Memory:   "2Gi",
-		Replicas: 1,
-		Timeout:  config.Duration{Duration: 12*time.Hour + 30*time.Minute},
+		Timeout: config.Duration{Duration: 12*time.Hour + 30*time.Minute},
+		Pod: &config.Pod{Pod: corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Name: "oslat"},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{{
+					Name:  "oslat",
+					Image: "example.registry/oslat:latest",
+				}},
+			},
+		}},
 	}
 }
 
@@ -75,10 +81,9 @@ var _ = Describe("FromPromKPIsFlag", func() {
 })
 
 var _ = Describe("unimplemented task stubs", func() {
-	It("oslat is named and not yet supported", func() {
-		t := task.NewOslatTask(config.InputFlags{})
+	It("oslat is named", func() {
+		t := task.NewOslatTask(config.OslatTaskConfig{}, "kubeconfig", "/tmp")
 		Expect(t.Name()).To(Equal(config.TaskConfigOslat))
-		Expect(t.Run(context.Background())).To(MatchError(ContainSubstring("not yet supported")))
 	})
 
 	It("per-node-data is named and not yet supported", func() {
@@ -161,16 +166,13 @@ prometheus:
 		Expect(tasks[0].Name()).To(Equal(config.TaskConfigPrometheus))
 	})
 
-	It("returns not-yet-supported for oslat", func() {
-		cfg := config.TasksSpec{
-			Oslat: validOslatConfig(),
-		}
-
+	It("requires kubeconfig for oslat", func() {
+		cfg := config.TasksSpec{Oslat: validOslatConfig()}
 		tasks, err := task.ResolveFromTasksSpec(cfg, flags)
 		Expect(err).To(HaveOccurred())
 		Expect(tasks).To(BeNil())
 		Expect(err.Error()).To(ContainSubstring(config.TaskConfigOslat))
-		Expect(err.Error()).To(ContainSubstring("not yet supported"))
+		Expect(err.Error()).To(ContainSubstring("--kubeconfig is required"))
 	})
 
 	It("returns not-yet-supported for per-node-data", func() {
@@ -197,15 +199,15 @@ prometheus:
 		Expect(err.Error()).To(ContainSubstring("not yet supported"))
 	})
 
-	It("uses default order so the first unsupported task is the one that fails", func() {
+	It("uses default order so oslat is resolved before later tasks", func() {
 		cfg := config.TasksSpec{
 			Oslat:           validOslatConfig(),
 			AppRecoveryTime: validRecoveryConfig(),
 		}
-
 		_, err := task.ResolveFromTasksSpec(cfg, flags)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring(config.TaskConfigOslat))
+		Expect(err.Error()).To(ContainSubstring("--kubeconfig is required"))
 	})
 
 	It("honors orchestration.order when choosing which unsupported task fails first", func() {
