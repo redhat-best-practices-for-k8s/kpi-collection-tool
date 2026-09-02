@@ -43,23 +43,6 @@ func (t *PromKPITask) Run(ctx context.Context) error {
 	return collector.RunKPIs(t.kpis, t.flags)
 }
 
-// PerNodeDataTask is a stub for the per-node-data task.
-type PerNodeDataTask struct {
-	flags config.InputFlags
-}
-
-// NewPerNodeDataTask creates a per-node-data stub. Fill in Run when the schema is implemented.
-func NewPerNodeDataTask(flags config.InputFlags) *PerNodeDataTask {
-	return &PerNodeDataTask{flags: flags}
-}
-
-func (t *PerNodeDataTask) Name() string { return config.TaskConfigPerNodeData }
-
-func (t *PerNodeDataTask) Run(ctx context.Context) error {
-	_ = ctx
-	return errNotYetSupported(t.Name())
-}
-
 // AppRecoveryTimeTask is a stub for the app-recovery-time task.
 type AppRecoveryTimeTask struct {
 	flags config.InputFlags

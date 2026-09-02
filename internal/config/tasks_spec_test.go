@@ -26,10 +26,7 @@ var _ = Describe("TasksSpec Loader", func() {
     - nokia-workload
   duration: 30m
   interval: 5s
-  nodes: all
-  sshUser: core
-  sshPort: 22
-  remoteWorkDir: /home/core`
+  image: example.registry/debug:latest`
 
 	const validRecoverySection = `
   workloadNamespaces:
