@@ -59,20 +59,3 @@ func (t *PerNodeDataTask) Run(ctx context.Context) error {
 	_ = ctx
 	return errNotYetSupported(t.Name())
 }
-
-// AppRecoveryTimeTask is a stub for the app-recovery-time task.
-type AppRecoveryTimeTask struct {
-	flags config.InputFlags
-}
-
-// NewAppRecoveryTimeTask creates an app-recovery-time stub. Fill in Run when the schema is implemented.
-func NewAppRecoveryTimeTask(flags config.InputFlags) *AppRecoveryTimeTask {
-	return &AppRecoveryTimeTask{flags: flags}
-}
-
-func (t *AppRecoveryTimeTask) Name() string { return config.TaskConfigAppRecoveryTime }
-
-func (t *AppRecoveryTimeTask) Run(ctx context.Context) error {
-	_ = ctx
-	return errNotYetSupported(t.Name())
-}

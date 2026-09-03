@@ -1,10 +1,13 @@
 package task
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/config"
 	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/database"
+	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/kubernetes"
 )
 
 type taskBuilder func(config.TasksSpec, config.InputFlags) (Task, error)
@@ -85,6 +88,24 @@ func buildPerNodeDataTask(_ config.TasksSpec, _ config.InputFlags) (Task, error)
 	return nil, errNotYetSupported(config.TaskConfigPerNodeData)
 }
 
-func buildAppRecoveryTimeTask(_ config.TasksSpec, _ config.InputFlags) (Task, error) {
-	return nil, errNotYetSupported(config.TaskConfigAppRecoveryTime)
+func buildAppRecoveryTimeTask(spec config.TasksSpec, flags config.InputFlags) (Task, error) {
+	if flags.Kubeconfig == "" {
+		return nil, fmt.Errorf("%s: --kubeconfig is required", config.TaskConfigAppRecoveryTime)
+	}
+	if spec.AppRecoveryTime == nil {
+		return nil, fmt.Errorf("%s: task config is missing", config.TaskConfigAppRecoveryTime)
+	}
+	cfg := *spec.AppRecoveryTime
+
+	client, err := kubernetes.ClientsetFromKubeconfig(flags.Kubeconfig)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", config.TaskConfigAppRecoveryTime, err)
+	}
+	preflightCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := kubernetes.CheckAppRecoveryAccess(preflightCtx, client, cfg.NodeNames, cfg.WorkloadNamespaces, cfg.Image); err != nil {
+		return nil, fmt.Errorf("%s: %w", config.TaskConfigAppRecoveryTime, err)
+	}
+
+	return NewAppRecoveryTimeTask(cfg, flags.Kubeconfig, database.OutputDir), nil
 }
