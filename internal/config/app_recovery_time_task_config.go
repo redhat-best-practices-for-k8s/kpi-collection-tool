@@ -2,30 +2,23 @@ package config
 
 import "fmt"
 
-const (
-	StartWhenNodeUnreachable = "node-unreachable"
-	StartWhenImmediate       = "immediate"
-)
-
 // AppRecoveryTimeTaskConfig configures the application recovery-time task.
 // Exactly one of configFile or inline fields must be set.
 type AppRecoveryTimeTaskConfig struct {
 	ConfigFile         string   `yaml:"configFile,omitempty"`
 	WorkloadNamespaces []string `yaml:"workloadNamespaces,omitempty"`
+	NodeNames          []string `yaml:"nodeNames,omitempty"`
 	Duration           Duration `yaml:"duration,omitempty"`
 	Interval           Duration `yaml:"interval,omitempty"`
-	StartWhen          string   `yaml:"startWhen,omitempty"`
-	NodeNames          []string `yaml:"nodeNames,omitempty"`
-	Reboot             *bool    `yaml:"reboot,omitempty"`
+	Image              string   `yaml:"image,omitempty"`
 }
 
 func (c *AppRecoveryTimeTaskConfig) hasInlineFields() bool {
 	return len(c.WorkloadNamespaces) > 0 ||
+		len(c.NodeNames) > 0 ||
 		c.Duration.Duration != 0 ||
 		c.Interval.Duration != 0 ||
-		c.StartWhen != "" ||
-		len(c.NodeNames) > 0 ||
-		c.Reboot != nil
+		c.Image != ""
 }
 
 func resolveAndValidateAppRecoveryTime(spec *TasksSpec) error {
@@ -66,14 +59,11 @@ func validateAppRecoveryTimeInline(cfg *AppRecoveryTimeTaskConfig) error {
 	if err := validatePollConfig(TaskConfigAppRecoveryTime, cfg.WorkloadNamespaces, cfg.Interval, cfg.Duration); err != nil {
 		return err
 	}
-	if cfg.StartWhen == "" {
-		return fmt.Errorf("%s: startWhen is required", TaskConfigAppRecoveryTime)
+	if len(cfg.NodeNames) == 0 {
+		return fmt.Errorf("%s: nodeNames is required", TaskConfigAppRecoveryTime)
 	}
-	switch cfg.StartWhen {
-	case StartWhenNodeUnreachable, StartWhenImmediate:
-		return nil
-	default:
-		return fmt.Errorf("%s: startWhen %q is invalid: must be %q or %q",
-			TaskConfigAppRecoveryTime, cfg.StartWhen, StartWhenNodeUnreachable, StartWhenImmediate)
+	if cfg.Image == "" {
+		return fmt.Errorf("%s: image is required", TaskConfigAppRecoveryTime)
 	}
+	return nil
 }

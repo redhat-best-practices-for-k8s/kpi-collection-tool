@@ -34,9 +34,11 @@ var _ = Describe("TasksSpec Loader", func() {
 	const validRecoverySection = `
   workloadNamespaces:
     - nokia-workload
+  nodeNames:
+    - worker-1
   duration: 30m
   interval: 1m
-  startWhen: node-unreachable`
+  image: example.registry/ubi-minimal:latest`
 
 	BeforeEach(func() {
 		var err error

@@ -45,9 +45,10 @@ func validPerNodeConfig() *config.PerNodeDataTaskConfig {
 func validRecoveryConfig() *config.AppRecoveryTimeTaskConfig {
 	return &config.AppRecoveryTimeTaskConfig{
 		WorkloadNamespaces: []string{"workload"},
+		NodeNames:          []string{"worker-1"},
 		Duration:           config.Duration{Duration: 30 * time.Minute},
 		Interval:           config.Duration{Duration: time.Minute},
-		StartWhen:          config.StartWhenNodeUnreachable,
+		Image:              "example.registry/ubi-minimal:latest",
 	}
 }
 
@@ -92,10 +93,9 @@ var _ = Describe("unimplemented task stubs", func() {
 		Expect(t.Run(context.Background())).To(MatchError(ContainSubstring("not yet supported")))
 	})
 
-	It("app-recovery-time is named and not yet supported", func() {
-		t := task.NewAppRecoveryTimeTask(config.InputFlags{})
+	It("app-recovery-time is named", func() {
+		t := task.NewAppRecoveryTimeTask(config.AppRecoveryTimeTaskConfig{}, "kubeconfig", "/tmp")
 		Expect(t.Name()).To(Equal(config.TaskConfigAppRecoveryTime))
-		Expect(t.Run(context.Background())).To(MatchError(ContainSubstring("not yet supported")))
 	})
 })
 
@@ -187,7 +187,7 @@ prometheus:
 		Expect(err.Error()).To(ContainSubstring("not yet supported"))
 	})
 
-	It("returns not-yet-supported for app-recovery-time", func() {
+	It("requires kubeconfig for app-recovery-time", func() {
 		cfg := config.TasksSpec{
 			AppRecoveryTime: validRecoveryConfig(),
 		}
@@ -196,7 +196,7 @@ prometheus:
 		Expect(err).To(HaveOccurred())
 		Expect(tasks).To(BeNil())
 		Expect(err.Error()).To(ContainSubstring(config.TaskConfigAppRecoveryTime))
-		Expect(err.Error()).To(ContainSubstring("not yet supported"))
+		Expect(err.Error()).To(ContainSubstring("--kubeconfig is required"))
 	})
 
 	It("uses default order so oslat is resolved before later tasks", func() {
@@ -210,7 +210,7 @@ prometheus:
 		Expect(err.Error()).To(ContainSubstring("--kubeconfig is required"))
 	})
 
-	It("honors orchestration.order when choosing which unsupported task fails first", func() {
+	It("honors orchestration.order when choosing which task fails first without kubeconfig", func() {
 		cfg := config.TasksSpec{
 			Orchestration: config.OrchestrationConfig{
 				Order: []string{config.TaskConfigAppRecoveryTime, config.TaskConfigOslat},
