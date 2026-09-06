@@ -35,10 +35,7 @@ func validPerNodeConfig() *config.PerNodeDataTaskConfig {
 		WorkloadNamespaces: []string{"workload"},
 		Duration:           config.Duration{Duration: 30 * time.Minute},
 		Interval:           config.Duration{Duration: 5 * time.Second},
-		Nodes:              config.NodesAll,
-		SSHUser:            "core",
-		SSHPort:            22,
-		RemoteWorkDir:      "/home/core",
+		Image:              "example.registry/debug:latest",
 	}
 }
 
@@ -86,10 +83,9 @@ var _ = Describe("unimplemented task stubs", func() {
 		Expect(t.Name()).To(Equal(config.TaskConfigOslat))
 	})
 
-	It("per-node-data is named and not yet supported", func() {
-		t := task.NewPerNodeDataTask(config.InputFlags{})
+	It("per-node-data is named", func() {
+		t := task.NewPerNodeDataTask(config.PerNodeDataTaskConfig{}, "kubeconfig", "/tmp")
 		Expect(t.Name()).To(Equal(config.TaskConfigPerNodeData))
-		Expect(t.Run(context.Background())).To(MatchError(ContainSubstring("not yet supported")))
 	})
 
 	It("app-recovery-time is named and not yet supported", func() {
@@ -175,16 +171,13 @@ prometheus:
 		Expect(err.Error()).To(ContainSubstring("--kubeconfig is required"))
 	})
 
-	It("returns not-yet-supported for per-node-data", func() {
-		cfg := config.TasksSpec{
-			PerNodeData: validPerNodeConfig(),
-		}
-
+	It("requires kubeconfig for per-node-data", func() {
+		cfg := config.TasksSpec{PerNodeData: validPerNodeConfig()}
 		tasks, err := task.ResolveFromTasksSpec(cfg, flags)
 		Expect(err).To(HaveOccurred())
 		Expect(tasks).To(BeNil())
 		Expect(err.Error()).To(ContainSubstring(config.TaskConfigPerNodeData))
-		Expect(err.Error()).To(ContainSubstring("not yet supported"))
+		Expect(err.Error()).To(ContainSubstring("--kubeconfig is required"))
 	})
 
 	It("returns not-yet-supported for app-recovery-time", func() {

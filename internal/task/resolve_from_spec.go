@@ -81,8 +81,14 @@ func buildOslatTask(spec config.TasksSpec, flags config.InputFlags) (Task, error
 	return NewOslatTask(*spec.Oslat, flags.Kubeconfig, database.OutputDir), nil
 }
 
-func buildPerNodeDataTask(_ config.TasksSpec, _ config.InputFlags) (Task, error) {
-	return nil, errNotYetSupported(config.TaskConfigPerNodeData)
+func buildPerNodeDataTask(spec config.TasksSpec, flags config.InputFlags) (Task, error) {
+	if flags.Kubeconfig == "" {
+		return nil, fmt.Errorf("%s: --kubeconfig is required", config.TaskConfigPerNodeData)
+	}
+	if spec.PerNodeData == nil {
+		return nil, fmt.Errorf("%s: task config is missing", config.TaskConfigPerNodeData)
+	}
+	return NewPerNodeDataTask(*spec.PerNodeData, flags.Kubeconfig, database.OutputDir), nil
 }
 
 func buildAppRecoveryTimeTask(_ config.TasksSpec, _ config.InputFlags) (Task, error) {
