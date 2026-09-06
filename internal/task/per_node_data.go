@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"log"
 	"os"
@@ -24,30 +25,10 @@ const (
 	meminfoMarker   = "___KPI_MEMINFO___"
 	cmdlineMarker   = "___KPI_CMDLINE___"
 	debugWaitBuffer = 10 * time.Minute
-
-	// Runs inside chroot /host so top and /proc are the node's.
-	collectScript = `
-set -e
-isol="$ISOLCPUS"
-if [ -z "$isol" ]; then
-  for field in $(cat /proc/cmdline); do
-    case "$field" in
-      isolcpus=*) isol=${field#isolcpus=} ;;
-    esac
-  done
-  isol=$(echo "$isol" | tr ',' '\n' | grep -v '^$' | grep -v '^managed_irq$' | paste -sd, -)
-fi
-if [ -z "$isol" ]; then
-  echo "isolcpus list is empty" >&2
-  exit 1
-fi
-taskset -c "$isol" top -b -1 -i -w 200 -d "$TOP_DELAY" -n "$TOP_COUNT"
-printf '%s\n' '` + meminfoMarker + `'
-cat /proc/meminfo
-printf '%s\n' '` + cmdlineMarker + `'
-cat /proc/cmdline
-`
 )
+
+//go:embed per_node_collect.sh
+var collectScript string
 
 // PerNodeDataTask runs a debug pod on every node, then writes API YAML.
 type PerNodeDataTask struct {
@@ -93,16 +74,14 @@ func (t *PerNodeDataTask) collectAll(ctx context.Context, client *k8s.Clientset,
 	var errs []error
 	var wg sync.WaitGroup
 	for _, node := range nodes {
-		wg.Add(1)
-		go func(node string) {
-			defer wg.Done()
+		wg.Go(func() {
 			if err := t.collectNode(ctx, client, node); err != nil {
 				log.Printf("%s: %v", t.Name(), err)
 				mu.Lock()
 				errs = append(errs, err)
 				mu.Unlock()
 			}
-		}(node)
+		})
 	}
 	wg.Wait()
 	if len(errs) == 0 {
@@ -155,6 +134,8 @@ func (t *PerNodeDataTask) debugPod(node string) *corev1.Pod {
 					{Name: "ISOLCPUS", Value: t.cfg.Isolcpus},
 					{Name: "TOP_DELAY", Value: fmt.Sprintf("%g", t.cfg.Interval.Seconds())},
 					{Name: "TOP_COUNT", Value: strconv.Itoa(n)},
+					{Name: "MEMINFO_MARKER", Value: meminfoMarker},
+					{Name: "CMDLINE_MARKER", Value: cmdlineMarker},
 				},
 				SecurityContext: &corev1.SecurityContext{Privileged: &privileged},
 				VolumeMounts:    []corev1.VolumeMount{{Name: "host", MountPath: "/host"}},
@@ -207,6 +188,9 @@ func splitCollectLogs(body string) (top, mem, cmdline string, err error) {
 	return body[:i], body[i+len(memKey) : j], body[j+len(cmdKey):], nil
 }
 
+// debugPodName turns a Kubernetes node name into a DNS-1123 pod name.
+// Node names may contain dots (e.g. ip-10-0-1-2.ec2.internal); pod names
+// may only use lowercase [a-z0-9-] and are capped at 63 characters.
 func debugPodName(node string) string {
 	var b strings.Builder
 	b.WriteString("pnd-")
