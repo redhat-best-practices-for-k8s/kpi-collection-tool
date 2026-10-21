@@ -2,7 +2,7 @@ module github.com/redhat-best-practices-for-k8s/kpi-collection-tool
 
 go 1.27
 
-toolchain go1.27.1
+toolchain go1.27.3
 
 require (
 	github.com/dustin/go-humanize v1.0.1
