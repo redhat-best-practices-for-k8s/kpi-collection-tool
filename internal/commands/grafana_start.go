@@ -263,8 +263,9 @@ func runGrafanaContainer(grafanaDir string) error {
 		// Mount dashboard provisioning config
 		"-v", fmt.Sprintf("%s:/etc/grafana/provisioning/dashboards:ro,z",
 			filepath.Join(absGrafanaDir, "provisioning", "dashboards")),
-		// Mount dashboard JSON
-		"-v", fmt.Sprintf("%s:/var/lib/grafana/dashboards:ro",
+		// Mount dashboard JSON. :z relabels for SELinux so the container can read
+		// user_home_t files; the other provisioning mounts already use it.
+		"-v", fmt.Sprintf("%s:/var/lib/grafana/dashboards:ro,z",
 			filepath.Join(absGrafanaDir, "dashboards")),
 		"-e", "GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/dashboard.json",
 	}
@@ -294,7 +295,7 @@ func runGrafanaContainer(grafanaDir string) error {
 		}
 
 		args = append(args,
-			"-v", fmt.Sprintf("%s:/var/lib/grafana/kpi_metrics.db:ro", absDBPath),
+			"-v", fmt.Sprintf("%s:/var/lib/grafana/kpi_metrics.db:ro,z", absDBPath),
 		)
 
 		if grafanaStartFlags.pluginsDir != "" {
@@ -303,7 +304,7 @@ func runGrafanaContainer(grafanaDir string) error {
 				return fmt.Errorf("failed to resolve plugins-dir path: %w", err)
 			}
 			args = append(args,
-				"-v", fmt.Sprintf("%s:/var/lib/grafana/plugins:ro", absPluginsDir),
+				"-v", fmt.Sprintf("%s:/var/lib/grafana/plugins:ro,z", absPluginsDir),
 			)
 		} else {
 			args = append(args, "-e", "GF_INSTALL_PLUGINS=frser-sqlite-datasource")
