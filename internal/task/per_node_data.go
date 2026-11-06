@@ -34,12 +34,13 @@ var collectScript string
 type PerNodeDataTask struct {
 	cfg          config.PerNodeDataTaskConfig
 	kubeconfig   string
+	proxyURL     string
 	artifactsDir string
 }
 
 // NewPerNodeDataTask constructs a per-node-data task.
-func NewPerNodeDataTask(cfg config.PerNodeDataTaskConfig, kubeconfig, artifactsDir string) *PerNodeDataTask {
-	return &PerNodeDataTask{cfg: cfg, kubeconfig: kubeconfig, artifactsDir: artifactsDir}
+func NewPerNodeDataTask(cfg config.PerNodeDataTaskConfig, kubeconfig, proxyURL, artifactsDir string) *PerNodeDataTask {
+	return &PerNodeDataTask{cfg: cfg, kubeconfig: kubeconfig, proxyURL: proxyURL, artifactsDir: artifactsDir}
 }
 
 func (t *PerNodeDataTask) Name() string { return config.TaskConfigPerNodeData }
@@ -50,7 +51,7 @@ func (t *PerNodeDataTask) Run(ctx context.Context) error {
 	}
 	log.Printf("%s: using isolcpus=%s", t.Name(), t.cfg.Isolcpus)
 
-	client, err := kubernetes.ClientsetFromKubeconfig(t.kubeconfig)
+	client, err := kubernetes.ClientsetFromKubeconfig(t.kubeconfig, t.proxyURL)
 	if err != nil {
 		return fmt.Errorf("%s: %w", t.Name(), err)
 	}
@@ -59,7 +60,18 @@ func (t *PerNodeDataTask) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("%s: %w", t.Name(), err)
 	}
-	output.PrintTaskProgress(t.Name(), fmt.Sprintf("collecting from %d node(s)", len(nodes)))
+
+	// A killed prior run leaves its debug pods behind (defers do not survive
+	// SIGKILL); sweep them so this run does not collide with stale pods.
+	deleted, err := kubernetes.DeletePodsByPrefix(ctx, client, "default", "pnd-")
+	if err != nil {
+		log.Printf("%s: warning: failed to remove leftover debug pods: %v", t.Name(), err)
+	} else if len(deleted) > 0 {
+		log.Printf("%s: removed leftover debug pods from a previous run: %v", t.Name(), deleted)
+	}
+
+	output.PrintTaskProgress(t.Name(), fmt.Sprintf(
+		"collecting from %d node(s) (duration=%s)", len(nodes), t.cfg.Duration))
 
 	nodeErr := t.collectAll(ctx, client, nodes)
 	descErr := t.writeDescribes(ctx, client)
@@ -102,6 +114,14 @@ func (t *PerNodeDataTask) collectNode(ctx context.Context, client *k8s.Clientset
 	if err != nil {
 		return fmt.Errorf("%s: %w", node, err)
 	}
+
+	// Delete the debug pod as soon as this node's logs and artifacts are
+	// written — success or failure — so nothing outlives the task.
+	defer func() {
+		if err := kubernetes.DeletePod(context.WithoutCancel(ctx), client, created.Namespace, created.Name); err != nil {
+			log.Printf("%s: %v", t.Name(), err)
+		}
+	}()
 
 	wait := t.cfg.Duration.Duration + debugWaitBuffer
 	finished, waitErr := kubernetes.WaitForPodTerminal(kubernetes.PodWaitParams{
