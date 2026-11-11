@@ -244,36 +244,45 @@ jobs:
       - name: Install PyYAML
         run: pip install pyyaml
 
+      # Tasks are always prompted; --all only skips KPI domain prompts.
+      # Output is always an inline tasks.yaml. Four answers: TTY-safe (4th = recovery n).
       - name: Generate RAN profile
         run: |
-          ./kpi-collector kpis generate --profile ran --all --overwrite
-          [ -f ran-kpis.yaml ]
-          python3 -c "import yaml; yaml.safe_load(open('ran-kpis.yaml'))"
-          grep -q "promquery:" ran-kpis.yaml
+          printf 'y\nn\nn\nn\n' | ./kpi-collector kpis generate --profile ran --all --overwrite -f ran-tasks.yaml
+          [ -f ran-tasks.yaml ]
+          python3 -c "import yaml; yaml.safe_load(open('ran-tasks.yaml'))"
+          grep -q "promquery:" ran-tasks.yaml
+          grep -q "prometheus:" ran-tasks.yaml
 
       - name: Generate Core profile
         run: |
-          ./kpi-collector kpis generate --profile core --all --overwrite
-          [ -f core-kpis.yaml ]
-          python3 -c "import yaml; yaml.safe_load(open('core-kpis.yaml'))"
-          grep -q "promquery:" core-kpis.yaml
+          printf 'y\nn\nn\nn\n' | ./kpi-collector kpis generate --profile core --all --overwrite -f core-tasks.yaml
+          [ -f core-tasks.yaml ]
+          python3 -c "import yaml; yaml.safe_load(open('core-tasks.yaml'))"
+          grep -q "promquery:" core-tasks.yaml
 
       - name: Generate Hub profile
         run: |
-          ./kpi-collector kpis generate --profile hub --all --overwrite
-          [ -f hub-kpis.yaml ]
-          python3 -c "import yaml; yaml.safe_load(open('hub-kpis.yaml'))"
-          grep -q "promquery:" hub-kpis.yaml
+          printf 'y\nn\nn\nn\n' | ./kpi-collector kpis generate --profile hub --all --overwrite -f hub-tasks.yaml
+          [ -f hub-tasks.yaml ]
+          python3 -c "import yaml; yaml.safe_load(open('hub-tasks.yaml'))"
+          grep -q "promquery:" hub-tasks.yaml
 
       - name: Uncategorized flag
         run: |
-          ./kpi-collector kpis generate --profile ran --all --uncategorized --overwrite
-          ! grep -q "category:" ran-kpis.yaml
+          printf 'y\nn\nn\nn\n' | ./kpi-collector kpis generate --profile ran --all --uncategorized --overwrite -f ran-uncat.yaml
+          ! grep -q "category:" ran-uncat.yaml
+
+      - name: Multi-task bundle
+        run: |
+          printf 'y\ny\ny\nn\n' | ./kpi-collector kpis generate --profile ran --all --overwrite -f multi-tasks.yaml
+          grep -q "promquery:" multi-tasks.yaml
+          grep -q "oslat:" multi-tasks.yaml
 
       - name: Overwrite protection
         run: |
-          ./kpi-collector kpis generate --profile ran --all --overwrite
-          ./kpi-collector kpis generate --profile ran --all --overwrite
+          printf 'y\nn\nn\nn\n' | ./kpi-collector kpis generate --profile ran --all --overwrite -f ow-tasks.yaml
+          printf 'y\nn\nn\nn\n' | ./kpi-collector kpis generate --profile ran --all --overwrite -f ow-tasks.yaml
 
       - name: Version command
         run: |

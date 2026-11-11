@@ -9,6 +9,7 @@ import (
 
 	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/config"
 	kpiprofiles "github.com/redhat-best-practices-for-k8s/kpi-collection-tool/prom-kpi-profiles"
+	taskprofiles "github.com/redhat-best-practices-for-k8s/kpi-collection-tool/task-profiles"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -23,6 +24,32 @@ type profile struct {
 	Name    string
 	File    string
 	Domains []domain
+}
+
+type selectedTasks struct {
+	prometheus, perNode, oslat, recovery bool
+}
+
+func (s selectedTasks) any() bool {
+	return s.prometheus || s.perNode || s.oslat || s.recovery
+}
+
+func (s selectedTasks) order() []string {
+	var out []string
+	for _, t := range []struct {
+		on   bool
+		name string
+	}{
+		{s.prometheus, "prometheus"},
+		{s.perNode, "per-node-data"},
+		{s.oslat, "oslat"},
+		{s.recovery, "app-recovery-time"},
+	} {
+		if t.on {
+			out = append(out, t.name)
+		}
+	}
+	return out
 }
 
 var profiles = map[string]profile{
@@ -41,27 +68,22 @@ var kpisGenerateFlags struct {
 
 var kpisGenerateCmd = &cobra.Command{
 	Use:   "generate --profile <profile>",
-	Short: "Generate a KPI configuration file for a cluster profile",
-	Long: `Generate a YAML KPI configuration file with queries tailored for a specific cluster profile.
+	Short: "Generate KPI and task configuration for a cluster profile",
+	Long: `Generate a tasks.yaml for a cluster profile (ran, core, hub).
 
-Supported profiles: ran, core, hub
+Always prompts for which tasks to include ([task]). If prometheus is selected,
+prompts for KPI domains ([kpi]) unless --all is set (then all domains are included).
+App-recovery-time asks for confirmation on a TTY (it reboots nodes).
 
-In interactive mode (default), you will be prompted to select which KPI
-categories to include. Use --all to include all categories without prompts.
-
-By default, each KPI includes a category field that routes metrics into
-per-category database tables for better query performance. Use --uncategorized
-to omit category fields and store all metrics in a single table.`,
-	Example: `  # Generate all RAN KPIs
+Output is always one inline tasks.yaml (default name: tasks.yaml). Edit CHANGE_ME
+fields before running. Use --uncategorized to omit KPI category fields.`,
+	Example: `  # Interactively pick tasks; --all includes every KPI domain for prometheus
   kpi-collector kpis generate --profile ran --all
 
-  # Interactively select categories for a Core cluster
-  kpi-collector kpis generate --profile core -f core-kpis.yaml
+  # Custom output path
+  kpi-collector kpis generate --profile core -f core-tasks.yaml
 
-  # Generate Hub KPIs to a custom path
-  kpi-collector kpis generate --profile hub --all -f /path/to/hub-kpis.yaml
-
-  # Generate without category fields (single-table storage)
+  # Uncategorized KPIs inside the tasks file
   kpi-collector kpis generate --profile ran --all --uncategorized`,
 	Args: cobra.NoArgs,
 	RunE: runKpisGenerate,
@@ -73,9 +95,9 @@ func init() {
 	kpisGenerateCmd.Flags().StringVarP(&kpisGenerateFlags.profile, "profile", "p", "",
 		fmt.Sprintf("cluster profile (%s)", strings.Join(config.ValidClusterTypes, ", ")))
 	kpisGenerateCmd.Flags().StringVarP(&kpisGenerateFlags.file, "file", "f", "",
-		"output file path (default: <profile>-kpis.yaml)")
+		"output path (default: tasks.yaml)")
 	kpisGenerateCmd.Flags().BoolVar(&kpisGenerateFlags.all, "all", false,
-		"include all KPI categories without prompts")
+		"include all Prometheus KPI domains without domain prompts (tasks are still prompted)")
 	kpisGenerateCmd.Flags().BoolVar(&kpisGenerateFlags.overwrite, "overwrite", false,
 		"overwrite the output file if it already exists")
 	kpisGenerateCmd.Flags().BoolVar(&kpisGenerateFlags.uncategorized, "uncategorized", false,
@@ -93,47 +115,167 @@ func runKpisGenerate(_ *cobra.Command, _ []string) error {
 			profileName, strings.Join(config.ValidClusterTypes, ", "))
 	}
 
-	filePath := resolveOutputFile(profileName)
-
-	if err := validateOutputPath(filePath, kpisGenerateFlags.overwrite); err != nil {
+	outPath := resolveOutputPath()
+	if err := validateOutputPath(outPath, kpisGenerateFlags.overwrite); err != nil {
 		return fmt.Errorf("failed to validate output path: %w", err)
 	}
 
-	allKPIs, err := loadProfileKPIs(prof)
+	reader := bufio.NewReader(os.Stdin)
+	sel, err := selectTasks(reader, stdinIsTTY())
 	if err != nil {
-		return fmt.Errorf("failed to load profile KPIs: %w", err)
+		return fmt.Errorf("failed to select tasks: %w", err)
 	}
-
-	queries, err := selectQueries(prof, allKPIs.Queries, kpisGenerateFlags.all)
-	if err != nil {
-		return fmt.Errorf("failed to select queries: %w", err)
-	}
-
-	if len(queries) == 0 {
-		fmt.Println("No KPI categories selected. No file generated.")
+	if !sel.any() {
+		fmt.Println("No tasks selected. No file generated.")
 		return nil
 	}
 
-	if kpisGenerateFlags.uncategorized {
-		queries = stripCategories(queries)
+	var queries []config.Query
+	if sel.prometheus {
+		queries, err = selectPrometheusQueries(prof, reader)
+		if err != nil {
+			return err
+		}
+		if len(queries) == 0 {
+			fmt.Println("No KPI domains selected.")
+			sel.prometheus = false
+			if !sel.any() {
+				fmt.Println("No file generated.")
+				return nil
+			}
+		}
+		if kpisGenerateFlags.uncategorized {
+			queries = stripCategories(queries)
+		}
 	}
 
-	return writeKPIsFile(filePath, queries)
+	return writeTasksFile(outPath, sel, queries)
 }
 
-// ---------------------------------------------------------------------------
-// File helpers
-// ---------------------------------------------------------------------------
-
-func resolveOutputFile(profileName string) string {
+func resolveOutputPath() string {
 	if kpisGenerateFlags.file != "" {
 		return kpisGenerateFlags.file
 	}
-	return profileName + "-kpis.yaml"
+	return "tasks.yaml"
+}
+
+func stdinIsTTY() bool {
+	fi, err := os.Stdin.Stat()
+	return err == nil && fi.Mode()&os.ModeCharDevice != 0
+}
+
+func selectTasks(reader *bufio.Reader, interactive bool) (selectedTasks, error) {
+	fmt.Println("--- Tasks to include ---")
+	var sel selectedTasks
+	var err error
+	for _, p := range []struct {
+		dst  *bool
+		name string
+	}{
+		{&sel.prometheus, "prometheus"},
+		{&sel.perNode, "per-node-data"},
+		{&sel.oslat, "oslat"},
+	} {
+		if *p.dst, err = promptYesNo(reader, "[task] "+p.name); err != nil {
+			return sel, err
+		}
+	}
+	if !interactive {
+		return sel, nil
+	}
+	fmt.Println("WARNING: app-recovery-time reboots the listed node(s). Use only on disposable lab workers.")
+	sel.recovery, err = promptYesNo(reader, "[task] app-recovery-time")
+	return sel, err
+}
+
+func selectPrometheusQueries(prof profile, reader *bufio.Reader) ([]config.Query, error) {
+	allKPIs, err := loadProfileKPIs(prof)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load profile KPIs: %w", err)
+	}
+	if kpisGenerateFlags.all {
+		return allKPIs.Queries, nil
+	}
+	fmt.Println("\n--- Prometheus KPI domains ---")
+	return promptForDomains(reader, prof, allKPIs.Queries)
+}
+
+func loadTaskFragments() (map[string]string, error) {
+	out := make(map[string]string, 3)
+	for _, name := range []string{
+		taskprofiles.PerNodeDataFull,
+		taskprofiles.OslatFull,
+		taskprofiles.AppRecoveryTimeFull,
+	} {
+		data, err := taskprofiles.FS.ReadFile(name)
+		if err != nil {
+			return nil, fmt.Errorf("read embedded %s: %w", name, err)
+		}
+		out[name] = string(data)
+	}
+	return out, nil
+}
+
+func writeTasksFile(path string, sel selectedTasks, queries []config.Query) error {
+	frags, err := loadTaskFragments()
+	if err != nil {
+		return err
+	}
+	if err := writeInlineTasks(path, sel, queries, frags); err != nil {
+		return err
+	}
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return fmt.Errorf("failed to resolve absolute path: %w", err)
+	}
+	fmt.Printf("Generated %s\n", absPath)
+	fmt.Println("Edit CHANGE_ME / commented fields before running.")
+	return nil
+}
+
+func writeInlineTasks(path string, sel selectedTasks, queries []config.Query, frags map[string]string) error {
+	var b strings.Builder
+	b.WriteString("orchestration:\n  mode: sequential\n  on-failure: fail-fast\n  order:\n")
+	for _, n := range sel.order() {
+		b.WriteString("    - " + n + "\n")
+	}
+	b.WriteString("\n")
+
+	if sel.prometheus {
+		kpiYAML, err := marshalKPIsYAML(queries)
+		if err != nil {
+			return err
+		}
+		b.WriteString("prometheus:\n")
+		b.WriteString(indentLines(string(kpiYAML), "  "))
+		b.WriteString("\n")
+	}
+	for _, p := range []struct {
+		on   bool
+		frag string
+	}{
+		{sel.perNode, taskprofiles.PerNodeDataFull},
+		{sel.oslat, taskprofiles.OslatFull},
+		{sel.recovery, taskprofiles.AppRecoveryTimeFull},
+	} {
+		if p.on {
+			b.WriteString(strings.TrimSpace(frags[p.frag]) + "\n\n")
+		}
+	}
+	return os.WriteFile(path, []byte(b.String()), 0644)
+}
+
+func indentLines(s, prefix string) string {
+	s = strings.TrimRight(s, "\n")
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		lines[i] = prefix + line
+	}
+	return strings.Join(lines, "\n") + "\n"
 }
 
 func validateOutputPath(filePath string, overwrite bool) error {
-	if info, err := os.Stat(filePath); err == nil { // if err==nil then path exists
+	if info, err := os.Stat(filePath); err == nil {
 		if info.IsDir() {
 			return fmt.Errorf("%q is a directory, not a file path", filePath)
 		}
@@ -146,7 +288,6 @@ func validateOutputPath(filePath string, overwrite bool) error {
 	if dir == "." {
 		return nil
 	}
-
 	info, err := os.Stat(dir)
 	if err != nil {
 		return fmt.Errorf("directory %q does not exist", dir)
@@ -154,38 +295,16 @@ func validateOutputPath(filePath string, overwrite bool) error {
 	if !info.IsDir() {
 		return fmt.Errorf("%q is not a directory", dir)
 	}
-
 	return nil
 }
 
-func writeKPIsFile(filePath string, queries []config.Query) error {
-	kpisData := config.KPIs{Queries: queries}
-
-	data, err := yaml.Marshal(kpisData)
+func marshalKPIsYAML(queries []config.Query) ([]byte, error) {
+	data, err := yaml.Marshal(config.KPIs{Queries: queries})
 	if err != nil {
-		return fmt.Errorf("failed to marshal KPIs: %w", err)
+		return nil, fmt.Errorf("failed to marshal KPIs: %w", err)
 	}
-
-	// Add blank lines between KPI entries for readability
 	formatted := strings.ReplaceAll(string(data), "\n  - id:", "\n\n  - id:")
-	data = []byte(formatted)
-
-	absPath, err := filepath.Abs(filePath)
-	if err != nil {
-		return fmt.Errorf("failed to resolve absolute path: %w", err)
-	}
-
-	if err := os.WriteFile(absPath, data, 0644); err != nil {
-		return fmt.Errorf("failed to write file %q: %w", absPath, err)
-	}
-
-	fmt.Printf("Generated %s with %d KPIs\n", absPath, len(queries))
-	fmt.Println("You can edit this file to customize each KPI. Per-query options:")
-	fmt.Println("  sample-frequency  Override the global collection frequency (e.g. 2m, 30s)")
-	fmt.Println("  run-once          Set to true to collect a KPI only once")
-	fmt.Println("  query-type        instant (default) or range for time-window queries")
-	fmt.Println("  range             Required when query-type is range (nested: step, since, until)")
-	return nil
+	return []byte(formatted), nil
 }
 
 func stripCategories(queries []config.Query) []config.Query {
@@ -197,37 +316,22 @@ func stripCategories(queries []config.Query) []config.Query {
 	return stripped
 }
 
-// ---------------------------------------------------------------------------
-// Profile loading and filtering
-// ---------------------------------------------------------------------------
-
 func loadProfileKPIs(prof profile) (config.KPIs, error) {
 	data, err := kpiprofiles.FS.ReadFile(prof.File)
 	if err != nil {
 		return config.KPIs{}, fmt.Errorf("failed to read embedded profile %q: %w", prof.File, err)
 	}
-
 	var kpis config.KPIs
 	if err := yaml.Unmarshal(data, &kpis); err != nil {
 		return config.KPIs{}, fmt.Errorf("failed to parse profile %q: %w", prof.File, err)
 	}
-
 	return kpis, nil
 }
 
-func selectQueries(prof profile, allQueries []config.Query, all bool) ([]config.Query, error) {
-	if all {
-		return allQueries, nil
-	}
-	return promptForDomains(prof, allQueries)
-}
-
-func promptForDomains(prof profile, allQueries []config.Query) ([]config.Query, error) {
-	reader := bufio.NewReader(os.Stdin)
+func promptForDomains(reader *bufio.Reader, prof profile, allQueries []config.Query) ([]config.Query, error) {
 	var selectedDomains []domain
-
 	for _, d := range prof.Domains {
-		selected, err := promptYesNo(reader, d.Name)
+		selected, err := promptYesNo(reader, fmt.Sprintf("[kpi] %s", d.Name))
 		if err != nil {
 			return nil, fmt.Errorf("failed to read input: %w", err)
 		}
@@ -235,7 +339,6 @@ func promptForDomains(prof profile, allQueries []config.Query) ([]config.Query, 
 			selectedDomains = append(selectedDomains, d)
 		}
 	}
-
 	return filterByDomains(allQueries, selectedDomains), nil
 }
 
@@ -246,7 +349,6 @@ func filterByDomains(allQueries []config.Query, domains []domain) []config.Query
 			allowed[id] = true
 		}
 	}
-
 	var filtered []config.Query
 	for _, q := range allQueries {
 		if allowed[q.ID] {
@@ -256,19 +358,13 @@ func filterByDomains(allQueries []config.Query, domains []domain) []config.Query
 	return filtered
 }
 
-// ---------------------------------------------------------------------------
-// Interactive prompt
-// ---------------------------------------------------------------------------
-
-func promptYesNo(reader *bufio.Reader, domainName string) (bool, error) {
+func promptYesNo(reader *bufio.Reader, question string) (bool, error) {
 	for {
-		fmt.Printf("Do you want %s kpis? [y/n]: ", domainName)
-
+		fmt.Printf("%s [y/n]: ", question)
 		input, err := reader.ReadString('\n')
 		if err != nil {
 			return false, err
 		}
-
 		switch strings.TrimSpace(strings.ToLower(input)) {
 		case "y", "yes":
 			return true, nil
@@ -279,10 +375,6 @@ func promptYesNo(reader *bufio.Reader, domainName string) (bool, error) {
 		}
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Profile definitions — domain groupings reference KPI IDs from the YAML files
-// ---------------------------------------------------------------------------
 
 func ranProfile() profile {
 	return profile{

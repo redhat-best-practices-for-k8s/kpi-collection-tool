@@ -120,7 +120,7 @@ Total results: 3
 
 - `kpi-collector run --tasks <file>`: run configured tasks (prometheus, per-node-data, oslat, app-recovery-time)
 - `kpi-collector run --prom-kpis-config <file>`: collect Prometheus metrics only (no tasks file needed)
-- `kpi-collector kpis generate --profile <profile>`: generate a Prometheus KPI file for a cluster profile (ran, core, hub)
+- `kpi-collector kpis generate --profile <profile>`: generate an inline `tasks.yaml` (prompts for tasks; `--all` skips KPI domain prompts)
 - `kpi-collector db show`: query collected data
 - `kpi-collector db remove`: remove stored data
 - `kpi-collector grafana start|stop`: manage local Grafana dashboard
