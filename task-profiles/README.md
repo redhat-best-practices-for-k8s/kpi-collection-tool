@@ -66,7 +66,8 @@ same profiles used by `kpi-collector run --prom-kpis-config` and
 
 To swap the Prometheus profile in a tasks file, change the `configFile` line
 under the `prometheus:` section (e.g. `../prom-kpi-profiles/kpis-ran.yaml`), or
-generate a custom KPI file with `kpi-collector kpis generate --profile ran --all`.
+generate an inline `tasks.yaml` with `kpi-collector kpis generate --profile ran --all`
+(see [KPI file configuration](../docs/kpis-file-configuration.md)).
 
 ## What to customize
 

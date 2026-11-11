@@ -101,24 +101,25 @@ Category names are freeform strings (e.g. `cpu`, `memory`, `network`, `ptp`). Th
 
 ## KPI Profiles
 
-The tool includes built-in KPI profiles for common cluster types. Use the `kpis generate` command to create a ready-to-use file:
+The tool includes built-in KPI profiles for common cluster types. Use the `kpis generate` command to create a ready-to-use inline `tasks.yaml`:
 
 ```bash
-# Generate all KPIs for a RAN cluster
-kpi-collector kpis generate --profile ran --all
-
-# Interactively choose which categories to include
+# Always prompts for tasks ([task]). Without --all, also prompts KPI domains ([kpi]).
 kpi-collector kpis generate --profile core
 
+# --all: still prompts for tasks; skips KPI domain prompts (all domains included)
+# App-recovery-time still prompts on a TTY — it reboots nodes.
+kpi-collector kpis generate --profile ran --all
+
 # Custom output path
-kpi-collector kpis generate --profile hub --all -f /path/to/hub-kpis.yaml
+kpi-collector kpis generate --profile hub --all -f hub-tasks.yaml
 
-# Overwrite an existing file
-kpi-collector kpis generate --profile ran --all --overwrite
-
-# Generate without category fields (all data stored in a single table)
-kpi-collector kpis generate --profile ran --all --uncategorized
+# Overwrite / uncategorized KPIs (no category fields)
+kpi-collector kpis generate --profile ran --all --uncategorized --overwrite
 ```
+
+Output is always one inline `tasks.yaml` (default name). Comments mark fields you
+must edit (e.g. oslat `image`, app-recovery `nodeNames`).
 
 By default, generated KPIs include a `category` field that routes metrics into
 per-category database tables for better query performance at scale. Use
