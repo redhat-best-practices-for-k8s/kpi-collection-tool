@@ -37,6 +37,9 @@ jobs:
         uses: palmsoftware/quick-ocp@v0.0.32
         with:
           ocpPullSecret: $OCP_PULL_SECRET
+          # Pin to last known-good: CRC latest jumped to OCP 5.0.0 and oc client install fails.
+          desiredOCPVersion: "4.22"
+          crcVersion: "2.64.0"
           bundleCache: true
           enableClusterMonitoring: 'true'
         env:
