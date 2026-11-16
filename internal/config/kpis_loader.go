@@ -58,7 +58,7 @@ func ValidateKPIs(kpis KPIs) []error {
 		}
 
 		// Validate PromQL syntax
-		if _, err := parser.ParseExpr(kpi.PromQuery); err != nil {
+		if _, err := parser.NewParser(parser.Options{}).ParseExpr(kpi.PromQuery); err != nil {
 			errors = append(errors, fmt.Errorf("KPI '%s': invalid PromQL syntax - %w", kpi.ID, err))
 		}
 
