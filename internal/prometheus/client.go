@@ -144,9 +144,9 @@ func executeQuery(ctx context.Context, v1api promv1.API, db *sql.DB, dbImpl data
 			End:   info.Until,
 			Step:  info.Step,
 		}
-		result, warnings, err = v1api.QueryRange(ctx, info.PromQuery, queryRange)
+		result, warnings, _, err = v1api.QueryRange(ctx, info.PromQuery, queryRange)
 	} else {
-		result, warnings, err = v1api.Query(ctx, info.PromQuery, queryStart)
+		result, warnings, _, err = v1api.Query(ctx, info.PromQuery, queryStart)
 	}
 
 	promDuration := time.Since(queryStart)

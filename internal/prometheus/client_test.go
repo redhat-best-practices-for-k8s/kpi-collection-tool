@@ -23,28 +23,30 @@ type mockPromAPI struct {
 	queryRangeFunc func(ctx context.Context, query string, r v1.Range) (model.Value, v1.Warnings, error)
 }
 
-func (m *mockPromAPI) Query(ctx context.Context, query string, ts time.Time, opts ...v1.Option) (model.Value, v1.Warnings, error) {
+func (m *mockPromAPI) Query(ctx context.Context, query string, ts time.Time, opts ...v1.Option) (model.Value, v1.Warnings, v1.Infos, error) {
 	if m.queryFunc != nil {
-		return m.queryFunc(ctx, query, ts)
+		v, w, err := m.queryFunc(ctx, query, ts)
+		return v, w, nil, err
 	}
-	return nil, nil, nil
+	return nil, nil, nil, nil
 }
 
 // All methods below are unused but required to implement v1.API interface
-func (m *mockPromAPI) QueryRange(ctx context.Context, query string, r v1.Range, opts ...v1.Option) (model.Value, v1.Warnings, error) {
+func (m *mockPromAPI) QueryRange(ctx context.Context, query string, r v1.Range, opts ...v1.Option) (model.Value, v1.Warnings, v1.Infos, error) {
 	if m.queryRangeFunc != nil {
-		return m.queryRangeFunc(ctx, query, r)
+		v, w, err := m.queryRangeFunc(ctx, query, r)
+		return v, w, nil, err
 	}
-	return nil, nil, nil
+	return nil, nil, nil, nil
 }
-func (m *mockPromAPI) LabelNames(ctx context.Context, matches []string, startTime, endTime time.Time, opts ...v1.Option) ([]string, v1.Warnings, error) {
-	return nil, nil, nil
+func (m *mockPromAPI) LabelNames(ctx context.Context, matches []string, startTime, endTime time.Time, opts ...v1.Option) (model.LabelNames, v1.Warnings, v1.Infos, error) {
+	return nil, nil, nil, nil
 }
-func (m *mockPromAPI) LabelValues(ctx context.Context, label string, matches []string, startTime, endTime time.Time, opts ...v1.Option) (model.LabelValues, v1.Warnings, error) {
-	return nil, nil, nil
+func (m *mockPromAPI) LabelValues(ctx context.Context, label string, matches []string, startTime, endTime time.Time, opts ...v1.Option) (model.LabelValues, v1.Warnings, v1.Infos, error) {
+	return nil, nil, nil, nil
 }
-func (m *mockPromAPI) Series(ctx context.Context, matches []string, startTime, endTime time.Time, opts ...v1.Option) ([]model.LabelSet, v1.Warnings, error) {
-	return nil, nil, nil
+func (m *mockPromAPI) Series(ctx context.Context, matches []string, startTime, endTime time.Time, opts ...v1.Option) ([]model.LabelSet, v1.Warnings, v1.Infos, error) {
+	return nil, nil, nil, nil
 }
 func (m *mockPromAPI) Alerts(ctx context.Context) (v1.AlertsResult, error) {
 	return v1.AlertsResult{}, nil
@@ -65,8 +67,14 @@ func (m *mockPromAPI) Flags(ctx context.Context) (v1.FlagsResult, error) {
 func (m *mockPromAPI) Snapshot(ctx context.Context, skipHead bool) (v1.SnapshotResult, error) {
 	return v1.SnapshotResult{}, nil
 }
-func (m *mockPromAPI) Rules(ctx context.Context) (v1.RulesResult, error) {
+func (m *mockPromAPI) Rules(ctx context.Context, matches []string) (v1.RulesResult, error) {
 	return v1.RulesResult{}, nil
+}
+func (m *mockPromAPI) TSDBBlocks(ctx context.Context) (v1.TSDBBlocksResult, error) {
+	return v1.TSDBBlocksResult{}, nil
+}
+func (m *mockPromAPI) FormatQuery(ctx context.Context, query string) (string, error) {
+	return "", nil
 }
 func (m *mockPromAPI) Targets(ctx context.Context) (v1.TargetsResult, error) {
 	return v1.TargetsResult{}, nil
