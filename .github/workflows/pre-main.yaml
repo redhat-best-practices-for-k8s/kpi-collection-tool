@@ -15,10 +15,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Check out code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
 
@@ -35,7 +35,7 @@ jobs:
         run: make build
 
       - name: Upload binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: kpi-collector
           path: kpi-collector
@@ -49,10 +49,10 @@ jobs:
 
     steps:
       - name: Check out code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Download binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: kpi-collector
 
@@ -60,7 +60,7 @@ jobs:
         run: chmod +x ./kpi-collector
 
       - name: Deploy K8s cluster with monitoring
-        uses: palmsoftware/quick-k8s@v0.0.65
+        uses: palmsoftware/quick-k8s@v1.0.12
         with:
           enableClusterMonitoring: 'true'
 
@@ -214,7 +214,7 @@ jobs:
 
       - name: Upload artifacts on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: kpi-collector-artifacts-e2e
           path: kpi-collector-artifacts/
@@ -226,10 +226,10 @@ jobs:
 
     steps:
       - name: Check out code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Download binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: kpi-collector
 
@@ -237,7 +237,7 @@ jobs:
         run: chmod +x ./kpi-collector
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.x'
 
