@@ -15,7 +15,7 @@ require (
 	github.com/prometheus/prometheus v0.316.0
 	github.com/spf13/cobra v1.10.1
 	github.com/testcontainers/testcontainers-go v0.45.0
-	github.com/testcontainers/testcontainers-go/modules/postgres v0.39.0
+	github.com/testcontainers/testcontainers-go/modules/postgres v0.45.0
 	golang.org/x/term v0.48.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.37.2
