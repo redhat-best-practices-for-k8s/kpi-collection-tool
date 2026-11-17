@@ -7,7 +7,7 @@ toolchain go1.27.4
 require (
 	github.com/dustin/go-humanize v1.1.0
 	github.com/guptarohit/asciigraph v0.10.0
-	github.com/lib/pq v1.10.9
+	github.com/lib/pq v1.12.3
 	github.com/onsi/ginkgo/v2 v2.25.1
 	github.com/onsi/gomega v1.44.0
 	github.com/prometheus/client_golang v1.25.0
