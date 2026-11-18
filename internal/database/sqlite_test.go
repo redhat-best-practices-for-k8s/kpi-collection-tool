@@ -82,6 +82,24 @@ var _ = Describe("Sqlite", func() {
 			_, err := os.Stat(dbFile)
 			Expect(err).NotTo(HaveOccurred())
 		})
+
+		It("should rename a legacy kpi_metrics.db on open", func() {
+			Expect(db.Close()).To(Succeed())
+			db = nil
+
+			dir := filepath.Join(tmpDir, DefaultOutputDir)
+			legacy := filepath.Join(dir, legacyDBFileName)
+			Expect(os.Rename(filepath.Join(dir, DefaultDBFileName), legacy)).To(Succeed())
+
+			var err error
+			db, err = sqliteDB.InitDB()
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err = os.Stat(filepath.Join(dir, DefaultDBFileName))
+			Expect(err).NotTo(HaveOccurred())
+			_, err = os.Stat(legacy)
+			Expect(os.IsNotExist(err)).To(BeTrue())
+		})
 	})
 
 	Describe("Category Tables", func() {

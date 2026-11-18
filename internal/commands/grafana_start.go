@@ -147,17 +147,17 @@ func writeGrafanaConfigFiles(grafanaDir string) error {
 // generateDatasourceConfig generates the datasource YAML based on the datasource type
 func generateDatasourceConfig() string {
 	if grafanaStartFlags.datasource == "sqlite" {
-		return `apiVersion: 1
+		return fmt.Sprintf(`apiVersion: 1
 datasources:
   - name: KPI-SQLite
     type: frser-sqlite-datasource
     uid: kpi-datasource
     access: proxy
     jsonData:
-      path: /var/lib/grafana/kpi_metrics.db
+      path: /var/lib/grafana/%s
     isDefault: true
     editable: true
-`
+`, database.DefaultDBFileName)
 	}
 
 	// PostgreSQL datasource
@@ -272,13 +272,17 @@ func runGrafanaContainer(grafanaDir string) error {
 
 	// For SQLite, mount the database file
 	if grafanaStartFlags.datasource == "sqlite" {
+		if err := os.MkdirAll(database.OutputDir, 0755); err != nil {
+			return fmt.Errorf("failed to create database directory: %w", err)
+		}
+		if err := database.MigrateLegacySQLiteFile(database.OutputDir); err != nil {
+			return fmt.Errorf("failed to migrate legacy SQLite file: %w", err)
+		}
+
 		dbPath := filepath.Join(database.OutputDir, database.DefaultDBFileName)
 
 		// Ensure database file exists (podman requires source to exist before mounting)
 		if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-			if err := os.MkdirAll(database.OutputDir, 0755); err != nil {
-				return fmt.Errorf("failed to create database directory: %w", err)
-			}
 			file, err := os.Create(dbPath)
 			if err != nil {
 				return fmt.Errorf("failed to create database file: %w", err)
@@ -295,7 +299,7 @@ func runGrafanaContainer(grafanaDir string) error {
 		}
 
 		args = append(args,
-			"-v", fmt.Sprintf("%s:/var/lib/grafana/kpi_metrics.db:ro,z", absDBPath),
+			"-v", fmt.Sprintf("%s:/var/lib/grafana/%s:ro,z", absDBPath, database.DefaultDBFileName),
 		)
 
 		if grafanaStartFlags.pluginsDir != "" {
