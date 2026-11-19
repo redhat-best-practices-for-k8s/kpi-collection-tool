@@ -34,13 +34,16 @@ var collectScript string
 type PerNodeDataTask struct {
 	cfg          config.PerNodeDataTaskConfig
 	kubeconfig   string
+	proxyURL     string
 	artifactsDir string
-	cleanup      bool
+	runID        string
+	noCleanup    bool
+	tracker      objectTracker
 }
 
 // NewPerNodeDataTask constructs a per-node-data task.
-func NewPerNodeDataTask(cfg config.PerNodeDataTaskConfig, kubeconfig, artifactsDir string) *PerNodeDataTask {
-	return &PerNodeDataTask{cfg: cfg, kubeconfig: kubeconfig, artifactsDir: artifactsDir}
+func NewPerNodeDataTask(cfg config.PerNodeDataTaskConfig, kubeconfig, proxyURL, artifactsDir string) *PerNodeDataTask {
+	return &PerNodeDataTask{cfg: cfg, kubeconfig: kubeconfig, proxyURL: proxyURL, artifactsDir: artifactsDir}
 }
 
 func (t *PerNodeDataTask) Name() string { return config.TaskConfigPerNodeData }
@@ -51,7 +54,7 @@ func (t *PerNodeDataTask) Run(ctx context.Context) error {
 	}
 	log.Printf("%s: using isolcpus=%s", t.Name(), t.cfg.Isolcpus)
 
-	client, err := kubernetes.ClientsetFromKubeconfig(t.kubeconfig)
+	client, err := kubernetes.ClientsetFromKubeconfig(t.kubeconfig, t.proxyURL)
 	if err != nil {
 		return fmt.Errorf("%s: %w", t.Name(), err)
 	}
@@ -60,7 +63,16 @@ func (t *PerNodeDataTask) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("%s: %w", t.Name(), err)
 	}
-	output.PrintTaskProgress(t.Name(), fmt.Sprintf("collecting from %d node(s)", len(nodes)))
+
+	// Delete exactly the debug pods this task created — on every exit path —
+	// unless --nocleanup was given. Leftovers from a prior run were already
+	// removed by the pre-run sweep in the run command.
+	if !t.noCleanup {
+		defer t.tracker.DeleteAll(ctx, client, t.Name())
+	}
+
+	output.PrintTaskProgress(t.Name(), fmt.Sprintf(
+		"collecting from %d node(s) (duration=%s)", len(nodes), t.cfg.Duration))
 
 	nodeErr := t.collectAll(ctx, client, nodes)
 	descErr := t.writeDescribes(ctx, client)
@@ -103,9 +115,7 @@ func (t *PerNodeDataTask) collectNode(ctx context.Context, client *k8s.Clientset
 	if err != nil {
 		return fmt.Errorf("%s: %w", node, err)
 	}
-	if t.cleanup {
-		defer removePod(ctx, client, created.Namespace, created.Name, t.Name())
-	}
+	t.tracker.Add("pod", created.Namespace, created.Name)
 
 	wait := t.cfg.Duration.Duration + debugWaitBuffer
 	finished, waitErr := kubernetes.WaitForPodTerminal(kubernetes.PodWaitParams{
@@ -136,7 +146,7 @@ func (t *PerNodeDataTask) collectNode(ctx context.Context, client *k8s.Clientset
 func (t *PerNodeDataTask) debugPod(node string) *corev1.Pod {
 	privileged := true
 	n := int(t.cfg.Duration.Duration / t.cfg.Interval.Duration)
-	return &corev1.Pod{
+	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: debugPodName(node)},
 		Spec: corev1.PodSpec{
 			NodeName:      node,
@@ -163,6 +173,8 @@ func (t *PerNodeDataTask) debugPod(node string) *corev1.Pod {
 			}},
 		},
 	}
+	kubernetes.LabelObject(&pod.ObjectMeta, t.runID)
+	return pod
 }
 
 func (t *PerNodeDataTask) writeNodeArtifacts(node, body string) error {
