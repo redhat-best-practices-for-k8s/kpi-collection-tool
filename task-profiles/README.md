@@ -42,7 +42,10 @@ Prometheus KPI profiles under [`../prom-kpi-profiles/`](../prom-kpi-profiles/REA
 
 Each fragment is a standalone file with a wrapped root key (e.g. `per-node-data:`).
 They can be referenced from a tasks file via `configFile`, or used as a
-starting point for your own configuration.
+starting point for your own configuration. Header comments in these files (and
+the linked config guides) are the canonical place for setup/safety notes —
+`kpis generate` loads full-fragment values into structs then marshals them, so
+those comments are not copied into the generated `tasks.yaml`.
 
 | Task | Quickstart | Full | Config guide |
 |------|-----------|------|--------------|

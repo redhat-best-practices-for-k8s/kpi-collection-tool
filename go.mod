@@ -16,8 +16,8 @@ require (
 	github.com/spf13/cobra v1.10.1
 	github.com/testcontainers/testcontainers-go v0.45.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.45.0
+	go.yaml.in/yaml/v4 v4.0.0
 	golang.org/x/term v0.48.0
-	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.37.2
 	k8s.io/apimachinery v0.37.2
 	k8s.io/client-go v0.37.2

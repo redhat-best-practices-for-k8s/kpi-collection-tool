@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/prometheus/prometheus/promql/parser"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v4"
 )
 
 const maxCategoryLength = 32
