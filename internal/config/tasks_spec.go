@@ -28,9 +28,9 @@ const (
 	TaskConfigAppRecoveryTime = "app-recovery-time"
 )
 
-// knownTaskConfigs lists every task config key a tasks.yaml file may contain,
+// KnownTaskConfigs lists every task config key a tasks.yaml file may contain,
 // in the order tasks run by default when orchestration.order is not set.
-var knownTaskConfigs = []string{TaskConfigPrometheus, TaskConfigPerNodeData, TaskConfigOslat, TaskConfigAppRecoveryTime}
+var KnownTaskConfigs = []string{TaskConfigPrometheus, TaskConfigPerNodeData, TaskConfigOslat, TaskConfigAppRecoveryTime}
 
 const tasksFileName = "tasks.yaml"
 
@@ -86,7 +86,7 @@ func (c TasksSpec) ResolvePath(path string) string {
 }
 
 // PresentTaskConfigs returns the task config keys that are set in this
-// TasksSpec, in the fixed order defined by knownTaskConfigs.
+// TasksSpec, in the fixed order defined by KnownTaskConfigs.
 func (c TasksSpec) PresentTaskConfigs() []string {
 	var present []string
 	if c.Prometheus != nil {
@@ -144,7 +144,7 @@ func ValidateTasksSpec(cfg *TasksSpec) error {
 	present := cfg.PresentTaskConfigs()
 	if len(present) == 0 {
 		return fmt.Errorf("tasks file has no task configs defined (expected at least one of: %s)",
-			strings.Join(knownTaskConfigs, ", "))
+			strings.Join(KnownTaskConfigs, ", "))
 	}
 
 	if err := validatePrometheusTaskConfig(cfg.Prometheus); err != nil {
@@ -224,9 +224,9 @@ func validateOrder(order, present []string) error {
 
 	seen := make(map[string]bool, len(order))
 	for _, name := range order {
-		if !slices.Contains(knownTaskConfigs, name) {
+		if !slices.Contains(KnownTaskConfigs, name) {
 			return fmt.Errorf("orchestration.order: %q is not a known task config (expected one of: %s)",
-				name, strings.Join(knownTaskConfigs, ", "))
+				name, strings.Join(KnownTaskConfigs, ", "))
 		}
 		if seen[name] {
 			return fmt.Errorf("orchestration.order: %q is listed more than once", name)

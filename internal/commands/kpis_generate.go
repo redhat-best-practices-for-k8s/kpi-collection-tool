@@ -36,20 +36,27 @@ func (s selectedTasks) any() bool {
 
 func (s selectedTasks) order() []string {
 	var out []string
-	for _, t := range []struct {
-		on   bool
-		name string
-	}{
-		{s.prometheus, "prometheus"},
-		{s.perNode, "per-node-data"},
-		{s.oslat, "oslat"},
-		{s.recovery, "app-recovery-time"},
-	} {
-		if t.on {
-			out = append(out, t.name)
+	for _, name := range config.KnownTaskConfigs {
+		if s.selected(name) {
+			out = append(out, name)
 		}
 	}
 	return out
+}
+
+func (s selectedTasks) selected(name string) bool {
+	switch name {
+	case config.TaskConfigPrometheus:
+		return s.prometheus
+	case config.TaskConfigPerNodeData:
+		return s.perNode
+	case config.TaskConfigOslat:
+		return s.oslat
+	case config.TaskConfigAppRecoveryTime:
+		return s.recovery
+	default:
+		return false
+	}
 }
 
 var profiles = map[string]profile{
