@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // Orchestration policy values for OrchestrationConfig.Mode and OrchestrationConfig.OnFailure.

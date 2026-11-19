@@ -118,8 +118,15 @@ kpi-collector kpis generate --profile hub --all -f hub-tasks.yaml
 kpi-collector kpis generate --profile ran --all --uncategorized --overwrite
 ```
 
-Output is always one inline `tasks.yaml` (default name). Comments mark fields you
-must edit (e.g. oslat `image`, app-recovery `nodeNames`).
+Output is always one inline `tasks.yaml` (default name). Replace `CHANGE_ME`
+placeholders before running (for example oslat `image`, app-recovery
+`nodeNames`, per-node-data workload namespaces). Guidance for each task lives in:
+
+- [Per-Node Data Configuration](per-node-data-configuration.md)
+- [Oslat Configuration](oslat-configuration.md)
+- [App Recovery Time Configuration](app-recovery-time-configuration.md)
+- [Task Profiles](../task-profiles/README.md) — ready-to-use fragments keep
+  the long-form comments that generate no longer embeds
 
 By default, generated KPIs include a `category` field that routes metrics into
 per-category database tables for better query performance at scale. Use

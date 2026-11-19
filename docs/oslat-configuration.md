@@ -160,6 +160,15 @@ workload gets dedicated resources and isn't throttled.
 **`tolerations`** — if your target node has taints (common on RAN/DU workers),
 add matching tolerations to the pod spec.
 
+## Image requirements
+
+You supply the container image and command — the tool does not ship an oslat
+binary. Replace `CHANGE_ME` (or the quickstart UBI image) with your real oslat
+image before a validation run.
+
+In disconnected environments, mirror the image to your local registry and
+update the `image` field accordingly.
+
 ## Authentication
 
 Requires `--kubeconfig` with admin privileges. The task creates a pod and reads

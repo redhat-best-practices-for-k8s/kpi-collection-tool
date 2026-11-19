@@ -12,7 +12,7 @@ import (
 	taskprofiles "github.com/redhat-best-practices-for-k8s/kpi-collection-tool/task-profiles"
 
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v4"
 )
 
 type domain struct {
@@ -83,7 +83,8 @@ prompts for KPI domains ([kpi]) unless --all is set (then all domains are includ
 App-recovery-time asks for confirmation on a TTY (it reboots nodes).
 
 Output is always one inline tasks.yaml (default name: tasks.yaml). Edit CHANGE_ME
-fields before running. Use --uncategorized to omit KPI category fields.`,
+placeholders before running; see docs for per-task guidance. Use --uncategorized
+to omit KPI category fields.`,
 	Example: `  # Interactively pick tasks; --all includes every KPI domain for prometheus
   kpi-collector kpis generate --profile ran --all
 
@@ -207,28 +208,8 @@ func selectPrometheusQueries(prof profile, reader *bufio.Reader) ([]config.Query
 	return promptForDomains(reader, prof, allKPIs.Queries)
 }
 
-func loadTaskFragments() (map[string]string, error) {
-	out := make(map[string]string, 3)
-	for _, name := range []string{
-		taskprofiles.PerNodeDataFull,
-		taskprofiles.OslatFull,
-		taskprofiles.AppRecoveryTimeFull,
-	} {
-		data, err := taskprofiles.FS.ReadFile(name)
-		if err != nil {
-			return nil, fmt.Errorf("read embedded %s: %w", name, err)
-		}
-		out[name] = string(data)
-	}
-	return out, nil
-}
-
 func writeTasksFile(path string, sel selectedTasks, queries []config.Query) error {
-	frags, err := loadTaskFragments()
-	if err != nil {
-		return err
-	}
-	if err := writeInlineTasks(path, sel, queries, frags); err != nil {
+	if err := writeInlineTasks(path, sel, queries); err != nil {
 		return err
 	}
 	absPath, err := filepath.Abs(path)
@@ -236,49 +217,74 @@ func writeTasksFile(path string, sel selectedTasks, queries []config.Query) erro
 		return fmt.Errorf("failed to resolve absolute path: %w", err)
 	}
 	fmt.Printf("Generated %s\n", absPath)
-	fmt.Println("Edit CHANGE_ME / commented fields before running.")
+	fmt.Println("Edit CHANGE_ME placeholders before running (see docs for task guidance).")
 	return nil
 }
 
-func writeInlineTasks(path string, sel selectedTasks, queries []config.Query, frags map[string]string) error {
-	var b strings.Builder
-	b.WriteString("orchestration:\n  mode: sequential\n  on-failure: fail-fast\n  order:\n")
-	for _, n := range sel.order() {
-		b.WriteString("    - " + n + "\n")
+func writeInlineTasks(path string, sel selectedTasks, queries []config.Query) error {
+	spec, err := buildGenerateTasksSpec(sel, queries)
+	if err != nil {
+		return err
 	}
-	b.WriteString("\n")
-
-	if sel.prometheus {
-		kpiYAML, err := marshalKPIsYAML(queries)
-		if err != nil {
-			return err
-		}
-		b.WriteString("prometheus:\n")
-		b.WriteString(indentLines(string(kpiYAML), "  "))
-		b.WriteString("\n")
+	data, err := yaml.Marshal(&spec)
+	if err != nil {
+		return fmt.Errorf("failed to marshal tasks: %w", err)
 	}
-	for _, p := range []struct {
-		on   bool
-		frag string
-	}{
-		{sel.perNode, taskprofiles.PerNodeDataFull},
-		{sel.oslat, taskprofiles.OslatFull},
-		{sel.recovery, taskprofiles.AppRecoveryTimeFull},
-	} {
-		if p.on {
-			b.WriteString(strings.TrimSpace(frags[p.frag]) + "\n\n")
-		}
-	}
-	return os.WriteFile(path, []byte(b.String()), 0644)
+	return os.WriteFile(path, data, 0644)
 }
 
-func indentLines(s, prefix string) string {
-	s = strings.TrimRight(s, "\n")
-	lines := strings.Split(s, "\n")
-	for i, line := range lines {
-		lines[i] = prefix + line
+func buildGenerateTasksSpec(sel selectedTasks, queries []config.Query) (config.TasksSpec, error) {
+	spec := config.TasksSpec{
+		Orchestration: config.OrchestrationConfig{
+			Mode:      config.ModeSequential,
+			OnFailure: config.OnFailureFailFast,
+			Order:     sel.order(),
+		},
 	}
-	return strings.Join(lines, "\n") + "\n"
+	if sel.prometheus {
+		spec.Prometheus = &config.PrometheusTaskConfig{Kpis: queries}
+	}
+	if sel.perNode {
+		cfg, err := loadTaskFragment[config.PerNodeDataTaskConfig](
+			taskprofiles.PerNodeDataFull, config.TaskConfigPerNodeData)
+		if err != nil {
+			return config.TasksSpec{}, err
+		}
+		spec.PerNodeData = cfg
+	}
+	if sel.oslat {
+		cfg, err := loadTaskFragment[config.OslatTaskConfig](
+			taskprofiles.OslatFull, config.TaskConfigOslat)
+		if err != nil {
+			return config.TasksSpec{}, err
+		}
+		spec.Oslat = cfg
+	}
+	if sel.recovery {
+		cfg, err := loadTaskFragment[config.AppRecoveryTimeTaskConfig](
+			taskprofiles.AppRecoveryTimeFull, config.TaskConfigAppRecoveryTime)
+		if err != nil {
+			return config.TasksSpec{}, err
+		}
+		spec.AppRecoveryTime = cfg
+	}
+	return spec, nil
+}
+
+func loadTaskFragment[T any](frag, rootKey string) (*T, error) {
+	data, err := taskprofiles.FS.ReadFile(frag)
+	if err != nil {
+		return nil, fmt.Errorf("read embedded %s: %w", frag, err)
+	}
+	var wrap map[string]*T
+	if err := yaml.Unmarshal(data, &wrap); err != nil {
+		return nil, fmt.Errorf("parse embedded %s: %w", frag, err)
+	}
+	cfg := wrap[rootKey]
+	if cfg == nil {
+		return nil, fmt.Errorf("embedded %s missing %q root key", frag, rootKey)
+	}
+	return cfg, nil
 }
 
 func validateOutputPath(filePath string, overwrite bool) error {
@@ -303,15 +309,6 @@ func validateOutputPath(filePath string, overwrite bool) error {
 		return fmt.Errorf("%q is not a directory", dir)
 	}
 	return nil
-}
-
-func marshalKPIsYAML(queries []config.Query) ([]byte, error) {
-	data, err := yaml.Marshal(config.KPIs{Queries: queries})
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal KPIs: %w", err)
-	}
-	formatted := strings.ReplaceAll(string(data), "\n  - id:", "\n\n  - id:")
-	return []byte(formatted), nil
 }
 
 func stripCategories(queries []config.Query) []config.Query {

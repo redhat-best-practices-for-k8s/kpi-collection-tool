@@ -3,13 +3,13 @@ package config
 import (
 	"fmt"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v4"
 	corev1 "k8s.io/api/core/v1"
 	k8syaml "sigs.k8s.io/yaml"
 )
 
-// Pod is a corev1.Pod that unmarshals from YAML using Kubernetes JSON tags
-// (metadata, spec, …). yaml.v3 alone would look for Go field names.
+// Pod is a corev1.Pod that (un)marshals YAML using Kubernetes JSON tags
+// (metadata, spec, …). go-yaml alone would look for Go field names.
 type Pod struct {
 	corev1.Pod `json:",inline"`
 }
@@ -21,6 +21,20 @@ func (p *Pod) UnmarshalYAML(value *yaml.Node) error {
 		return err
 	}
 	return k8syaml.Unmarshal(b, &p.Pod)
+}
+
+// MarshalYAML encodes the Kubernetes Pod using JSON tags as YAML keys.
+func (p Pod) MarshalYAML() (any, error) {
+	b, err := k8syaml.Marshal(&p.Pod)
+	if err != nil {
+		return nil, err
+	}
+	var out map[string]any
+	if err := yaml.Unmarshal(b, &out); err != nil {
+		return nil, err
+	}
+	delete(out, "status")
+	return out, nil
 }
 
 // OslatTaskConfig configures the oslat task.

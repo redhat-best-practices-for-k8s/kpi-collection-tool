@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/config"
-	taskprofiles "github.com/redhat-best-practices-for-k8s/kpi-collection-tool/task-profiles"
 )
 
 func TestSelectTasksNonTTYSkipsRecovery(t *testing.T) {
@@ -56,16 +55,12 @@ func TestSelectTasksInteractive(t *testing.T) {
 	}
 }
 
-func TestWriteInlineTasksKeepsPinpointComments(t *testing.T) {
+func TestWriteInlineTasksMarshalsTasksSpec(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "tasks.yaml")
 	queries := []config.Query{{ID: "cpu-node-total", PromQuery: "up", Category: "cpu"}}
-	frags, err := loadTaskFragments()
-	if err != nil {
-		t.Fatal(err)
-	}
 
-	err = writeInlineTasks(path, selectedTasks{prometheus: true, perNode: true, oslat: true}, queries, frags)
+	err := writeInlineTasks(path, selectedTasks{prometheus: true, perNode: true, oslat: true}, queries)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,6 +71,7 @@ func TestWriteInlineTasksKeepsPinpointComments(t *testing.T) {
 	}
 	text := string(data)
 	for _, want := range []string{
+		"orchestration:",
 		"order:",
 		"prometheus:",
 		"kpis:",
@@ -89,17 +85,27 @@ func TestWriteInlineTasksKeepsPinpointComments(t *testing.T) {
 			t.Fatalf("missing %q in:\n%s", want, text)
 		}
 	}
+
+	loaded, err := config.LoadTasksSpec(path)
+	if err != nil {
+		t.Fatalf("round-trip LoadTasksSpec: %v\n%s", err, text)
+	}
+	if loaded.Prometheus == nil || len(loaded.Prometheus.Kpis) != 1 {
+		t.Fatalf("expected prometheus KPIs, got %+v", loaded.Prometheus)
+	}
+	if loaded.PerNodeData == nil || loaded.Oslat == nil {
+		t.Fatalf("expected per-node and oslat, got perNode=%v oslat=%v", loaded.PerNodeData, loaded.Oslat)
+	}
+	if loaded.AppRecoveryTime != nil {
+		t.Fatal("did not select recovery")
+	}
 }
 
 func TestWriteInlineTasksPrometheusOnly(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "tasks.yaml")
-	frags, err := loadTaskFragments()
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = writeInlineTasks(path, selectedTasks{prometheus: true},
-		[]config.Query{{ID: "cpu-node-total", PromQuery: "up"}}, frags)
+	err := writeInlineTasks(path, selectedTasks{prometheus: true},
+		[]config.Query{{ID: "cpu-node-total", PromQuery: "up"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,15 +119,5 @@ func TestWriteInlineTasksPrometheusOnly(t *testing.T) {
 	}
 	if strings.Contains(text, "oslat:") || strings.Contains(text, "per-node-data:") {
 		t.Fatalf("unexpected non-prom tasks:\n%s", text)
-	}
-}
-
-func TestLoadTaskFragments(t *testing.T) {
-	frags, err := loadTaskFragments()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(frags[taskprofiles.PerNodeDataFull]) == 0 {
-		t.Fatal("empty per-node fragment")
 	}
 }
