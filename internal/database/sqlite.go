@@ -18,7 +18,10 @@ const (
 	// DefaultOutputDir is the default artifacts directory name, relative to CWD
 	DefaultOutputDir = "kpi-collector-artifacts"
 	// DefaultDBFileName is the SQLite database file name
-	DefaultDBFileName = "kpi_metrics.db"
+	DefaultDBFileName = "kpi_collector_results.db"
+	// legacyDBFileName is the pre-rename SQLite filename. InitDB renames it when
+	// DefaultDBFileName is missing so existing prometheus data keeps working.
+	legacyDBFileName = "kpi_metrics.db"
 	// DefaultTableName is the legacy table used for uncategorized KPIs
 	DefaultTableName = "query_results"
 )
@@ -37,13 +40,16 @@ func NewSQLiteDB() *SQLiteDB {
 }
 
 // InitDB initializes the SQLite database and creates required tables.
-// The database is stored in <OutputDir>/kpi_metrics.db.
+// The database is stored in <OutputDir>/kpi_collector_results.db.
 func (s *SQLiteDB) InitDB() (*sql.DB, error) {
-	dbPath := filepath.Join(OutputDir, DefaultDBFileName)
-
 	if err := os.MkdirAll(OutputDir, 0755); err != nil {
 		return nil, err
 	}
+
+	if err := MigrateLegacySQLiteFile(OutputDir); err != nil {
+		return nil, err
+	}
+	dbPath := filepath.Join(OutputDir, DefaultDBFileName)
 
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
@@ -147,4 +153,38 @@ func (s *SQLiteDB) LookupCategoryForKPI(db *sql.DB, kpiID string) (string, strin
 
 func (s *SQLiteDB) DeleteByCategory(db *sql.DB, category string) (int64, error) {
 	return deleteByCategory(db, category, schema.SQLiteDeleteRegistryByCategory)
+}
+
+// MigrateLegacySQLiteFile renames kpi_metrics.db → kpi_collector_results.db when
+// only the old name exists. Also renames WAL/SHM sidecars if present.
+// Call before opening or creating the SQLite file (e.g. InitDB, grafana start).
+func MigrateLegacySQLiteFile(dir string) error {
+	newPath := filepath.Join(dir, DefaultDBFileName)
+	if _, err := os.Stat(newPath); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	oldPath := filepath.Join(dir, legacyDBFileName)
+	if _, err := os.Stat(oldPath); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+
+	if err := os.Rename(oldPath, newPath); err != nil {
+		return fmt.Errorf("renaming %s to %s: %w", legacyDBFileName, DefaultDBFileName, err)
+	}
+	for _, suffix := range []string{"-wal", "-shm"} {
+		oldSide := oldPath + suffix
+		if _, err := os.Stat(oldSide); err != nil {
+			continue
+		}
+		if err := os.Rename(oldSide, newPath+suffix); err != nil {
+			return fmt.Errorf("renaming %s sidecar: %w", suffix, err)
+		}
+	}
+	return nil
 }
