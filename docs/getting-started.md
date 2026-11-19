@@ -57,7 +57,8 @@ the full schema and all four task types.
 
 ### Option B: Prometheus-only quickstart
 
-Generate a KPI file matching your cluster type (`ran`, `core`, or `hub`):
+Generate an inline `tasks.yaml` for your cluster type (`ran`, `core`, or `hub`).
+The command prompts for tasks; `--all` skips KPI domain prompts (not task prompts):
 
 ```bash
 kpi-collector kpis generate --profile ran --all
@@ -151,7 +152,7 @@ All timestamps are displayed in UTC. If you see data, everything is working corr
 - **Full validation run** — use `task-profiles/tasks-full.yaml` for production-scale durations. See [Task Profiles](../task-profiles/README.md).
 - **Understand the tasks file** — learn how orchestration, task types, and `configFile` work in [Tasks Configuration](tasks-configuration.md).
 - **Write your own task config** — each task type has a dedicated guide: [Per-Node Data](per-node-data-configuration.md), [Oslat](oslat-configuration.md), [App Recovery Time](app-recovery-time-configuration.md), [Prometheus KPIs](kpis-file-configuration.md).
-- **Generate a full prometheus KPI profile** — use `kpi-collector kpis generate --profile ran --all` to create a comprehensive Prometheus KPI file tailored to your cluster type. See [Prometheus KPI Configuration](kpis-file-configuration.md).
+- **Generate tasks.yaml** — use `kpi-collector kpis generate --profile ran --all` (prompts for tasks; `--all` = all KPI domains). See [Prometheus KPI Configuration](kpis-file-configuration.md).
 - **Longer collection runs** — remove `--once` and use `--frequency 1m --duration 1h` to collect Prometheus metrics over time. See [Collecting Prometheus Metrics](collecting-metrics.md).
 - **Visualize in Grafana** — launch a local Grafana dashboard with `kpi-collector grafana start --datasource=sqlite`. See [Grafana](grafana.md).
 - **Query and manage data** — filter, sort, and export stored Prometheus metrics with `kpi-collector db show`. See [Database Commands](database-commands.md).

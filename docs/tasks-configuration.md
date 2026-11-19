@@ -122,7 +122,8 @@ prometheus:
 
 `configFile` paths are resolved relative to the directory containing the tasks
 file. Use the built-in profiles under `prom-kpi-profiles/` or generate one with
-`kpi-collector kpis generate --profile ran --all`.
+`kpi-collector kpis generate --profile ran --all` (prompts for tasks; writes an
+inline `tasks.yaml`).
 
 For the full KPI YAML format (sampling frequency, categories, range queries,
 CPU placeholders), see [Prometheus KPI Configuration](kpis-file-configuration.md).

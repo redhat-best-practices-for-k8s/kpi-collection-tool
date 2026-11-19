@@ -81,18 +81,20 @@ OpenShift GitOps. Covers:
 
 ## Generating a KPI File
 
-Use `kpi-collector kpis generate` to create a tailored `kpis.yaml` from any of
-the three main profiles (`ran`, `core`, `hub`):
+Use `kpi-collector kpis generate` to create an inline `tasks.yaml` from any of
+the three main profiles (`ran`, `core`, `hub`). The command **always prompts
+for tasks**. `--all` skips KPI **domain** prompts only — it does not skip task
+prompts.
 
 ```bash
-# Generate all RAN KPIs at once
+# Prompts for tasks, then includes all KPI domains for the profile
 kpi-collector kpis generate --profile ran --all
 
-# Interactively pick which categories to include
+# Prompts for tasks and KPI domains
 kpi-collector kpis generate --profile core
 
-# Write to a custom path
-kpi-collector kpis generate --profile hub --all -f /path/to/hub-kpis.yaml
+# Custom output path
+kpi-collector kpis generate --profile hub --all -f /path/to/hub-tasks.yaml
 
 # Overwrite an existing file
 kpi-collector kpis generate --profile ran --all --overwrite
@@ -101,17 +103,11 @@ kpi-collector kpis generate --profile ran --all --overwrite
 kpi-collector kpis generate --profile ran --all --uncategorized
 ```
 
-By default the output file is named `<profile>-kpis.yaml` in the current
-directory. If the file already exists, the command will refuse to overwrite it
-unless you pass `--overwrite`. In interactive mode (the default), you are
-prompted per category — use `--all` to skip prompts and include everything.
+Default output is `tasks.yaml`. If the file already exists, pass `--overwrite`.
+See [KPI file configuration](../docs/kpis-file-configuration.md).
 
-Generated KPIs include a `category` field by default, which routes metrics into
-separate database tables for better query performance. Pass `--uncategorized`
-to omit the `category` field and store all metrics in a single table.
-
-Once generated, you can edit the file to fine-tune individual KPIs before
-passing it to the collector.
+Generated KPIs include a `category` field by default. Pass `--uncategorized`
+to omit it and store all metrics in a single table.
 
 ## Building Your Own
 
