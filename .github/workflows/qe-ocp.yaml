@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@v7.1.0
         with:
           go-version-file: go.mod
 
@@ -34,7 +34,7 @@ jobs:
           exit 1
 
       - name: Deploy OCP cluster
-        uses: palmsoftware/quick-ocp@v1.1.0
+        uses: palmsoftware/quick-ocp@v1.1.1
         with:
           ocpPullSecret: $OCP_PULL_SECRET
           desiredOCPVersion: "5.0"
