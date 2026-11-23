@@ -1,8 +1,10 @@
 # Validation Tasks Overview
 
-kpi-collector supports four task types that run against an OpenShift cluster.
-You configure them in a single `tasks.yaml` file and launch everything with
-one command:
+kpi-collector is a multi-task **orchestrator**: enable the tasks you need in one
+`tasks.yaml` and collect their artifacts together. Individual tasks are
+optional — for example, Prometheus-only collection is supported, and workload
+tests such as oslat can also be run outside this tool using Red Hat’s
+documented procedures.
 
 ```bash
 kpi-collector run --tasks tasks.yaml \
@@ -46,14 +48,14 @@ plus pod and node describes from the Kubernetes API.
 
 ### 3. Oslat — OS latency testing
 
-Creates a user-supplied Pod on the cluster, waits until it completes (or times
-out), and writes the pod's logs to an artifact file. You provide your own image
-and command — oslat, cyclictest, or any latency-measurement workload.
+Orchestrates a user-supplied Pod (create → wait → collect logs). Intended to
+wrap a supported latency-test workload alongside other tasks — not a separate
+oslat product. See [Oslat Configuration](oslat-configuration.md).
 
 | | |
 |---|---|
 | **Artifacts** | `oslat_logs.out` |
-| **Use when** | You need to measure OS-level latency on cluster nodes using your own test pod |
+| **Use when** | You want latency-test logs in the same automated run as other KPI tasks |
 | **Auth** | `--kubeconfig` with admin privileges |
 | **Config guide** | [Oslat Configuration](oslat-configuration.md) |
 

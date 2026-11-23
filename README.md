@@ -5,6 +5,18 @@ collect in a single `tasks.yaml` file, point the tool at a cluster, and it
 takes care of the rest — querying Prometheus/Thanos, running node-level
 diagnostics, measuring latency, and capturing application recovery data.
 
+This is an **upstream** project. kpi-collector is an **orchestrator**: it runs
+the validation tasks you configure (Prometheus metrics, node diagnostics,
+latency-test pods, recovery checks) so results can be collected in one place.
+It does not replace Red Hat’s supported test procedures or images — where those
+exist, use them in your task config.
+
+Examples and task profiles here are illustrative starting points, not
+product-supported procedures. Tasks are optional (for example, Prometheus-only
+is fine; latency tests can still be run outside this tool). Prefer configs from
+Red Hat product docs or your Red Hat engagement over inventing them from repo
+stubs.
+
 ## What it does
 
 kpi-collector runs **tasks** against an OpenShift cluster and produces KPI

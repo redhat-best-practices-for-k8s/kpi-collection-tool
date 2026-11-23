@@ -3,7 +3,9 @@
 # Creates a Pod on the cluster, waits for it to complete (or timeout), and
 # writes its logs to oslat_logs.out under --artifacts-dir.
 #
-# Replace the image and command below with your real oslat binary.
+# Placeholder example — replace the Pod with your real workload. For OpenShift
+# platform verification latency tests, use the image and Pod fields from:
+# https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/scalability_and_performance/cnf-performing-platform-verification-latency-tests
 # In disconnected environments, mirror the image to your local registry.
 #
 # Requires: --kubeconfig
@@ -20,7 +22,7 @@ oslat:
       #   kubernetes.io/hostname: CHANGE_ME
       containers:
         - name: oslat
-          image: CHANGE_ME  # Your oslat container image (e.g. your-registry.example.com/oslat:latest)
+          image: CHANGE_ME  # Your container image (see Red Hat latency-test docs for platform verification)
           command: ["oslat"]
           args: ["-D", "1800"]  # Example: run oslat for 1800 seconds
           # resources:                         # Uncomment to set resource requests/limits
