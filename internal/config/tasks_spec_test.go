@@ -23,14 +23,14 @@ var _ = Describe("TasksSpec Loader", func() {
 
 	const validPerNodeSection = `
   workloadNamespaces:
-    - nokia-workload
+    - example-workload
   duration: 30m
   interval: 5s
   image: example.registry/debug:latest`
 
 	const validRecoverySection = `
   workloadNamespaces:
-    - nokia-workload
+    - example-workload
   nodeNames:
     - worker-1
   duration: 30m
@@ -432,7 +432,7 @@ prometheus:
 
 		It("returns task configs in the fixed knownTaskConfigs order regardless of struct field order", func() {
 			cfg := TasksSpec{
-				AppRecoveryTime: &AppRecoveryTimeTaskConfig{WorkloadNamespaces: []string{"nokia-workload"}},
+				AppRecoveryTime: &AppRecoveryTimeTaskConfig{WorkloadNamespaces: []string{"example-workload"}},
 				Prometheus:      &PrometheusTaskConfig{Kpis: []Query{{ID: "x", PromQuery: "up"}}},
 			}
 			Expect(cfg.PresentTaskConfigs()).To(Equal([]string{TaskConfigPrometheus, TaskConfigAppRecoveryTime}))
