@@ -22,7 +22,7 @@ results collected in the same run as other validation tasks.
 Examples in this guide and under `task-profiles/` show the YAML shape and a
 plumbing smoke test — do not treat them as a production latency-test Pod. For
 OpenShift platform verification, use the image and Pod fields from Red Hat’s
-[platform verification latency tests](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/scalability_and_performance/cnf-performing-platform-verification-latency-tests)
+[platform verification latency tests](https://docs.redhat.com/en/documentation/openshift_container_platform/latest/html/scalability_and_performance/cnf-performing-platform-verification-latency-tests)
 docs (or a config provided by your Red Hat engagement), including
 `runtimeClassName` and low-latency CRIO annotations where required.
 
