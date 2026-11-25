@@ -73,6 +73,8 @@ oslat:
 | Field | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `timeout` | Yes | — | Maximum time to wait for the pod to complete. If the pod is still running when the timeout expires, the task collects whatever logs are available and moves on. Accepts a Go duration string (e.g. `30m`, `1h`). |
+| `mountKubeconfig` | No | `false` | When `true`, the tool creates a Secret from the run's `--kubeconfig` and injects it (volume + read-only mount + `KUBECONFIG` env) into every container. Removes the need to pre-create a Secret or hand-write the volume. |
+| `mountPath` | No | `/kubeconfig` | Mount path for the injected kubeconfig (only used with `mountKubeconfig`). The file lands at `<mountPath>/kubeconfig` and `KUBECONFIG` is set to it. |
 | `pod` | Yes | — | A full Kubernetes Pod manifest (metadata + spec). This is the exact Pod that will be created on the cluster. |
 | `pod.metadata.name` | Yes | — | The Pod name. |
 | `pod.metadata.namespace` | No | cluster default | Namespace to create the pod in. |
@@ -138,12 +140,14 @@ Paths are resolved relative to the directory containing the tasks file.
 
 ## Pod lifecycle
 
-1. **Create** — the task creates the Pod on the cluster exactly as specified.
+1. **Create** — the task creates the Pod on the cluster exactly as specified,
+   labeled `app.kubernetes.io/managed-by=kpi-collector`.
 2. **Wait** — the task polls the pod status until it reaches `Succeeded` or
    `Failed`, or until the `timeout` expires.
 3. **Collect** — pod logs are written to `oslat_logs.out`.
-4. **Cleanup** — the pod stays on the cluster so you can inspect it. Set
-   `orchestration.cleanup: true` to delete it when the task finishes or fails.
+4. **Cleanup** — when the task finishes (success, failure, or Ctrl+C) the pod
+   and its kubeconfig Secret are deleted. Run with `--nocleanup` to keep them
+   on the cluster for inspection.
 
 ## Pod spec tips
 
@@ -164,3 +168,45 @@ add matching tolerations to the pod spec.
 
 Requires `--kubeconfig` with admin privileges. The task creates a pod and reads
 its logs via the Kubernetes API.
+
+### Mounting a kubeconfig into the pod
+
+Some workloads (e.g. the Red Hat `cnf-tests` oslat harness) act as a client that
+talks to the cluster API from *inside* the pod, so they need a kubeconfig mounted
+in. Instead of running `oc create secret generic ... --from-file=kubeconfig=...`
+and wiring up the volume by hand, set `mountKubeconfig: true`:
+
+```yaml
+oslat:
+  timeout: 20m
+  mountKubeconfig: true        # tool creates the Secret and injects it
+  # mountPath: /kubeconfig     # optional; KUBECONFIG becomes <mountPath>/kubeconfig
+  pod:
+    metadata:
+      name: oslat-test
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: oslat
+          image: your-registry/cnf-tests-rhel9:v4.22
+          command: ["/usr/bin/test-run.sh"]
+          args: ["--ginkgo.v", "--ginkgo.focus=oslat"]
+```
+
+The tool creates a Secret named `<pod-name>-kubeconfig` from the run's
+`--kubeconfig`, mounts it read-only at `mountPath`, and sets `KUBECONFIG` on every
+container, init containers included (an existing `KUBECONFIG` env is left
+untouched). The pod and the Secret are labeled with the run's ownership labels.
+
+When the task finishes — successfully or not — the pod and the Secret are
+deleted, so no credentials remain in the cluster afterwards. With
+`--nocleanup`, both stay on the cluster instead; note the Secret is a **live
+credential** — remove it manually or let the next run remove it. Either way,
+the next run deletes any labeled leftovers at startup, before creating
+anything, so re-runs never collide with stale objects. See
+[resource cleanup](tasks-configuration.md#resource-cleanup-and-ownership).
+
+> **Proxy note:** the mounted kubeconfig runs in-cluster, so it must **not**
+> contain a `proxy-url` pointing at a laptop-local proxy (it is unreachable from
+> the pod). Keep the kubeconfig proxy-free and pass the proxy to the tool with
+> `--proxy-url` instead.

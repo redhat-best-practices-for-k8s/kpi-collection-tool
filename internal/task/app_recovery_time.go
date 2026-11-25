@@ -24,13 +24,16 @@ const (
 type AppRecoveryTimeTask struct {
 	cfg          config.AppRecoveryTimeTaskConfig
 	kubeconfig   string
+	proxyURL     string
 	artifactsDir string
-	cleanup      bool
+	runID        string
+	noCleanup    bool
+	tracker      objectTracker
 }
 
 // NewAppRecoveryTimeTask constructs an app-recovery-time task.
-func NewAppRecoveryTimeTask(cfg config.AppRecoveryTimeTaskConfig, kubeconfig, artifactsDir string) *AppRecoveryTimeTask {
-	return &AppRecoveryTimeTask{cfg: cfg, kubeconfig: kubeconfig, artifactsDir: artifactsDir}
+func NewAppRecoveryTimeTask(cfg config.AppRecoveryTimeTaskConfig, kubeconfig, proxyURL, artifactsDir string) *AppRecoveryTimeTask {
+	return &AppRecoveryTimeTask{cfg: cfg, kubeconfig: kubeconfig, proxyURL: proxyURL, artifactsDir: artifactsDir}
 }
 
 func (t *AppRecoveryTimeTask) Name() string { return config.TaskConfigAppRecoveryTime }
@@ -40,21 +43,27 @@ func (t *AppRecoveryTimeTask) Name() string { return config.TaskConfigAppRecover
 // duration. List/get failures are written to pod_status.out; the poll loop
 // continues until duration elapses. File write errors and Ctrl+C still fail.
 func (t *AppRecoveryTimeTask) Run(ctx context.Context) error {
-	client, err := kubernetes.ClientsetFromKubeconfig(t.kubeconfig)
+	client, err := kubernetes.ClientsetFromKubeconfig(t.kubeconfig, t.proxyURL)
 	if err != nil {
 		return fmt.Errorf("%s: %w", t.Name(), err)
 	}
 
 	taskName := t.Name()
+
+	// Delete exactly the reboot pods this task created — on every exit path —
+	// unless --nocleanup was given. Leftovers from a prior run were already
+	// removed by the pre-run sweep in the run command.
+	if !t.noCleanup {
+		defer t.tracker.DeleteAll(ctx, client, taskName)
+	}
+
 	for _, nodeName := range t.cfg.NodeNames {
 		output.PrintTaskProgress(taskName, fmt.Sprintf("creating reboot pod on %s", nodeName))
-		created, err := kubernetes.CreateRebootPod(ctx, client, nodeName, t.cfg.Image)
+		created, err := kubernetes.CreateRebootPod(ctx, client, nodeName, t.cfg.Image, t.runID)
 		if err != nil {
 			return fmt.Errorf("%s: %w", t.Name(), err)
 		}
-		if t.cleanup {
-			defer removePod(ctx, client, created.Namespace, created.Name, taskName)
-		}
+		t.tracker.Add("pod", created.Namespace, created.Name)
 	}
 
 	output.PrintTaskProgress(taskName, fmt.Sprintf("waiting for node(s) NotReady (timeout=%s)", notReadyWaitTimeout))
