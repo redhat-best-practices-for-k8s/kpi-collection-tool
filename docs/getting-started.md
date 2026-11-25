@@ -3,6 +3,12 @@
 This guide walks you through installing kpi-collector and running your first
 collection. By the end you will have real data from your cluster stored locally.
 
+> [!NOTE]
+> This repository is upstream. kpi-collector orchestrates optional validation
+> tasks — sample configs here show how to drive the tool, not product-supported
+> procedures. Prefer Red Hat product docs (or configs from your engagement) and
+> plug those into kpi-collector when you want automation.
+
 ## Prerequisites
 
 Before you begin, make sure you have:

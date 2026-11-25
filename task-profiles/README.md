@@ -78,7 +78,7 @@ Before running a **full** validation, review and edit `CHANGE_ME` placeholders:
 | `nodeNames` | `app-recovery-time-*.yaml` | Kubernetes node names of disposable lab workers |
 | `workloadNamespaces` | `per-node-data-full.yaml`, `app-recovery-time-full.yaml` | Namespaces where your workload pods run |
 | `isolcpus` | `per-node-data-full.yaml` | Isolated CPU list; omit to use the PerformanceProfile isolated CPU set |
-| `image` (oslat) | `oslat-full.yaml` | Your real oslat container image |
+| `image` (oslat) | `oslat-full.yaml` | Your latency-test image (see [oslat docs](../docs/oslat-configuration.md) / Red Hat latency-test docs for platform verification) |
 | All `image` fields | All fragments | Mirror to a local registry in disconnected environments |
 
 ## Artifacts

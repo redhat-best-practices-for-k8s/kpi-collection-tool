@@ -10,13 +10,21 @@ Related guides:
 
 ## What it does
 
-The oslat task creates a user-supplied Pod on the cluster, waits until it
-completes (or the timeout expires), then collects the pod's logs and writes them
-to an artifact file. The task does **not** provide an oslat binary — you supply
-your own image and command.
+The oslat task is a thin **orchestrator** step: it creates a user-supplied Pod,
+waits until it completes (or the timeout expires), then writes the pod's logs
+to an artifact file. It does **not** ship an oslat binary or replace Red Hat’s
+supported latency-test tooling — you supply the Pod.
 
-This design lets you run any latency-measurement pod (oslat, cyclictest, or
-a custom workload) using the same create → wait → collect pipeline.
+This task is optional. You can collect Prometheus metrics without it, or run
+supported latency tests outside kpi-collector. Use it when you want those
+results collected in the same run as other validation tasks.
+
+Examples in this guide and under `task-profiles/` show the YAML shape and a
+plumbing smoke test — do not treat them as a production latency-test Pod. For
+OpenShift platform verification, use the image and Pod fields from Red Hat’s
+[platform verification latency tests](https://docs.redhat.com/en/documentation/openshift_container_platform/latest/html/scalability_and_performance/cnf-performing-platform-verification-latency-tests)
+docs (or a config provided by your Red Hat engagement), including
+`runtimeClassName` and low-latency CRIO annotations where required.
 
 **Artifact:** `oslat_logs.out` under `--artifacts-dir`
 
@@ -26,6 +34,9 @@ The configuration lives under an `oslat:` root key — either inline in a
 `tasks.yaml` or in a standalone file referenced via `configFile`.
 
 ### Minimal example
+
+Plumbing smoke test (not a latency measurement) — useful to verify create →
+wait → collect:
 
 ```yaml
 oslat:
@@ -42,6 +53,9 @@ oslat:
 ```
 
 ### Full example with all fields
+
+Schema example with common PodSpec fields. Replace the Pod contents with your
+real workload (for platform verification, prefer the Red Hat docs linked above):
 
 ```yaml
 oslat:
@@ -77,7 +91,7 @@ oslat:
 | `pod.metadata.name` | Yes | — | The Pod name. |
 | `pod.metadata.namespace` | No | cluster default | Namespace to create the pod in. |
 | `pod.spec.containers[].image` | Yes | — | Container image for each container. |
-| `pod.spec` | Yes | — | Standard Kubernetes PodSpec — you can use any valid fields (`nodeSelector`, `resources`, `tolerations`, `volumes`, etc.). |
+| `pod.spec` | Yes | — | Standard Kubernetes PodSpec — you can use any valid fields (`runtimeClassName`, annotations, `nodeSelector`, `resources`, `tolerations`, `volumes`, etc.). |
 
 ### Validation rules
 
@@ -159,6 +173,11 @@ workload gets dedicated resources and isn't throttled.
 
 **`tolerations`** — if your target node has taints (common on RAN/DU workers),
 add matching tolerations to the pod spec.
+
+**Low-latency fields** — for meaningful platform verification results, include
+fields such as `runtimeClassName` and low-latency CRIO annotations as required
+by the Red Hat latency-test docs linked above. The task creates the Pod exactly
+as you specify; it does not add those fields for you.
 
 ## Authentication
 
