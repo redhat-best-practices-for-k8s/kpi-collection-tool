@@ -6,30 +6,39 @@ import (
 	"os"
 	"path/filepath"
 
+	corev1 "k8s.io/api/core/v1"
+	k8s "k8s.io/client-go/kubernetes"
+
 	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/config"
 	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/kubernetes"
 	"github.com/redhat-best-practices-for-k8s/kpi-collection-tool/internal/output"
 )
 
-const oslatLogsFileName = "oslat_logs.out"
+const (
+	oslatLogsFileName = "oslat_logs.out"
+	// kubeconfigVolumeName is the volume injected when mountKubeconfig is set.
+	kubeconfigVolumeName   = "kubeconfig"
+	defaultKubeconfigMount = "/kubeconfig"
+)
 
 // OslatTask creates a user-supplied Pod, waits for it to finish, and writes logs.
 type OslatTask struct {
 	cfg          config.OslatTaskConfig
 	kubeconfig   string
+	proxyURL     string
 	artifactsDir string
 	cleanup      bool
 }
 
 // NewOslatTask constructs an oslat task.
-func NewOslatTask(cfg config.OslatTaskConfig, kubeconfig, artifactsDir string) *OslatTask {
-	return &OslatTask{cfg: cfg, kubeconfig: kubeconfig, artifactsDir: artifactsDir}
+func NewOslatTask(cfg config.OslatTaskConfig, kubeconfig, proxyURL, artifactsDir string) *OslatTask {
+	return &OslatTask{cfg: cfg, kubeconfig: kubeconfig, proxyURL: proxyURL, artifactsDir: artifactsDir}
 }
 
 func (t *OslatTask) Name() string { return config.TaskConfigOslat }
 
 func (t *OslatTask) Run(ctx context.Context) error {
-	client, err := kubernetes.ClientsetFromKubeconfig(t.kubeconfig)
+	client, err := kubernetes.ClientsetFromKubeconfig(t.kubeconfig, t.proxyURL)
 	if err != nil {
 		return fmt.Errorf("%s: %w", t.Name(), err)
 	}
@@ -40,6 +49,18 @@ func (t *OslatTask) Run(ctx context.Context) error {
 	}
 	if pod.Kind == "" {
 		pod.Kind = "Pod"
+	}
+
+	if t.cfg.MountKubeconfig {
+		secretName, err := t.injectKubeconfig(ctx, client, pod)
+		if err != nil {
+			return fmt.Errorf("%s: %w", t.Name(), err)
+		}
+		// Registered before CreatePod so the Secret is deleted on every exit
+		// path — including a failed pod creation — whenever cleanup is on.
+		if t.cleanup {
+			defer removeSecret(ctx, client, pod.Namespace, secretName, t.Name())
+		}
 	}
 
 	created, err := kubernetes.CreatePod(ctx, client, pod)
@@ -78,4 +99,109 @@ func (t *OslatTask) Run(ctx context.Context) error {
 		return fmt.Errorf("%s: %w", t.Name(), logErr)
 	}
 	return nil
+}
+
+// injectKubeconfig creates a Secret from the run's --kubeconfig and wires it into
+// the pod: a secret-backed volume, a read-only mount, and a KUBECONFIG env var on
+// every container (init containers included). This replaces the manual
+// `oc create secret` + hand-written volume boilerplate. The mounted kubeconfig
+// must be proxy-free, since it runs in-cluster where the laptop proxy is
+// unreachable (use --proxy-url instead). It returns the created Secret's name so
+// the caller can register its cleanup. All pod-spec validation runs before the
+// Secret is created, so a rejected spec leaves nothing behind.
+func (t *OslatTask) injectKubeconfig(ctx context.Context, client k8s.Interface, pod *corev1.Pod) (string, error) {
+	if t.kubeconfig == "" {
+		return "", fmt.Errorf("mountKubeconfig is set but --kubeconfig was not provided")
+	}
+	data, err := os.ReadFile(t.kubeconfig)
+	if err != nil {
+		return "", fmt.Errorf("failed to read kubeconfig %q: %w", t.kubeconfig, err)
+	}
+
+	ns := pod.Namespace
+	if ns == "" {
+		ns = "default"
+		pod.Namespace = ns
+	}
+	secretName := pod.Name + "-kubeconfig"
+
+	mountPath := t.cfg.MountPath
+	if mountPath == "" {
+		mountPath = defaultKubeconfigMount
+	}
+
+	if hasVolume(pod.Spec.Volumes, kubeconfigVolumeName) {
+		return "", fmt.Errorf(
+			"volume %q already defined in the pod spec; rename it or disable mountKubeconfig",
+			kubeconfigVolumeName)
+	}
+	if hasVolumeMount(pod.Spec.Containers, kubeconfigVolumeName) ||
+		hasVolumeMount(pod.Spec.InitContainers, kubeconfigVolumeName) {
+		return "", fmt.Errorf(
+			"volumeMount %q already defined in the pod spec; rename it or disable mountKubeconfig",
+			kubeconfigVolumeName)
+	}
+
+	if err := kubernetes.CreateOrUpdateSecret(ctx, client, ns, secretName, map[string][]byte{"kubeconfig": data}); err != nil {
+		return "", err
+	}
+	pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
+		Name: kubeconfigVolumeName,
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{SecretName: secretName},
+		},
+	})
+	mountKubeconfigToContainers(pod.Spec.Containers, mountPath)
+	mountKubeconfigToContainers(pod.Spec.InitContainers, mountPath)
+	return secretName, nil
+}
+
+// mountKubeconfigToContainers adds the kubeconfig volume mount and KUBECONFIG
+// env var to each container, leaving containers that already set KUBECONFIG
+// untouched.
+func mountKubeconfigToContainers(containers []corev1.Container, mountPath string) {
+	for i := range containers {
+		c := &containers[i]
+		c.VolumeMounts = append(c.VolumeMounts, corev1.VolumeMount{
+			Name:      kubeconfigVolumeName,
+			MountPath: mountPath,
+			ReadOnly:  true,
+		})
+		if !hasEnv(c.Env, "KUBECONFIG") {
+			c.Env = append(c.Env, corev1.EnvVar{Name: "KUBECONFIG", Value: mountPath + "/kubeconfig"})
+		}
+	}
+}
+
+// hasEnv reports whether an env var with the given name is already set.
+func hasEnv(env []corev1.EnvVar, name string) bool {
+	for _, e := range env {
+		if e.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+// hasVolumeMount reports whether a container already mounts a volume with the
+// given name.
+func hasVolumeMount(containers []corev1.Container, name string) bool {
+	for i := range containers {
+		for _, vm := range containers[i].VolumeMounts {
+			if vm.Name == name {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// hasVolume reports whether a volume with the given name is already defined.
+func hasVolume(volumes []corev1.Volume, name string) bool {
+	for _, v := range volumes {
+		if v.Name == name {
+			return true
+		}
+	}
+	return false
 }

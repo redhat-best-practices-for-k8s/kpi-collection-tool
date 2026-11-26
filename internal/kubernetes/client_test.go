@@ -67,7 +67,7 @@ var _ = Describe("Kubernetes Client", func() {
 			nonExistentPath := filepath.Join(tmpDir, "nonexistent-kubeconfig")
 
 			By("We try to setup a Kubernetes client with invalid kubeconfig path")
-			clientset, err := ClientsetFromKubeconfig(nonExistentPath)
+			clientset, err := ClientsetFromKubeconfig(nonExistentPath, "")
 
 			// We should get an error
 			Expect(err).To(HaveOccurred())
@@ -82,7 +82,7 @@ var _ = Describe("Kubernetes Client", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("We try to setup a Kubernetes client with this invalid config")
-			clientset, err := ClientsetFromKubeconfig(kubeconfigPath)
+			clientset, err := ClientsetFromKubeconfig(kubeconfigPath, "")
 
 			// We should get an error
 			Expect(err).To(HaveOccurred())
@@ -117,7 +117,7 @@ users:
 			Expect(err).NotTo(HaveOccurred())
 
 			By("We setup a Kubernetes client with this valid config")
-			clientset, err := ClientsetFromKubeconfig(kubeconfigPath)
+			clientset, err := ClientsetFromKubeconfig(kubeconfigPath, "")
 
 			// We should not get an error
 			Expect(err).NotTo(HaveOccurred())
@@ -131,6 +131,70 @@ users:
 			Expect(restConfig.Host).To(Equal("https://localhost:6443"))
 			Expect(restConfig.BearerToken).To(Equal("test-token"))
 			Expect(restConfig.Insecure).To(BeTrue())
+		})
+
+		It("should successfully create a clientset with a valid proxy URL", func() {
+			validConfig := `
+apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    server: https://localhost:6443
+    insecure-skip-tls-verify: true
+  name: test-cluster
+contexts:
+- context:
+    cluster: test-cluster
+    user: test-user
+  name: test-context
+current-context: test-context
+users:
+- name: test-user
+  user:
+    token: test-token
+`
+			err := os.WriteFile(kubeconfigPath, []byte(validConfig), 0644)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("We setup a Kubernetes client with a scheme-qualified proxy URL")
+			clientset, err := ClientsetFromKubeconfig(kubeconfigPath, "http://127.0.0.1:8080")
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(clientset).NotTo(BeNil())
+		})
+
+		It("should return an error when the proxy URL is missing a valid scheme", func() {
+			validConfig := `
+apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    server: https://localhost:6443
+    insecure-skip-tls-verify: true
+  name: test-cluster
+contexts:
+- context:
+    cluster: test-cluster
+    user: test-user
+  name: test-context
+current-context: test-context
+users:
+- name: test-user
+  user:
+    token: test-token
+`
+			err := os.WriteFile(kubeconfigPath, []byte(validConfig), 0644)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("We setup a Kubernetes client with a scheme-less proxy URL")
+			clientset, err := ClientsetFromKubeconfig(kubeconfigPath, "myproxy.example.com:8080")
+
+			// url.Parse accepts scheme-less URLs like "host:8080" by reading
+			// "host" as the scheme; the proxy transport would then silently
+			// fail at request time, so unsupported schemes are rejected early.
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("unsupported scheme"))
+			Expect(clientset).To(BeNil())
 		})
 	})
 
@@ -326,7 +390,7 @@ users:
 		It("should return an error when kubeconfig file does not exist", func() {
 			nonExistentPath := filepath.Join(tmpDir, "nonexistent")
 
-			thanosURL, token, err := SetupKubeconfigAuth(nonExistentPath, time.Hour)
+			thanosURL, token, err := SetupKubeconfigAuth(nonExistentPath, "", time.Hour)
 
 			Expect(err).To(HaveOccurred())
 			Expect(thanosURL).To(BeEmpty())
@@ -338,7 +402,7 @@ users:
 			err := os.WriteFile(kubeconfigPath, invalidConfig, 0644)
 			Expect(err).NotTo(HaveOccurred())
 
-			thanosURL, token, err := SetupKubeconfigAuth(kubeconfigPath, time.Hour)
+			thanosURL, token, err := SetupKubeconfigAuth(kubeconfigPath, "", time.Hour)
 
 			Expect(err).To(HaveOccurred())
 			Expect(thanosURL).To(BeEmpty())
@@ -368,7 +432,7 @@ users:
 			err := os.WriteFile(kubeconfigPath, []byte(validConfig), 0644)
 			Expect(err).NotTo(HaveOccurred())
 
-			thanosURL, token, err := SetupKubeconfigAuth(kubeconfigPath, time.Hour)
+			thanosURL, token, err := SetupKubeconfigAuth(kubeconfigPath, "", time.Hour)
 
 			Expect(err).To(HaveOccurred())
 			Expect(thanosURL).To(BeEmpty())

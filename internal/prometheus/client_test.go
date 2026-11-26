@@ -274,7 +274,7 @@ var _ = Describe("Client", func() {
 			insecureTLS := true
 
 			// We setup the Prometheus client
-			promClient, err := setupPromClient(thanosURL, bearerToken, insecureTLS)
+			promClient, err := setupPromClient(thanosURL, bearerToken, "", insecureTLS)
 
 			// The client should be created successfully
 			Expect(err).NotTo(HaveOccurred())
@@ -290,11 +290,30 @@ var _ = Describe("Client", func() {
 			bearerToken := ""
 
 			// We create the client
-			promClient, err := setupPromClient(thanosURL, bearerToken, true)
+			promClient, err := setupPromClient(thanosURL, bearerToken, "", true)
 
 			// It should still succeed (auth might fail later, but client creation works)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(promClient).NotTo(BeNil())
+		})
+
+		It("should accept a valid socks5 proxy URL", func() {
+			promClient, err := setupPromClient("thanos.example.com", "token", "socks5://127.0.0.1:1337", true)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(promClient).NotTo(BeNil())
+		})
+
+		It("should reject an invalid proxy URL", func() {
+			promClient, err := setupPromClient("thanos.example.com", "token", "://bad", true)
+			Expect(err).To(HaveOccurred())
+			Expect(promClient).To(BeNil())
+		})
+
+		It("should reject a proxy URL without a valid scheme", func() {
+			promClient, err := setupPromClient("thanos.example.com", "token", "myproxy.example.com:8080", true)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("unsupported scheme"))
+			Expect(promClient).To(BeNil())
 		})
 
 		// Test with insecure TLS disabled
@@ -305,7 +324,7 @@ var _ = Describe("Client", func() {
 			insecureTLS := false
 
 			// We create the client
-			promClient, err := setupPromClient(thanosURL, bearerToken, insecureTLS)
+			promClient, err := setupPromClient(thanosURL, bearerToken, "", insecureTLS)
 
 			// It should succeed
 			Expect(err).NotTo(HaveOccurred())
